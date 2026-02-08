@@ -21,9 +21,10 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
 
     path("dashboard/", include("dashboard.urls")),
+    path("business/", include("core.urls", namespace="core")),
     path("", include("ledger.urls")),
     path("reports/", include("reports.urls", namespace="reports")),
-     path("vehicles/", include("vehicles.urls", namespace="vehicles")),
+    path("vehicles/", include("vehicles.urls", namespace="vehicles")),
 ]
 
 

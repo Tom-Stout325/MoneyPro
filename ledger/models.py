@@ -8,16 +8,10 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.db.models import Q
 
+from core.models import OwnedModelMixin
 
 
 
-
-
-class OwnedModelMixin(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-
-    class Meta:
-        abstract = True
 
 
 class Category(OwnedModelMixin):
@@ -325,20 +319,16 @@ class Transaction(OwnedModelMixin):
 
 class Payee(OwnedModelMixin):
     display_name  = models.CharField(max_length=255)
-
     legal_name    = models.CharField(max_length=255, blank=True)
     business_name = models.CharField(max_length=255, blank=True)
-
     email         = models.EmailField(blank=True)
     phone         = models.CharField(max_length=50, blank=True)
-
     address1      = models.CharField(max_length=255, blank=True)
     address2      = models.CharField(max_length=255, blank=True)
     city          = models.CharField(max_length=120, blank=True)
     state         = models.CharField(max_length=50, blank=True)
     zip_code      = models.CharField(max_length=20, blank=True)
     country       = models.CharField(max_length=50, blank=True, default="US")
-
     is_vendor     = models.BooleanField(default=True)
     is_customer   = models.BooleanField(default=False)
     is_contractor = models.BooleanField(default=False)

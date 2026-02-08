@@ -84,6 +84,7 @@ LOCAL_APPS = [
     'dashboard',
     'ledger',
     'reports',
+    'core',
     'vehicles',
 
 ]
@@ -107,11 +108,15 @@ MIDDLEWARE = [
 
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "core.middleware.ActiveBusinessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
 
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
     "simple_history.middleware.HistoryRequestMiddleware",
+    
+    
+    
 ]
 
 

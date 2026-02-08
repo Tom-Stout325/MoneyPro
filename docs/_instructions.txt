@@ -1,92 +1,15 @@
-# ============================
-# Core Django
-# ============================
-Django
-django-environ
-psycopg[binary]
-gunicorn
-whitenoise
+Zip Process:
 
-# ============================
-# Auth & Security
-# ============================
-django-allauth
-django-axes
-django-cors-headers
-argon2-cffi
-
-# ============================
-# Multi-Tenancy / Data Safety
-# ============================
-django-simple-history
-
-django-filter
-
-# ============================
-# Forms & UI
-# ============================
-django-crispy-forms
-crispy-bootstrap5
-django-widget-tweaks
-
-# ============================
-# API
-# ============================
-djangorestframework
-djangorestframework-simplejwt
-
-# ============================
-# Files & Documents
-# ============================
-django-storages
-boto3
-Pillow
-pypdf
+zip -r MoneyPro.zip . \
+  -x "venv/*" \
+  -x ".git/*" \
+  -x "__pycache__/*" \
+  -x "*.pyc" \
+  -x ".DS_Store" \
+  -x "__MACOSX/*" \
+  -x "staticfiles/*"
 
 
-# ============================
-# Reporting & Data
-# ============================
-pandas
-numpy
-python-dateutil
-
-# ============================
-# Background Jobs
-# ============================
-celery
-redis
-django-celery-beat
-
-
-
-# ============================
-# Data Import / Export
-# ============================
-tablib
-django-import-export
-
-# ============================
-# Dev & Testing
-# ============================
-django-debug-toolbar
-ipython
-factory-boy
-pytest-django
-coverage
-
-
-# ============================
-# PDF Generation (WeasyPrint)
-# ============================
-weasyprint>=59.0
-pydyf==0.6.0
-cffi==2.0.0
-tinycss2==1.4.0
-cssselect2==0.8.0
-html5lib==1.1
-fonttools==4.57.0
-fonttools>=4.53
 
 
 

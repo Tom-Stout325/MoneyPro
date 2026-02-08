@@ -1,0 +1,25 @@
+chmod +x scripts/zip_project.sh
+./scripts/zip_project.sh
+
+
+
+
+Backup the poject:
+cp -R _MONEYPRO _MONEYPRO_backup
+
+cd into the root folder
+
+unzip ~/Downloads/MoneyPro_phase1_business_tenant.zip
+
+git statis
+
+python manage.py check
+python manage.py makemigrations
+python manage.py migrate
+
+python manage.py runserver
+
+
+git add .
+git commit -m "Phase 1: introduce Business tenancy"
+git push
