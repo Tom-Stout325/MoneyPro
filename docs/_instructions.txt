@@ -1,0 +1,121 @@
+# ============================
+# Core Django
+# ============================
+Django
+django-environ
+psycopg[binary]
+gunicorn
+whitenoise
+
+# ============================
+# Auth & Security
+# ============================
+django-allauth
+django-axes
+django-cors-headers
+argon2-cffi
+
+# ============================
+# Multi-Tenancy / Data Safety
+# ============================
+django-simple-history
+
+django-filter
+
+# ============================
+# Forms & UI
+# ============================
+django-crispy-forms
+crispy-bootstrap5
+django-widget-tweaks
+
+# ============================
+# API
+# ============================
+djangorestframework
+djangorestframework-simplejwt
+
+# ============================
+# Files & Documents
+# ============================
+django-storages
+boto3
+Pillow
+pypdf
+
+
+# ============================
+# Reporting & Data
+# ============================
+pandas
+numpy
+python-dateutil
+
+# ============================
+# Background Jobs
+# ============================
+celery
+redis
+django-celery-beat
+
+
+
+# ============================
+# Data Import / Export
+# ============================
+tablib
+django-import-export
+
+# ============================
+# Dev & Testing
+# ============================
+django-debug-toolbar
+ipython
+factory-boy
+pytest-django
+coverage
+
+
+# ============================
+# PDF Generation (WeasyPrint)
+# ============================
+weasyprint>=59.0
+pydyf==0.6.0
+cffi==2.0.0
+tinycss2==1.4.0
+cssselect2==0.8.0
+html5lib==1.1
+fonttools==4.57.0
+fonttools>=4.53
+
+
+
+
+primary = #7B9669
+secondary = #2C4C5C
+success = #3C9EA4
+danger = #D6794D
+warning = #DDB05E
+info = #BAC8B1
+
+text-light = #E6E6E6
+text-dark
+text-muted
+
+
+#404E3B
+#D6794D
+#6C8480
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
+
+
+
+.nunito-<uniquifier> {
+  font-family: "Nunito", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: <weight>;
+  font-style: normal;
+}

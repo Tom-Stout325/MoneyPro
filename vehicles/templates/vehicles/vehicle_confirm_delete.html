@@ -1,0 +1,32 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">{{ vehicle.label }}</h1>
+      <div class="text-muted small">
+        {% if vehicle.year %}{{ vehicle.year }}{% endif %}
+        {% if vehicle.make %}{{ vehicle.make }}{% endif %}
+        {% if vehicle.model %}{{ vehicle.model }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}">Back</a>
+      <a class="btn btn-outline-primary" href="{% url 'vehicles:vehicle_edit' vehicle.pk %}">Edit</a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body">
+      <div class="row g-3 small">
+        <div class="col-12 col-md-6"><span class="text-muted">Plate:</span> {{ vehicle.plate|default:"—" }}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">VIN (last 6):</span> {{ vehicle.vin_last6|default:"—" }}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">In service:</span> {{ vehicle.in_service_date|default:"—" }}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Sold:</span> {{ vehicle.sold_date|default:"—" }}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Business:</span> {{ vehicle.is_business|yesno:"Yes,No" }}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Active:</span> {{ vehicle.is_active|yesno:"Yes,No" }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends "index.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Settings | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">Settings</h1>
+      <div class="text-muted small">Account & company profile</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+
+    <!-- Company -->
+<div class="card shadow-sm">
+  <div class="card-body p-3 p-md-4">
+
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h2 class="h6 mb-0">Business info</h2>
+        <div class="text-muted small">Used on invoices, PDFs, and reports.</div>
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="form_id" value="company">
+
+      <!-- Identity -->
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Identity</div>
+        <div class="row g-3">
+          <div class="col-12">
+            {{ company_form.company_name|as_crispy_field }}
+          </div>
+          <div class="col-12">
+            {{ company_form.legal_name|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-6">
+            {{ company_form.ein|as_crispy_field }}
+            <div class="form-text">Format: 12-3456789 (optional)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact -->
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Contact</div>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            {{ company_form.phone|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-6">
+            {{ company_form.billing_email|as_crispy_field }}
+            <div class="form-text">Can be different from your login email.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Address -->
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Address</div>
+        <div class="row g-3">
+          <div class="col-12">
+            {{ company_form.address_line1|as_crispy_field }}
+          </div>
+          <div class="col-12">
+            {{ company_form.address_line2|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-5">
+            {{ company_form.city|as_crispy_field }}
+          </div>
+          <div class="col-6 col-md-3">
+            {{ company_form.state|as_crispy_field }}
+          </div>
+          <div class="col-6 col-md-4">
+            {{ company_form.postal_code|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-4">
+            {{ company_form.country|as_crispy_field }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Branding -->
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Branding</div>
+
+        {% if company_form.instance.logo %}
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="border rounded-3 p-2 bg-light">
+              <img
+                src="{{ company_form.instance.logo.url }}"
+                alt="Company logo"
+                style="height:56px; width:auto; display:block;"
+              >
+            </div>
+            <div class="small text-muted">
+              Current logo<br>
+              <span class="text-muted">Upload a new file to replace it.</span>
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="row g-3">
+          <div class="col-12 col-md-8">
+            {{ company_form.logo|as_crispy_field }}
+            <div class="form-text">PNG/JPG recommended. Used on invoices and PDFs.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Locale -->
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Locale & formatting</div>
+        <div class="row g-3">
+          <div class="col-12 col-md-8">
+            {{ company_form.timezone|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-4">
+            {{ company_form.currency|as_crispy_field }}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-grid d-sm-flex gap-2">
+        <button type="submit" class="btn btn-primary w-100 w-sm-auto py-2">
+          Save business info
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
+
+    <!-- User -->
+    <div class="col-12 col-lg-5">
+
+      <!-- Mobile: collapsible -->
+      <div class="card shadow-sm mb-3 d-lg-none">
+        <div class="card-body p-3">
+          <button
+            class="btn w-100 d-flex justify-content-between align-items-center p-0 text-start"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#userInfoCollapse"
+            aria-expanded="false"
+            aria-controls="userInfoCollapse"
+          >
+            <div>
+              <div class="fw-semibold">User info</div>
+              <div class="text-muted small">Tap to edit your name and email</div>
+            </div>
+            <span class="text-muted">
+              <i class="fa-solid fa-chevron-down"></i>
+            </span>
+          </button>
+        </div>
+
+        <div class="collapse {% if user_form.errors %}show{% endif %}" id="userInfoCollapse">
+          <div class="card-body pt-0 p-3">
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <input type="hidden" name="form_id" value="user">
+              {{ user_form|crispy }}
+              <button type="submit" class="btn btn-outline-primary w-100 py-2 mt-2">
+                Save user info
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop: always visible -->
+      <div class="card shadow-sm mb-3 d-none d-lg-block">
+        <div class="card-body p-3 p-md-4">
+          <h2 class="h6 mb-2 text-primary">User info</h2>
+          <div class="text-muted small mb-3">
+            This is your login identity and contact email.
+          </div>
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="form_id" value="user">
+            {{ user_form|crispy }}
+            <button type="submit" class="btn btn-outline-primary w-100 w-sm-auto py-2 mt-2">
+              Save user info
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Security card stays as-is -->
+      <div class="card shadow-sm">
+        <div class="card-body p-3 p-md-4">
+          <h2 class="h6 mb-2">Security</h2>
+
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'account_change_password' %}">
+              Change password
+            </a>
+          </div>
+
+          <hr class="my-3">
+
+          <form method="post" action="{% url 'account_logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger w-100">
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+{% endblock %}

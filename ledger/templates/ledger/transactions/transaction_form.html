@@ -1,0 +1,183 @@
+{% extends "index.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if object %}Edit Transaction{% else %}Add Transaction{% endif %} | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">{% if object %}Edit Transaction{% else %}Add Transaction{% endif %}</h1>
+      <div class="text-muted small">Track income and expenses with optional job + payee links.</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'ledger:transaction_list' %}">Back</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-3 p-md-4">
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="mb-4">
+          <div class="fw-semibold mb-2">Details</div>
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              {{ form.date|as_crispy_field }}
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="{{ form.amount.id_for_label }}" class="form-label">
+                {{ form.amount.label }}
+                {% if form.amount.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.amount }}
+              </div>
+
+              {% if form.amount.errors %}
+                <div class="invalid-feedback d-block">{{ form.amount.errors|striptags }}</div>
+              {% endif %}
+
+              {% if form.amount.help_text %}
+                <div class="form-text">{{ form.amount.help_text }}</div>
+              {% endif %}
+            </div>
+            <div class="col-12 col-md-4">
+              {{ form.description|as_crispy_field }}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Subcategory</label>
+              <select name="{{ form.subcategory.name }}" id="id_subcategory" class="form-select">
+                <option value="">— Select —</option>
+                {% for sc in form.fields.subcategory.queryset %}
+                  <option value="{{ sc.pk }}"
+                          {% if form.subcategory.value|stringformat:"s" == sc.pk|stringformat:"s" %}selected{% endif %}
+                          data-requires-payee="{{ sc.requires_payee|yesno:'1,0' }}"
+                          data-payee-role="{{ sc.payee_role }}"
+                          data-requires-transport="{{ sc.requires_transport|yesno:'1,0' }}"
+                          data-requires-vehicle="{{ sc.requires_vehicle|yesno:'1,0' }}">
+                    {{ sc.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.subcategory.errors %}
+                <div class="invalid-feedback d-block">{{ form.subcategory.errors|striptags }}</div>
+              {% endif %}
+              <div class="form-text">This controls whether Payee/Transport is required.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="fw-semibold mb-2">Links & extras</div>
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              {{ form.job|as_crispy_field }}
+            </div>
+            <div class="col-12 col-md-6">
+              {{ form.invoice_number|as_crispy_field }}
+            </div>
+
+            <div class="col-12 col-md-6" id="payeeWrap" style="display:none;">
+              <label class="form-label">Payee</label>
+              <select name="{{ form.payee.name }}" id="id_payee" class="form-select">
+                <option value="">— Select —</option>
+                {% for p in form.fields.payee.queryset %}
+                  <option value="{{ p.pk }}"
+                          data-is-contractor="{{ p.is_contractor|yesno:'1,0' }}"
+                          data-is-vendor="{{ p.is_vendor|yesno:'1,0' }}"
+                          data-is-customer="{{ p.is_customer|yesno:'1,0' }}"
+                          {% if form.payee.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ p.display_name }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.payee.errors %}
+                <div class="invalid-feedback d-block">{{ form.payee.errors|striptags }}</div>
+              {% endif %}
+              <div class="form-text">Filtered automatically based on Subcategory rules.</div>
+            </div>
+
+            <div class="col-12 col-md-6" id="transportWrap" style="display:none;">
+              {{ form.transport_selector|as_crispy_field }}
+              <div class="form-text">Personal Vehicle, Rental Car, or a specific business vehicle.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="fw-semibold mb-2">Notes</div>
+          {{ form.notes|as_crispy_field }}
+
+          <div class="alert alert-light border small mt-3 mb-0">
+            <div class="fw-semibold mb-1">Receipts</div>
+            <div class="text-muted">Next: drag & drop upload + choose file + mobile camera capture.</div>
+          </div>
+        </div>
+
+        <div class="d-grid d-sm-flex gap-2 justify-content-sm-end">
+          <a class="btn btn-outline-secondary w-100 w-sm-auto py-2" href="{% url 'ledger:transaction_list' %}">Cancel</a>
+          <button type="submit" class="btn btn-primary w-100 w-sm-auto py-2">Save</button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const subSel = document.getElementById("id_subcategory");
+  const payeeSel = document.getElementById("id_payee");
+  const payeeWrap = document.getElementById("payeeWrap");
+  const transportWrap = document.getElementById("transportWrap");
+
+  function applyRules() {
+    if (!subSel) return;
+
+    const opt = subSel.options[subSel.selectedIndex];
+    if (!opt) return;
+
+    const requiresPayee = opt.dataset.requiresPayee === "1";
+    const payeeRole = (opt.dataset.payeeRole || "any").toLowerCase();
+    const requiresTransport = opt.dataset.requiresTransport === "1";
+
+    if (payeeWrap) payeeWrap.style.display = requiresPayee ? "" : "none";
+    if (transportWrap) transportWrap.style.display = requiresTransport ? "" : "none";
+
+    if (!requiresPayee && payeeSel) payeeSel.value = "";
+    if (!requiresTransport) {
+      const transport = document.getElementById("id_transport_selector");
+      if (transport) transport.value = "";
+    }
+
+    if (payeeSel) {
+      for (const pOpt of payeeSel.options) {
+        if (!pOpt.value) continue;
+
+        let show = true;
+        if (payeeRole === "contractor") show = pOpt.dataset.isContractor === "1";
+        else if (payeeRole === "vendor") show = pOpt.dataset.isVendor === "1";
+        else if (payeeRole === "customer") show = pOpt.dataset.isCustomer === "1";
+
+        pOpt.hidden = !show;
+        if (!show && pOpt.selected) payeeSel.value = "";
+      }
+    }
+  }
+
+  if (subSel) {
+    subSel.addEventListener("change", applyRules);
+    applyRules();
+  }
+})();
+</script>
+{% endblock %}

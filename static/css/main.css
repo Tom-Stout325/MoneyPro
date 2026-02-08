@@ -1,0 +1,187 @@
+/* ==========================================================================
+   MoneyPro Base Styles (Mobile First)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Variables (Theme)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Brand colors */
+  --color-primary:   #7B9669;
+  --color-secondary: #2C4C5C;
+  --color-success:   #3C9EA4;
+  --color-danger:    #D6794D;
+  --color-warning:   #DDB05E;
+  --color-info:      #BAC8B1;
+
+  /* Neutrals */
+  --color-bg:        #f8f9fa;
+  --color-surface:   #ffffff;
+  --color-text:      #1f2933;
+  --color-muted:     #6c757d;
+
+  /* Layout */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 10px rgba(0,0,0,.08);
+}
+
+/* --------------------------------------------------------------------------
+   Font
+   -------------------------------------------------------------------------- */
+body {
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Helvetica, Arial, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+
+  background-color: var(--color-bg);
+  color: var(--color-text);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --------------------------------------------------------------------------
+   Headings (slightly tighter for mobile)
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.2rem; }
+
+/* --------------------------------------------------------------------------
+   Links
+   -------------------------------------------------------------------------- */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: color-mix(in srgb, var(--color-primary), #000 15%);
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Buttons (Bootstrap-compatible overrides)
+   -------------------------------------------------------------------------- */
+.btn-primary {
+  --bs-btn-bg: var(--color-primary);
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--color-primary), #000 10%);
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--color-primary), #000 10%);
+}
+
+.btn-secondary {
+  --bs-btn-bg: var(--color-secondary);
+  --bs-btn-border-color: var(--color-secondary);
+}
+
+.btn-success {
+  --bs-btn-bg: var(--color-success);
+  --bs-btn-border-color: var(--color-success);
+}
+
+.btn-danger {
+  --bs-btn-bg: var(--color-danger);
+  --bs-btn-border-color: var(--color-danger);
+}
+
+.btn-warning {
+  --bs-btn-bg: var(--color-warning);
+  --bs-btn-border-color: var(--color-warning);
+  --bs-btn-color: #1f2933;
+}
+
+.btn-info {
+  --bs-btn-bg: var(--color-info);
+  --bs-btn-border-color: var(--color-info);
+  --bs-btn-color: #1f2933;
+}
+
+/* Improve tap targets on mobile */
+.btn {
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-md);
+}
+
+/* --------------------------------------------------------------------------
+   Cards
+   -------------------------------------------------------------------------- */
+.card {
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.card + .card {
+  margin-top: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Forms
+   -------------------------------------------------------------------------- */
+.form-control,
+.form-select {
+  border-radius: var(--radius-md);
+}
+
+.form-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   Alerts
+   -------------------------------------------------------------------------- */
+.alert {
+  border-radius: var(--radius-md);
+}
+
+/* --------------------------------------------------------------------------
+   Navbar tweaks (works with the navbar we built)
+   -------------------------------------------------------------------------- */
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Utility helpers
+   -------------------------------------------------------------------------- */
+.text-muted {
+  color: var(--color-muted) !important;
+}
+
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+/* --------------------------------------------------------------------------
+   Desktop enhancements
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.3rem; }
+
+  .card + .card {
+    margin-top: 1.25rem;
+  }
+}
+
+
+button[aria-expanded="true"] i {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}

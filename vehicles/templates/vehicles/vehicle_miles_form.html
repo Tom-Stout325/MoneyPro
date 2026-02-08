@@ -1,0 +1,71 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">{% if object %}Edit Mileage Entry{% else %}Add Mileage Entry{% endif %}</h1>
+      <div class="text-muted small">Begin + end calculates total automatically</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}">Back</a>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 rounded-4">
+      <div class="card-body">
+        <div class="row g-3">
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Date</label>
+            {{ form.date }}
+            {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-8">
+            <label class="form-label">Vehicle</label>
+            {{ form.vehicle }}
+            {% if form.vehicle.errors %}<div class="invalid-feedback d-block">{{ form.vehicle.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Mileage type</label>
+            {{ form.mileage_type }}
+            {% if form.mileage_type.errors %}<div class="invalid-feedback d-block">{{ form.mileage_type.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label">Begin</label>
+            {{ form.begin }}
+            {% if form.begin.errors %}<div class="invalid-feedback d-block">{{ form.begin.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label">End</label>
+            {{ form.end }}
+            {% if form.end.errors %}<div class="invalid-feedback d-block">{{ form.end.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Notes (optional)</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card-footer bg-transparent border-0 d-flex gap-2 justify-content-end">
+        <button class="btn btn-primary">Save</button>
+        <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}">Cancel</a>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">{% if object %}Edit Vehicle{% else %}Add Vehicle{% endif %}</h1>
+      <div class="text-muted small">Business vehicles can be selected on transactions</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}">Back</a>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 rounded-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Label</label>
+            {{ form.label }}
+            {% if form.label.errors %}<div class="invalid-feedback d-block">{{ form.label.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-4 col-md-2">
+            <label class="form-label">Year</label>
+            {{ form.year }}
+          </div>
+
+          <div class="col-8 col-md-4">
+            <label class="form-label">Make</label>
+            {{ form.make }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Model</label>
+            {{ form.model }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Plate</label>
+            {{ form.plate }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">VIN (last 6)</label>
+            {{ form.vin_last6 }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">In service date</label>
+            {{ form.in_service_date }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Sold date</label>
+            {{ form.sold_date }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Sort order</label>
+            {{ form.sort_order }}
+          </div>
+
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div class="form-check">
+              {{ form.is_business }}
+              <label class="form-check-label">Business vehicle</label>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label">Active</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer bg-transparent border-0 d-flex gap-2 justify-content-end">
+        <button class="btn btn-primary">Save</button>
+        <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

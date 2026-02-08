@@ -1,0 +1,70 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">{% if object %}Edit Vehicle Year{% else %}Add Vehicle Year{% endif %}</h1>
+      <div class="text-muted small">Used for total miles and annual tax reporting</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Back</a>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 rounded-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Vehicle</label>
+            {{ form.vehicle }}
+            {% if form.vehicle.errors %}<div class="invalid-feedback d-block">{{ form.vehicle.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label">Year</label>
+            {{ form.year }}
+            {% if form.year.errors %}<div class="invalid-feedback d-block">{{ form.year.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3 d-flex align-items-end">
+            <div class="form-check">
+              {{ form.is_locked }}
+              <label class="form-check-label">Locked</label>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Odometer start</label>
+            {{ form.odometer_start }}
+            {% if form.odometer_start.errors %}<div class="invalid-feedback d-block">{{ form.odometer_start.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Odometer end</label>
+            {{ form.odometer_end }}
+            {% if form.odometer_end.errors %}<div class="invalid-feedback d-block">{{ form.odometer_end.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Deduction method</label>
+            {{ form.deduction_method }}
+            {% if form.deduction_method.errors %}<div class="invalid-feedback d-block">{{ form.deduction_method.errors|striptags }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer bg-transparent border-0 d-flex gap-2 justify-content-end">
+        <button class="btn btn-primary">Save</button>
+        <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Cancel</a>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "index.html" %}
+{% load humanize %}
+
+{% block title %}Schedule C Summary{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">Operating Expenses</h1>
+      <div class="text-muted small">
+        {{ date_from }} → {{ date_to }} • Mode: {{ mode|upper }}
+      </div>
+    </div>
+
+    <form method="get" class="d-flex gap-2 align-items-center">
+      <select name="year" class="form-select form-select-sm" aria-label="Year">
+        {% for y in year_options %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+
+      <div class="btn-group" role="group" aria-label="Mode">
+        <a class="btn btn-sm {% if mode == 'book' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?year={{ year }}&mode=book">Actual</a>
+        <a class="btn btn-sm {% if mode == 'tax' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?year={{ year }}&mode=tax">Taxable</a>
+      </div>
+
+      <button class="btn btn-sm btn-outline-secondary" type="submit">Apply</button>
+    </form>
+  </div>
+
+  {% if grand_total == 0 %}
+    <div class="alert alert-info">No transactions found for this period.</div>
+  {% else %}
+
+    <div class="card mb-3 shadow-sm">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="text-muted small">Grand Total</div>
+          <div class="fw-semibold">All included categories</div>
+        </div>
+        <div class="fs-5 fw-bold">${{ grand_total|floatformat:2|intcomma }}</div>
+      </div>
+    </div>
+
+    {% for part_name, part in parts.items %}
+      {% if items %}
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+          <h2 class="h6 mb-0 text-uppercase text-muted">{{ part_name }}</h2>
+          <div class="small fw-semibold text-muted">
+            Total: $ {{ part.total|floatformat:2|intcomma }}
+          </div>
+        </div>
+
+        <div class="accordion" id="acc-{{ part_name|slugify }}">
+          {% for cat in part.items %}
+            <div class="accordion-item mb-2 shadow-sm border rounded">
+              <h2 class="accordion-header" id="heading-{{ part_name|slugify }}-{{ forloop.counter }}">
+                <button class="accordion-button collapsed d-flex justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse-{{ part_name|slugify }}-{{ forloop.counter }}"
+                        aria-expanded="false"
+                        aria-controls="collapse-{{ part_name|slugify }}-{{ forloop.counter }}">
+                  <span class="me-2 fw-semibold">
+                    {{ cat.category_name }}
+                    <span class="badge text-bg-light border ms-2">Line {{ cat.schedule_c_line }}</span>
+                    {% if cat.detail_only %}
+                      <span class="badge text-bg-secondary ms-2">Detail</span>
+                    {% endif %}
+                  </span>
+                  <span class="ms-auto fw-bold">
+                    ${{ cat.total|floatformat:2|intcomma }}
+                  </span>
+                </button>
+              </h2>
+
+              <div id="collapse-{{ part_name|slugify }}-{{ forloop.counter }}"
+                   class="accordion-collapse collapse"
+                   aria-labelledby="heading-{{ part_name|slugify }}-{{ forloop.counter }}"
+                   data-bs-parent="#acc-{{ part_name|slugify }}">
+                <div class="accordion-body p-0">
+                  {% if cat.subcategories %}
+                    <ul class="list-group list-group-flush">
+                      {% for sub in cat.subcategories %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                          <span>{{ sub.subcategory_name }}</span>
+                          <span class="fw-semibold">${{ sub.total|floatformat:2|intcomma }}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <div class="p-3 text-muted small">
+                      {% if cat.detail_only %}
+                        Detail lines for this category appear here.
+                      {% else %}
+                        No subcategory breakdown for this category.
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endfor %}
+
+  {% endif %}
+
+</div>
+{% endblock %}
