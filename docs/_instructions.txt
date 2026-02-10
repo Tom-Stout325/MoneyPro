@@ -15,7 +15,18 @@ Add Accordion forms to update settings and user info
 
 
 
-
+Transactions:
+Date
+Type - Expense/Income
+Amount
+Transaction/Description
+Sub Category
+Invoice number
+Job
+Optional Fields:
+  Team - For multiple businesses in one app
+  Contractor
+  Transport TypeReceipt File
 
 
 

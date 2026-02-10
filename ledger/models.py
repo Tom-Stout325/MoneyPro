@@ -308,26 +308,16 @@ class Transaction(BusinessOwnedModelMixin):
     date              = models.DateField(default=timezone.now)
     amount            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     description       = models.CharField(max_length=255)
-
     subcategory       = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="transactions")
     category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
-
     payee             = models.ForeignKey(Payee, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
-
     invoice_number    = models.CharField(max_length=25, blank=True)
-
     transport_type    = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")
-    vehicle           = models.ForeignKey("vehicles.Vehicle",
-        on_delete=models.PROTECT,
-        related_name="transactions",
-        null=True,
-        blank=True,
-    )
-
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    vehicle           = models.ForeignKey("vehicles.Vehicle", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True,)
+    notes             = models.TextField(blank=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
+    updated_at        = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-date", "-id"]

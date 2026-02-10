@@ -11,13 +11,10 @@ Auth CSS:           static/css/auth.css
 Auth
     allauth is the system of record for auth flows (login/register/password reset).
     Email is the unique identifier (since ACCOUNT_LOGIN_METHODS={"email"}).
-    accounts app likely contains custom adapters/forms/templates for branding (or will).
-
-
+  
 Data Scoping
-    All Models are to be user-owned unless specifically stated differently
-    Querysets must always filter by the logged-in user
-    Create/update must set obj.user = request.user
+    All Models are to be business-owned unless specifically stated differently
+
 
 Deployment
     keeping SQLite only for local dev convenience and will switch to Postgres in prod via DATABASE_URL.
