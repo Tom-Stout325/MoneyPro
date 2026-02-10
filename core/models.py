@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
+from django.db.models import Q
 
 
 class Business(models.Model):
@@ -51,34 +52,17 @@ class BusinessMembership(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["business", "user"], name="uniq_business_user"),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=Q(is_active=True),
+                name="uniq_user_single_active_business_membership",
+            ),
         ]
 
     def __str__(self) -> str:
         return f"{self.user} @ {self.business} ({self.role})"
 
 
-class UserBusinessState(models.Model):
-    """Stores per-user UI state, like the currently active business."""
-
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="business_state",
-    )
-    active_business = models.ForeignKey(Business, on_delete=models.SET_NULL, null=True, blank=True)
-
-    def __str__(self) -> str:
-        return f"{self.user} active={self.active_business_id}"
-
-
-class OwnedModelMixin(models.Model):
-    """Legacy ownership mixin (Phase 1): data owned by a user."""
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-
-    class Meta:
-        abstract = True
 
 
 class BusinessOwnedModelMixin(models.Model):

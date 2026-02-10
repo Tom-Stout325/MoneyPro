@@ -49,11 +49,11 @@ class VehicleYearForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop("user", None)
+        business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
 
-        if user and getattr(user, "is_authenticated", False):
-            self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(user=user).order_by("sort_order", "label")
+        if business:
+            self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business).order_by("sort_order", "label")
         self.fields["vehicle"].widget.attrs.update({"class": "form-select"})
         self.fields["is_locked"].widget.attrs.update({"class": "form-check-input"})
 
@@ -72,8 +72,8 @@ class VehicleMilesForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop("user", None)
+        business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
 
-        if user and getattr(user, "is_authenticated", False):
-            self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(user=user, is_active=True).order_by("sort_order", "label")
+        if business:
+            self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business, is_active=True).order_by("sort_order", "label")

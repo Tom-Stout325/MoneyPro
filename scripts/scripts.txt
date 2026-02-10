@@ -10,8 +10,11 @@ cp -R _MONEYPRO _MONEYPRO_backup
 cd into the root folder
 
 unzip ~/Downloads/MoneyPro_phase1_business_tenant.zip
+or:
+unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
+rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
 
-git statis
+git status
 
 python manage.py check
 python manage.py makemigrations

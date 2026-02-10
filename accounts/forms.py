@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 import re
 from .models import CompanyProfile
 
+from allauth.account.forms import SignupForm
+
 
 US_STATE_CHOICES = [
     ("", "—"),
@@ -153,19 +155,38 @@ User = get_user_model()
 class UserInfoForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email"]
+        fields = ["username", "first_name", "last_name", "email"]
         widgets = {
+            "username": forms.TextInput(attrs={"placeholder": "Username"}),
             "first_name": forms.TextInput(attrs={"placeholder": "First name"}),
             "last_name": forms.TextInput(attrs={"placeholder": "Last name"}),
             "email": forms.EmailInput(attrs={"placeholder": "Email"}),
         }
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip()
+
+        if not username:
+            raise forms.ValidationError("Username is required.")
+
+        # Default Django User.username max_length is 150
+        if len(username) > 150:
+            raise forms.ValidationError("Username is too long.")
+
+        qs = User.objects.filter(username__iexact=username)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise forms.ValidationError("That username is already taken.")
+
+        return username
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
         if not email:
             raise forms.ValidationError("Email is required.")
 
-        # Prevent duplicates (common with allauth setups)
         qs = User.objects.filter(email__iexact=email)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -173,3 +194,35 @@ class UserInfoForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError("That email is already in use.")
         return email
+
+
+
+
+
+class InviteSignupForm(SignupForm):
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.get("request")
+        super().__init__(*args, **kwargs)
+
+        invited_email = ((self.request.session.get("invite_email") if self.request else "") or "").strip()
+        if invited_email:
+            self.fields["email"].initial = invited_email
+            self.fields["email"].widget.attrs["readonly"] = "readonly"
+
+    def clean_email(self):
+        invited_email = ((self.request.session.get("invite_email") if self.request else "") or "").strip().lower()
+        if invited_email:
+            return invited_email
+        return super().clean_email()
+
+    def save(self, request):
+        user = super().save(request)
+
+        invited_email = (request.session.get("invite_email") or "").strip().lower()
+        if invited_email:
+            current_email = (user.email or "").strip().lower()
+            if current_email != invited_email:
+                user.email = invited_email
+                user.save(update_fields=["email"])
+
+        return user

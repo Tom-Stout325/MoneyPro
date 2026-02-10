@@ -187,11 +187,24 @@ LOGIN_URL = "account_login"
 
 
 # allauth (v65+)
-ACCOUNT_LOGIN_METHODS = {"email"}  # replaces ACCOUNT_AUTHENTICATION_METHOD
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # replaces EMAIL_REQUIRED/USERNAME_REQUIRED
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_UNIQUE_EMAIL = True
+
+ACCOUNT_SIGNUP_FIELDS = [
+    "email*",
+    "password1*",
+    "password2*",
+]
+
 ACCOUNT_EMAIL_VERIFICATION = env("ACCOUNT_EMAIL_VERIFICATION", default="optional")
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
-ACCOUNT_UNIQUE_EMAIL = True
+
+# Process A: invite-only
+ACCOUNT_ALLOW_REGISTRATION = False
+
+# Invite-only registration plumbing (accounts app)
+ACCOUNT_ADAPTER = "accounts.adapters.InviteOnlyAccountAdapter"
+ACCOUNT_FORMS = {"signup": "accounts.forms.InviteSignupForm"}
 
 SITE_ID = env.int("SITE_ID", default=1)
 
@@ -339,3 +352,9 @@ USE_X_FORWARDED_HOST = True
 
 
 DEFAULT_COMPANY_NAME = env("DEFAULT_COMPANY_NAME", default="")
+
+
+
+
+
+# ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]   replaces EMAIL_REQUIRED/USERNAME_REQUIRED

@@ -6,10 +6,7 @@ from datetime import date
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
-from ledger.reporting_utils import (
-    route_category_for_report,
-    route_subcategory_for_report,
-)
+from ledger.reporting_utils import route_category_for_report, route_subcategory_for_report
 from .queries import aggregate_category_subcategory_totals
 
 
@@ -25,7 +22,6 @@ class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):
 
         today = date.today()
 
-        # Filters
         mode = (self.request.GET.get("mode") or "tax").lower()
         if mode not in ("book", "tax"):
             mode = "tax"
@@ -38,15 +34,13 @@ class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):
         date_from = date(year, 1, 1)
         date_to = today if year == today.year else date(year, 12, 31)
 
-        # Data
         categories = aggregate_category_subcategory_totals(
-            user=self.request.user,
+            business=self.request.business,
             date_from=date_from,
             date_to=date_to,
             mode=mode,
         )
 
-        # Group into Parts (Part I, Part II, Part V)
         parts: dict[str, list] = {"Part I": [], "Part II": [], "Part III": [], "Part IV": [], "Part V": []}
 
         for cat in categories:
@@ -56,8 +50,6 @@ class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):
                 report_group=cat.report_group,
             )
 
-            # For subcategory rows, route to Part V if it's "Other Expenses (27b)" breakdown
-            # (We keep cat total in Part II; the breakdown list appears in Part V)
             sub_group = route_subcategory_for_report(
                 category_name=cat.category_name,
                 schedule_c_line=cat.schedule_c_line,
@@ -70,7 +62,6 @@ class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):
             else:
                 parts.setdefault(cat_group, []).append({**cat.__dict__, "detail_only": False})
 
-        # Totals per part
         def part_total(items):
             return sum((i["total"] for i in items), 0)
 
@@ -93,6 +84,5 @@ class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):
                 "grand_total": sum((c.total for c in categories), 0),
             }
         )
-
 
         return ctx

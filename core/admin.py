@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.models import Business, BusinessMembership, UserBusinessState
+from core.models import Business, BusinessMembership
 
 
 @admin.register(Business)
@@ -16,8 +16,3 @@ class BusinessMembershipAdmin(admin.ModelAdmin):
     list_filter = ("role", "is_active")
     search_fields = ("business__name", "user__email", "user__username")
 
-
-@admin.register(UserBusinessState)
-class UserBusinessStateAdmin(admin.ModelAdmin):
-    list_display = ("user", "active_business")
-    search_fields = ("user__email", "user__username", "active_business__name")

@@ -1,34 +1,29 @@
+from __future__ import annotations
+
+from datetime import timedelta
+import secrets
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class CompanyProfile(models.Model):
     user             = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="company_profile",)
-
-    # Identity
     company_name     = models.CharField(max_length=120)
     legal_name       = models.CharField(max_length=120, blank=True)
     ein              = models.CharField(max_length=15, blank=True, help_text="Federal EIN (XX-XXXXXXX)",)
-
-    # Contact
     phone            = models.CharField(max_length=30, blank=True)
     billing_email    = models.EmailField(blank=True)
-
-    # Address
     address_line1    = models.CharField(max_length=120, blank=True)
     address_line2    = models.CharField(max_length=120, blank=True)
     city             = models.CharField(max_length=80, blank=True)
     state            = models.CharField(max_length=50, blank=True)
     postal_code      = models.CharField(max_length=20, blank=True)
     country          = models.CharField(max_length=50, default="US")
-
-    # Branding
     logo             = models.ImageField(upload_to="company_logos/", blank=True, null=True)
-
-    # Locale / formatting
     timezone         = models.CharField(max_length=64, default="America/Indiana/Indianapolis",)
     currency         = models.CharField(max_length=10, default="USD")
-
     created_at       = models.DateTimeField(auto_now_add=True)
     updated_at       = models.DateTimeField(auto_now=True)
 
@@ -37,7 +32,6 @@ class CompanyProfile(models.Model):
 
     @property
     def is_complete(self) -> bool:
-        # v1 strict: company name only
         return bool(self.company_name.strip())
 
     @property
@@ -46,3 +40,59 @@ class CompanyProfile(models.Model):
         if p.isdigit() and len(p) == 10:
             return f"({p[:3]}){p[3:6]}-{p[6:]}"
         return p
+
+
+class Invitation(models.Model):
+    """Invite-only signup token.
+
+    Admin creates an Invitation for an email, sends the invite link.
+    The user can register only via that link.
+    """
+
+    email           = models.EmailField()
+    token           = models.CharField(max_length=64, unique=True, editable=False)
+    invited_by      = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_invitations",)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    expires_at      = models.DateTimeField()
+    accepted_at     = models.DateTimeField(null=True, blank=True)
+    accepted_user   = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="accepted_invitations",)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email"]),
+            models.Index(fields=["token"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=7)
+
+        if not self.token:
+            # token_urlsafe(48) is typically ~64 chars; slice to guarantee <=64.
+            for _ in range(5):
+                self.token = secrets.token_urlsafe(48)[:64]
+                try:
+                    return super().save(*args, **kwargs)
+                except Exception:
+                    # If this was a uniqueness collision, try again; otherwise re-raise.
+                    # If you want to be precise, catch IntegrityError from django.db.
+                    self.token = ""
+            raise ValueError("Could not generate a unique invitation token.")
+
+        return super().save(*args, **kwargs)
+
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+    is_expired.fget.short_description = "Expired"
+    is_expired.fget.boolean = True
+
+    @property
+    def is_used(self) -> bool:
+        return self.accepted_at is not None
+    is_used.fget.short_description = "Used"
+    is_used.fget.boolean = True
+
+    def __str__(self) -> str:
+        return f"Invite {self.email}"

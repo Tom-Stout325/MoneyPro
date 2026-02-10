@@ -4,15 +4,19 @@ from __future__ import annotations
 from django import forms
 from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Div, Field, HTML
+from crispy_forms.layout import Div, Field, HTML, Layout
 
-from .models import Transaction
+from ledger.models import Job, Payee, SubCategory, Transaction
 from vehicles.models import Vehicle
 
 
-
-
 class TransactionForm(forms.ModelForm):
+    """Business-scoped transaction form.
+
+    - Filters all dropdowns by the active Business.
+    - Uses a single 'transport_selector' UI field to drive transport_type + vehicle.
+    """
+
     transport_selector = forms.ChoiceField(required=False, label="Transport")
 
     class Meta:
@@ -30,15 +34,56 @@ class TransactionForm(forms.ModelForm):
         ]
 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop("user", None)
+        self.business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
 
-        self.helper = FormHelper()
-        self.helper.form_tag = False  
-        self.helper.disable_csrf = True 
+        if not self.business:
+            raise ValueError("TransactionForm requires business=...")
+
+        # Scope dropdowns
+        self.fields["subcategory"].queryset = (
+            SubCategory.objects.filter(business=self.business, is_active=True)
+            .select_related("category")
+            .order_by("category__category_type", "category__sort_order", "sort_order", "name")
+        )
+        self.fields["payee"].queryset = Payee.objects.filter(business=self.business).order_by("display_name")
+        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-year", "title")
+
+        # Amount widget behavior (USD, 2 decimals)
         self.fields["amount"].widget.attrs.setdefault("class", "form-control")
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
+
+        # Build transport choices (personal/rental + business vehicles)
+        vehicle_choices = [
+            (f"veh:{v.id}", v.label)
+            for v in Vehicle.objects.filter(
+                business=self.business,
+                is_active=True,
+                is_business=True,
+            ).order_by("sort_order", "label")
+        ]
+
+        self.fields["transport_selector"].choices = [
+            ("", "—"),
+            ("personal_vehicle", "Personal vehicle"),
+            ("rental_car", "Rental car"),
+            *vehicle_choices,
+        ]
+
+        # Pre-fill selector for edit
+        if self.instance and self.instance.pk:
+            if self.instance.transport_type == "business_vehicle" and self.instance.vehicle_id:
+                self.initial["transport_selector"] = f"veh:{self.instance.vehicle_id}"
+            elif self.instance.transport_type in ("personal_vehicle", "rental_car"):
+                self.initial["transport_selector"] = self.instance.transport_type
+            else:
+                self.initial["transport_selector"] = ""
+
+        # Crispy layout
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.disable_csrf = True
 
         self.helper.layout = Layout(
             HTML('<div class="fw-semibold mb-2">Details</div>'),
@@ -60,52 +105,63 @@ class TransactionForm(forms.ModelForm):
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Notes</div>'),
             Field("notes"),
-            HTML("""
-              <div class="alert alert-light border small mt-3 mb-0">
-                <div class="fw-semibold mb-1">Receipts</div>
-                <div class="text-muted">
-                  Next: drag & drop upload + choose file + mobile camera capture.
+            HTML(
+                """
+                <div class="alert alert-light border small mt-3 mb-0">
+                  <div class="fw-semibold mb-1">Receipts</div>
+                  <div class="text-muted">
+                    Next: drag & drop upload + choose file + mobile camera capture.
+                  </div>
                 </div>
-              </div>
-            """),
+                """
+            ),
         )
 
     def clean_transport_selector(self):
         val = (self.cleaned_data.get("transport_selector") or "").strip()
         if not val:
             return ""
+
         if val in ("personal_vehicle", "rental_car"):
             return val
+
         if val.startswith("veh:"):
             try:
                 vehicle_id = int(val.split(":", 1)[1])
-            except Exception:
-                raise ValidationError("Invalid vehicle selection.")
-
-            if not self.user or not getattr(self.user, "is_authenticated", False):
-                raise ValidationError("Invalid vehicle selection.")
+            except Exception as exc:
+                raise ValidationError("Invalid vehicle selection.") from exc
 
             if not Vehicle.objects.filter(
-                user=self.user, pk=vehicle_id, is_active=True, is_business=True
+                business=self.business,
+                pk=vehicle_id,
+                is_active=True,
+                is_business=True,
             ).exists():
                 raise ValidationError("Invalid vehicle selection.")
+
             return val
+
         raise ValidationError("Invalid transport selection.")
 
     def clean(self):
         cleaned = super().clean()
         val = (cleaned.get("transport_selector") or "").strip()
+
+        # If transport selector is empty, clear transport fields
         if not val:
             self.instance.transport_type = ""
             self.instance.vehicle = None
             return cleaned
+
         if val in ("personal_vehicle", "rental_car"):
             self.instance.transport_type = val
             self.instance.vehicle = None
             return cleaned
+
         if val.startswith("veh:"):
             vehicle_id = int(val.split(":", 1)[1])
             self.instance.transport_type = "business_vehicle"
             self.instance.vehicle_id = vehicle_id
             return cleaned
+
         return cleaned

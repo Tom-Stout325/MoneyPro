@@ -16,6 +16,7 @@ echo "Created $OUTPUT"
 
 
 
+chmod +x scripts/zip_project.sh
 
 # chmod +x scripts/zip_project.sh
 # ./scripts/zip_project.sh

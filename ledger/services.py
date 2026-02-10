@@ -244,9 +244,9 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
 # ------------------------------------------------------------------------------
 
 @transaction.atomic
-def seed_schedule_c_defaults(user) -> None:
+def seed_schedule_c_defaults(business) -> None:
     """
-    Seeds a fixed Schedule C category set + default subcategories for a user.
+    Seeds a fixed Schedule C category set + default subcategories for a business.
 
     - Categories are seeded from spreadsheet-friendly specs (line codes like "16a"),
       but stored as enum keys (e.g. "interest_mortgage") to satisfy choices validation.
@@ -260,13 +260,13 @@ def seed_schedule_c_defaults(user) -> None:
 
     # Track existing slugs to avoid collisions within the user's namespace
     used_cat_slugs = set(
-        Category.objects.filter(user=user)
+        Category.objects.filter(business=business)
         .exclude(slug__isnull=True)
         .exclude(slug="")
         .values_list("slug", flat=True)
     )
     used_sub_slugs = set(
-        SubCategory.objects.filter(user=user)
+        SubCategory.objects.filter(business=business)
         .exclude(slug__isnull=True)
         .exclude(slug="")
         .values_list("slug", flat=True)
@@ -278,7 +278,7 @@ def seed_schedule_c_defaults(user) -> None:
     for idx, spec in enumerate(CATEGORY_SPECS, start=1):
         desired_line = _schedule_c_choice(spec.schedule_c_line)
         cat, _created = Category.objects.get_or_create(
-            user=user,
+            business=business,
             name=spec.name,
             defaults={
                 "slug": _unique_slug(spec.name, used_cat_slugs, cat_slug_max),
@@ -343,7 +343,7 @@ def seed_schedule_c_defaults(user) -> None:
     has_payee_role = _model_has_field(SubCategory, "payee_role")
 
     existing_subs = {
-        s.name: s for s in SubCategory.objects.filter(user=user).select_related("category")
+        s.name: s for s in SubCategory.objects.filter(business=business).select_related("category")
     }
 
     to_create: list[SubCategory] = []
@@ -373,7 +373,7 @@ def seed_schedule_c_defaults(user) -> None:
             continue
 
         kwargs: dict[str, object] = {
-            "user": user,
+            "business": business,
             "category": parent,
             "name": sub_name,
             "slug": _unique_slug(f"{parent.name}-{sub_name}", used_sub_slugs, sub_slug_max),

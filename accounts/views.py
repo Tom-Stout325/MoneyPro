@@ -1,17 +1,18 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth import logout
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy, reverse
-from django.views.generic import UpdateView
 from django.views import View
+from django.views.generic import UpdateView
+from django.db import transaction
 
 from .forms import CompanyProfileForm, UserInfoForm
-from .models import CompanyProfile
-
-
-from ledger.services import seed_schedule_c_defaults
-
+from .models import CompanyProfile, Invitation
+from .adapters import InviteOnlyAccountAdapter
+from core.models import Business, BusinessMembership
 
 
 
@@ -34,13 +35,34 @@ class OnboardingView(LoginRequiredMixin, UpdateView):
             return redirect("dashboard:home")
         return super().dispatch(request, *args, **kwargs)
 
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        if self.object.is_complete:
-            seed_schedule_c_defaults(self.request.user)
-        return response
+def form_valid(self, form):
+    response = super().form_valid(form)
 
-    
+    # once profile is complete, create business/membership if missing
+    if self.object.is_complete:
+        with transaction.atomic():
+            membership = (
+                BusinessMembership.objects.select_for_update()
+                .filter(user=self.request.user, is_active=True)
+                .select_related("business")
+                .first()
+            )
+            if not membership:
+                biz = Business.objects.create(name=self.object.company_name or "My Business")
+                BusinessMembership.objects.create(
+                    business=biz,
+                    user=self.request.user,
+                    role=BusinessMembership.Role.OWNER,
+                    is_active=True,
+                )
+
+        # force fresh login AFTER the single onboarding flow
+        logout(self.request)
+        messages.success(self.request, "Account setup complete. Please log in again to continue.")
+        return redirect("account_login")
+
+    return response
+
     
 
 class SettingsView(LoginRequiredMixin, View):
@@ -75,7 +97,7 @@ class SettingsView(LoginRequiredMixin, View):
         user_form = UserInfoForm(instance=request.user, prefix="user")
 
         if form_id == "company":
-            company_form = CompanyProfileForm(request.POST, instance=profile, prefix="company")
+            company_form = CompanyProfileForm(request.POST, request.FILES, instance=profile, prefix="company")
             if company_form.is_valid():
                 company_form.save()
                 messages.success(request, "Company settings saved.")
@@ -96,3 +118,29 @@ class SettingsView(LoginRequiredMixin, View):
             self.template_name,
             {"company_form": company_form, "user_form": user_form},
         )
+
+
+def invite_start(request, token: str):
+    """Validate an invitation token and redirect the user to allauth signup.
+
+    This stores the invitation token + email into session so the allauth
+    adapter can allow signup and lock the email address.
+    """
+
+    try:
+        inv = Invitation.objects.select_related("invited_by").get(token=token)
+    except Invitation.DoesNotExist:
+        raise Http404("Invalid invitation link.")
+
+    if inv.is_expired:
+        raise Http404("Invitation expired.")
+
+    if inv.is_used:
+        raise Http404("Invitation already used.")
+
+    adapter = InviteOnlyAccountAdapter()
+    request.session[adapter.SESSION_INVITE_TOKEN_KEY] = inv.token
+    request.session[adapter.SESSION_INVITE_EMAIL_KEY] = (inv.email or "").strip().lower()
+
+    messages.info(request, "Your invite has been validated. Create your account to continue.")
+    return redirect("account_signup")

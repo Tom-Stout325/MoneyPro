@@ -1,3 +1,32 @@
+
+Dress up the Settings page or Dashboard:
+
+ Add:  Setting: Company Logo
+                Company Name
+                Address
+                Phone number
+                EIN
+                Email Addresses
+
+                user Settings:
+
+Add Accordion forms to update settings and user info
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Zip Process:
 
 zip -r MoneyPro.zip . \

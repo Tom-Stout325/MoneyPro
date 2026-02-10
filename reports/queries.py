@@ -6,22 +6,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from django.db.models import (
-    Case,
-    DecimalField,
-    ExpressionWrapper,
-    F,
-    Q,
-    Sum,
-    Value,
-    When,
-    
-)
+from django.db.models import Case, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When
 from django.db.models.functions import Abs, Coalesce
 
-from ledger.models import Transaction
+from ledger.models import Category, SubCategory, Transaction
 from ledger.reporting_utils import schedule_c_sort_key
-
 
 ReportMode = Literal["book", "tax"]
 
@@ -44,15 +33,13 @@ class CategoryTotal:
 
 
 def _amount_expression_for_mode(mode: ReportMode):
-    """
-    ORM expression for report aggregation amounts.
+    """ORM expression for report aggregation amounts.
 
     Rules:
-    - Returns & Allowances (Schedule C line "2") ALWAYS reduces income:
+    - Returns & Allowances (Schedule C line 2) ALWAYS reduces income:
         normalized to negative abs(amount) at calculation/report time.
     - Tax mode:
-        Travel Meals (Schedule C "24b" AND subcategory.name == "Travel Meals") is 50%.
-      Everything else is unadjusted.
+        any SubCategory with deduction_rule == MEALS_50 is 50%.
     - Book mode:
         Raw amounts (except Returns & Allowances normalization).
     """
@@ -64,23 +51,18 @@ def _amount_expression_for_mode(mode: ReportMode):
         output_field=out,
     )
 
+    is_returns = Q(subcategory__category__schedule_c_line=Category.ScheduleCLine.RETURNS_ALLOWANCES)
+    meals_50 = Q(subcategory__deduction_rule=SubCategory.DeductionRule.MEALS_50)
+
     tax_expr = Case(
-        # Returns & Allowances category (line 2) => always negative
-        When(Q(subcategory__category__schedule_c_line="2"), then=returns_normalized),
-
-        # Travel Meals (24b) => 50% deductible in tax reports
-        When(
-            Q(subcategory__category__schedule_c_line="24b")
-            & Q(subcategory__name="Travel Meals"),
-            then=ExpressionWrapper(base_amt * Value(Decimal("0.50")), output_field=out),
-        ),
-
+        When(is_returns, then=returns_normalized),
+        When(meals_50, then=ExpressionWrapper(base_amt * Value(Decimal("0.50")), output_field=out)),
         default=base_amt,
         output_field=out,
     )
 
     book_expr = Case(
-        When(Q(subcategory__category__schedule_c_line="2"), then=returns_normalized),
+        When(is_returns, then=returns_normalized),
         default=base_amt,
         output_field=out,
     )
@@ -90,21 +72,14 @@ def _amount_expression_for_mode(mode: ReportMode):
 
 def aggregate_category_subcategory_totals(
     *,
-    user,
+    business,
     date_from: date | None = None,
     date_to: date | None = None,
     mode: ReportMode = "book",
 ) -> list[CategoryTotal]:
-    """
-    Aggregate totals grouped by Category -> SubCategory for the given user + date range.
+    """Aggregate totals grouped by Category -> SubCategory for the given business + date range."""
+    filters = Q(business=business)
 
-    - Only includes subcategories with non-zero totals.
-    - Subcategories sorted alphabetically (for findability).
-    - Categories sorted by Schedule C line order (for reporting).
-    """
-    filters = Q(user=user)
-
-    # Inclusive range
     if date_from:
         filters &= Q(date__gte=date_from)
     if date_to:
@@ -159,7 +134,6 @@ def aggregate_category_subcategory_totals(
             )
         )
 
-    # finalize totals + sorting
     categories: list[CategoryTotal] = []
     for cat in by_cat.values():
         subcats_sorted = sorted(cat.subcategories, key=lambda s: s.subcategory_name.lower())

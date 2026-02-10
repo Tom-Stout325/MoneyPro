@@ -17,8 +17,9 @@ urlpatterns = [
     path("health/", healthcheck, name="healthcheck"),
     path("", home, name="home"),
 
-    path("accounts/", include("allauth.urls")),
     path("accounts/", include("accounts.urls")),
+    path("accounts/", include("allauth.urls")),
+
 
     path("dashboard/", include("dashboard.urls")),
     path("business/", include("core.urls", namespace="core")),

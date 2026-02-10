@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.urls import reverse_lazy
@@ -15,7 +17,7 @@ class TransactionListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = (
-            Transaction.objects.filter(user=self.request.user)
+            Transaction.objects.filter(business=self.request.business)
             .select_related("category", "subcategory")
             .order_by("-date", "-id")
         )
@@ -34,25 +36,20 @@ class TransactionListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-
 class TransactionCreateView(LoginRequiredMixin, CreateView):
     model = Transaction
     form_class = TransactionForm
     template_name = "ledger/transactions/transaction_form.html"
     success_url = reverse_lazy("ledger:transaction_list")
 
-    def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
-
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["user"] = self.request.user  
+        kwargs["business"] = self.request.business
         return kwargs
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
+        form.instance.business = self.request.business
         return super().form_valid(form)
-
 
 
 class TransactionUpdateView(LoginRequiredMixin, UpdateView):
@@ -62,17 +59,16 @@ class TransactionUpdateView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy("ledger:transaction_list")
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
+        return Transaction.objects.filter(business=self.request.business)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["user"] = self.request.user  
+        kwargs["business"] = self.request.business
         return kwargs
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
+        form.instance.business = self.request.business
         return super().form_valid(form)
-
 
 
 class TransactionDeleteView(LoginRequiredMixin, DeleteView):
@@ -81,4 +77,4 @@ class TransactionDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("ledger:transaction_list")
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
+        return Transaction.objects.filter(business=self.request.business)

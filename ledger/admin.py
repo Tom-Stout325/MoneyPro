@@ -4,220 +4,72 @@ from __future__ import annotations
 from django.contrib import admin
 from django.db.models import QuerySet
 
-from .models import (
-    Category,
-    SubCategory,
-    Transaction,
-    Payee,
-    PayeeTaxProfile,
-    Job,
-)
+from core.models import BusinessMembership
+from .models import Category, Job, Payee, PayeeTaxProfile, SubCategory, Transaction
 
 
-class OwnedAdminMixin(admin.ModelAdmin):
-    """
-    Non-superusers can only see/edit their own rows.
-    On create, auto-assign user.
-    """
+class BusinessAdminMixin(admin.ModelAdmin):
+    """Scope objects to the user's business in Django Admin (for non-superusers)."""
 
-    def get_queryset(self, request) -> QuerySet:
-        qs = super().get_queryset(request)
+    def _user_business(self, request):
+        membership = (
+            BusinessMembership.objects.filter(user=request.user, is_active=True)
+            .select_related("business")
+            .first()
+        )
+        return membership.business if membership else None
+
+    def get_queryset(self, request):
+        qs: QuerySet = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        return qs.filter(user=request.user)
+        biz = self._user_business(request)
+        return qs.filter(business=biz) if biz else qs.none()
 
     def save_model(self, request, obj, form, change):
-        if not change and getattr(obj, "user_id", None) is None:
-            obj.user = request.user
+        if not change and getattr(obj, "business_id", None) is None and not request.user.is_superuser:
+            biz = self._user_business(request)
+            obj.business = biz
         super().save_model(request, obj, form, change)
-
-    def has_view_permission(self, request, obj=None):
-        if request.user.is_superuser or obj is None:
-            return True
-        return getattr(obj, "user_id", None) == request.user.id
-
-    def has_change_permission(self, request, obj=None):
-        if request.user.is_superuser or obj is None:
-            return True
-        return getattr(obj, "user_id", None) == request.user.id
-
-    def has_delete_permission(self, request, obj=None):
-        if request.user.is_superuser or obj is None:
-            return True
-        return getattr(obj, "user_id", None) == request.user.id
 
 
 @admin.register(Category)
-class CategoryAdmin(OwnedAdminMixin):
-    list_display = (
-        "name",
-        "category_type",
-        "book_reports",
-        "tax_reports",
-        "schedule_c_line",
-        "sort_order",
-        "is_active",
-    )
-    list_filter = ("category_type", "book_reports", "tax_reports", "is_active", "schedule_c_line")
-    search_fields = ("name", "slug", "report_group")
-    ordering = ("category_type", "sort_order", "name")
-
-    fields = (
-        "name",
-        "slug",
-        "category_type",
-        "sort_order",
-        "book_reports",
-        "tax_reports",
-        "schedule_c_line",
-        "report_group",
-        "is_active",
-    )
+class CategoryAdmin(BusinessAdminMixin):
+    list_display = ("name", "category_type", "schedule_c_line", "business")
+    list_filter = ("category_type", "business")
+    search_fields = ("name",)
 
 
 @admin.register(SubCategory)
-class SubCategoryAdmin(OwnedAdminMixin):
-    list_display = (
-        "name",
-        "category",
-        "book_enabled",
-        "tax_enabled",
-        "schedule_c_line",
-        "deduction_rule",
-        "requires_payee",
-        "payee_role",
-        "requires_transport",
-        "requires_vehicle",
-        "is_active",
-    )
-    list_filter = (
-        "category__category_type",
-        "book_enabled",
-        "tax_enabled",
-        "deduction_rule",
-        "requires_payee",
-        "payee_role",
-        "requires_transport",
-        "requires_vehicle",
-        "is_active",
-        "is_1099_reportable_default",
-        "is_capitalizable",
-    )
-    search_fields = ("name", "slug", "category__name")
-    ordering = ("category__category_type", "category__sort_order", "sort_order", "name")
-    autocomplete_fields = ("category",)
-
-    fields = (
-        "category",
-        "name",
-        "slug",
-        "sort_order",
-        "book_enabled",
-        "tax_enabled",
-        "schedule_c_line",
-        "deduction_rule",
-        "is_1099_reportable_default",
-        "is_capitalizable",
-        "requires_payee",
-        "payee_role",
-        "requires_transport",
-        "requires_vehicle",
-        "is_active",
-    )
-
-
-class PayeeTaxProfileInline(admin.StackedInline):
-    model = PayeeTaxProfile
-    extra = 0
-    can_delete = True
+class SubCategoryAdmin(BusinessAdminMixin):
+    list_display = ("name", "category", "deduction_rule", "business")
+    list_filter = ("deduction_rule", "business")
+    search_fields = ("name", "category__name")
 
 
 @admin.register(Payee)
-class PayeeAdmin(OwnedAdminMixin):
-    list_display = ("display_name", "is_vendor", "is_customer", "is_contractor", "email", "phone")
-    list_filter = ("is_vendor", "is_customer", "is_contractor")
-    search_fields = ("display_name", "legal_name", "business_name", "email", "phone")
-    ordering = ("display_name",)
-    inlines = (PayeeTaxProfileInline,)
-
-    fields = (
-        "display_name",
-        "legal_name",
-        "business_name",
-        "email",
-        "phone",
-        "address1",
-        "address2",
-        "city",
-        "state",
-        "zip_code",
-        "country",
-        "is_vendor",
-        "is_customer",
-        "is_contractor",
-    )
+class PayeeAdmin(BusinessAdminMixin):
+    list_display = ("display_name", "is_vendor", "is_customer", "is_contractor", "business")
+    list_filter = ("is_vendor", "is_customer", "is_contractor", "business")
+    search_fields = ("display_name", "legal_name", "business_name")
 
 
 @admin.register(PayeeTaxProfile)
-class PayeeTaxProfileAdmin(OwnedAdminMixin):
-    list_display = ("payee", "is_1099_eligible", "entity_type", "tin_type", "tin_last4", "w9_status")
-    list_filter = ("is_1099_eligible", "entity_type", "tin_type", "w9_status")
-    search_fields = ("payee__display_name", "payee__email", "tin_last4")
-    autocomplete_fields = ("payee",)
-
-    fields = (
-        "payee",
-        "is_1099_eligible",
-        "entity_type",
-        "tin_type",
-        "tin_last4",
-        "w9_status",
-        "w9_document",
-        "notes",
-    )
+class PayeeTaxProfileAdmin(BusinessAdminMixin):
+    list_display = ("payee", "is_1099_eligible", "w9_status", "business")
+    list_filter = ("is_1099_eligible", "w9_status", "business")
+    search_fields = ("payee__display_name",)
 
 
 @admin.register(Job)
-class JobAdmin(OwnedAdminMixin):
-    list_display = ("title", "year", "is_active")
-    list_filter = ("year", "is_active")
+class JobAdmin(BusinessAdminMixin):
+    list_display = ("title", "year", "is_active", "business")
+    list_filter = ("year", "is_active", "business")
     search_fields = ("title",)
-    ordering = ("-year", "title")
-
-    fields = ("title", "year", "is_active")
 
 
 @admin.register(Transaction)
-class TransactionAdmin(OwnedAdminMixin):
-    list_display = (
-        "date",
-        "description",
-        "amount",
-        "category",
-        "subcategory",
-        "payee",
-        "job",
-        "invoice_number",
-    )
-    list_filter = ("category__category_type", "category", "subcategory", "payee", "job")
-    search_fields = ("description", "notes", "invoice_number", "payee__display_name", "job__title", "subcategory__name")
-    date_hierarchy = "date"
-    ordering = ("-date", "-id")
-
-    autocomplete_fields = ("subcategory", "payee", "job")
-    readonly_fields = ("created_at", "updated_at", "category")
-
-    fields = (
-        "date",
-        "amount",
-        "description",
-        "subcategory",
-        "category",
-        "payee",
-        "job",
-        "invoice_number",
-        "transport_type",
-        "notes",
-        "created_at",
-        "updated_at",
-    )
+class TransactionAdmin(BusinessAdminMixin):
+    list_display = ("date", "description", "amount", "category", "subcategory", "business")
+    list_filter = ("category", "business")
+    search_fields = ("description", "notes", "invoice_number")

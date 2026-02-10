@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from django.conf import settings
+
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
-from django.db.models import Q
 
-from core.models import OwnedModelMixin
-
+from core.models import Business, BusinessOwnedModelMixin
 
 
-
-
-class Category(OwnedModelMixin):
+class Category(BusinessOwnedModelMixin):
     class CategoryType(models.TextChoices):
         INCOME = "income", "Income"
         EXPENSE = "expense", "Expense"
@@ -63,21 +60,29 @@ class Category(OwnedModelMixin):
     category_type = models.CharField(max_length=10, choices=CategoryType.choices)
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
+
+    # Visibility flags for reports
     book_reports = models.BooleanField(default=True)
     tax_reports = models.BooleanField(default=True)
-    schedule_c_line = models.CharField(max_length=30, choices=ScheduleCLine.choices, blank=True,default="",)
-    report_group = models.CharField(max_length=60, blank=True)
+
+    schedule_c_line = models.CharField(
+        max_length=30,
+        choices=ScheduleCLine.choices,
+        blank=True,
+        default="",
+    )
+    report_group = models.CharField(max_length=60, blank=True, default="")
 
     class Meta:
         ordering = ["category_type", "sort_order", "name"]
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "name", "category_type"],
-                name="uniq_category_user_name_type",
+                fields=["business", "name", "category_type"],
+                name="uniq_category_business_name_type",
             ),
             models.UniqueConstraint(
-                fields=["user", "category_type", "slug"],
-                name="uniq_category_user_type_slug",
+                fields=["business", "category_type", "slug"],
+                name="uniq_category_business_type_slug",
             ),
         ]
 
@@ -92,16 +97,17 @@ class Category(OwnedModelMixin):
         self.full_clean()
         return super().save(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.get_category_type_display()}: {self.name}"
 
 
-class SubCategory(OwnedModelMixin):
+
+
+class SubCategory(BusinessOwnedModelMixin):
     class DeductionRule(models.TextChoices):
         FULL = "full", "100% deductible"
         MEALS_50 = "meals_50", "Meals (50%)"
         NONDEDUCTIBLE = "nondeductible", "Not deductible"
-        # Future: partial/custom rules if needed
 
     class PayeeRole(models.TextChoices):
         ANY = "any", "Any"
@@ -109,103 +115,219 @@ class SubCategory(OwnedModelMixin):
         CONTRACTOR = "contractor", "Contractor"
         CUSTOMER = "customer", "Customer"
 
-    category           = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
-    name               = models.CharField(max_length=80)
-    slug               = models.SlugField(max_length=140, blank=True, null=True)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
+    name = models.CharField(max_length=80)
+    slug = models.SlugField(max_length=140, blank=True, null=True)
 
-    is_active          = models.BooleanField(default=True)
-    sort_order         = models.PositiveIntegerField(default=0)
-    book_enabled       = models.BooleanField(default=True)
-    tax_enabled        = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
 
-    schedule_c_line    = models.CharField(max_length=30, choices=Category.ScheduleCLine.choices, blank=True, default="", help_text="Optional override. If blank, reports may use Category.schedule_c_line.",)
-    deduction_rule     = models.CharField(max_length=20, choices=DeductionRule.choices, default=DeductionRule.FULL)
+    book_enabled = models.BooleanField(default=True)
+    tax_enabled = models.BooleanField(default=True)
+
+    schedule_c_line = models.CharField(
+        max_length=30,
+        choices=Category.ScheduleCLine.choices,
+        blank=True,
+        default="",
+        help_text="Optional override. If blank, reports may use Category.schedule_c_line.",
+    )
+
+    deduction_rule = models.CharField(
+        max_length=20,
+        choices=DeductionRule.choices,
+        default=DeductionRule.FULL,
+    )
 
     is_1099_reportable_default = models.BooleanField(default=False)
+    is_capitalizable = models.BooleanField(default=False)
 
+    requires_payee = models.BooleanField(default=False)
+    payee_role = models.CharField(max_length=15, choices=PayeeRole.choices, default=PayeeRole.ANY)
 
-    is_capitalizable   = models.BooleanField(default=False)
-    requires_payee     = models.BooleanField(default=False)
-    payee_role         = models.CharField(max_length=15, choices=PayeeRole.choices, default=PayeeRole.ANY)
-
-    requires_transport = models.BooleanField(default=False)  # personal vs rental
-    requires_vehicle   = models.BooleanField(default=False)
+    requires_transport = models.BooleanField(default=False)
+    requires_vehicle = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["category__category_type", "category__sort_order", "sort_order", "name"]
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "category", "name"],
-                name="uniq_subcategory_user_cat_name",
+                fields=["business", "category", "name"],
+                name="uniq_subcategory_business_cat_name",
             ),
             models.UniqueConstraint(
-                fields=["user", "slug"],
+                fields=["business", "slug"],
                 condition=Q(slug__isnull=False) & ~Q(slug=""),
-                name="uniq_subcategory_user_slug_nonblank",
+                name="uniq_subcategory_business_slug_nonblank",
             ),
         ]
 
     def clean(self):
         super().clean()
 
-        # Ownership enforcement
-        if self.category_id and self.user_id and self.category.user_id != self.user_id:
-            raise ValidationError({"category": "Category does not belong to this user."})
+        # Tenant consistency: category must belong to same business
+        if self.category_id and self.business_id and self.category.business_id != self.business_id:
+            raise ValidationError({"category": "Category does not belong to this business."})
 
         if self.slug:
             self.slug = slugify(self.slug)
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            # Include category in slug to reduce collisions
             base = f"{self.category.name}-{self.name}" if self.category_id else self.name
             self.slug = slugify(base)
         self.full_clean()
         return super().save(*args, **kwargs)
 
     def effective_schedule_c_line(self) -> str:
-        """
-        Subcategory mapping wins; otherwise category default.
-        """
         return self.schedule_c_line or (self.category.schedule_c_line if self.category_id else "")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.category.name} → {self.name}"
 
     def is_book_visible(self) -> bool:
-        return self.book_enabled and self.category.book_enabled
+        return self.book_enabled and self.category.book_reports
 
     def is_tax_visible(self) -> bool:
-        return self.tax_enabled and self.category.tax_enabled
+        return self.tax_enabled and self.category.tax_reports
+
+
+
+
+
+class Payee(BusinessOwnedModelMixin):
+    display_name = models.CharField(max_length=255)
+    legal_name = models.CharField(max_length=255, blank=True)
+    business_name = models.CharField(max_length=255, blank=True)
+
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+
+    address1 = models.CharField(max_length=255, blank=True)
+    address2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state = models.CharField(max_length=50, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=50, blank=True, default="US")
+
+    is_vendor = models.BooleanField(default=True)
+    is_customer = models.BooleanField(default=False)
+    is_contractor = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["display_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "display_name"],
+                name="uniq_payee_display_name_per_business",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.display_name
+
+
+
+
+class PayeeTaxProfile(BusinessOwnedModelMixin):
+    """Tax/compliance information for payees.
+
+    Prefer W-9 PDF + last4, not full TIN storage.
+    """
+
+    ENTITY_CHOICES = [
+        ("individual", "Individual / Sole Proprietor"),
+        ("llc", "LLC"),
+        ("partnership", "Partnership"),
+        ("c_corp", "C Corporation"),
+        ("s_corp", "S Corporation"),
+        ("other", "Other"),
+    ]
+    W9_STATUS = [
+        ("missing", "Missing"),
+        ("requested", "Requested"),
+        ("received", "Received"),
+        ("verified", "Verified"),
+    ]
+
+    payee = models.OneToOneField(Payee, on_delete=models.CASCADE, related_name="tax_profile")
+
+    is_1099_eligible = models.BooleanField(default=False)
+    entity_type = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
+
+    TIN_CHOICES = [("ssn", "SSN"), ("ein", "EIN")]
+    tin_type = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
+    tin_last4 = models.CharField(max_length=4, blank=True)
+
+    w9_status = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
+    w9_document = models.FileField(upload_to="w9/", blank=True, null=True)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["business", "payee"], name="uniq_taxprofile_payee_per_business"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
+            raise ValidationError({"payee": "Payee does not belong to this business."})
+
+
+
+
+
+class Job(BusinessOwnedModelMixin):
+    title = models.CharField(max_length=255)
+    year = models.PositiveIntegerField(default=timezone.now().year)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-year", "title"]
+        constraints = [
+            models.UniqueConstraint(fields=["business", "year", "title"], name="uniq_job_business_year_title")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.year} • {self.title}"
 
 
 
 
 
 
-class Transaction(OwnedModelMixin):
-    
+class Transaction(BusinessOwnedModelMixin):
     TRANSPORT_CHOICES = [
         ("", "—"),
         ("personal_vehicle", "Personal vehicle"),
         ("rental_car", "Rental car"),
         ("business_vehicle", "Business vehicle"),
     ]
-    
-    
-    date           = models.DateField(default=timezone.now)
-    amount         = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    description    = models.CharField(max_length=255)
-    subcategory    = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="transactions")
-    category       = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
-    payee          = models.ForeignKey("Payee", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
-    job            = models.ForeignKey("Job", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
-    invoice_number = models.CharField(max_length=25, blank=True)
-    transport_type = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")
-    vehicle        = models.ForeignKey("vehicles.Vehicle", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True,)
-    notes          = models.TextField(blank=True)
-    created_at     = models.DateTimeField(auto_now_add=True)
-    updated_at     = models.DateTimeField(auto_now=True)
+
+    date              = models.DateField(default=timezone.now)
+    amount            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    description       = models.CharField(max_length=255)
+
+    subcategory       = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="transactions")
+    category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
+
+    payee             = models.ForeignKey(Payee, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+    job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+
+    invoice_number    = models.CharField(max_length=25, blank=True)
+
+    transport_type    = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")
+    vehicle           = models.ForeignKey("vehicles.Vehicle",
+        on_delete=models.PROTECT,
+        related_name="transactions",
+        null=True,
+        blank=True,
+    )
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-date", "-id"]
@@ -214,22 +336,22 @@ class Transaction(OwnedModelMixin):
         super().clean()
 
         # -------------------------
-        # Ownership checks
+        # Tenant consistency checks
         # -------------------------
-        if self.subcategory_id and self.user_id and self.subcategory.user_id != self.user_id:
-            raise ValidationError({"subcategory": "Subcategory does not belong to this user."})
+        if self.subcategory_id and self.business_id and self.subcategory.business_id != self.business_id:
+            raise ValidationError({"subcategory": "Subcategory does not belong to this business."})
 
-        if self.category_id and self.user_id and self.category.user_id != self.user_id:
-            raise ValidationError({"category": "Category does not belong to this user."})
+        if self.category_id and self.business_id and self.category.business_id != self.business_id:
+            raise ValidationError({"category": "Category does not belong to this business."})
 
-        if self.payee_id and self.user_id and self.payee.user_id != self.user_id:
-            raise ValidationError({"payee": "Payee does not belong to this user."})
+        if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
+            raise ValidationError({"payee": "Payee does not belong to this business."})
 
-        if self.job_id and self.user_id and self.job.user_id != self.user_id:
-            raise ValidationError({"job": "Job does not belong to this user."})
-        
-        if self.vehicle_id and self.user_id and self.vehicle.user_id != self.user_id:
-            raise ValidationError({"vehicle": "Vehicle does not belong to this user."})
+        if self.job_id and self.business_id and self.job.business_id != self.business_id:
+            raise ValidationError({"job": "Job does not belong to this business."})
+
+        if self.vehicle_id and self.business_id and self.vehicle.business_id != self.business_id:
+            raise ValidationError({"vehicle": "Vehicle does not belong to this business."})
 
         # -------------------------
         # Auto category consistency
@@ -245,20 +367,16 @@ class Transaction(OwnedModelMixin):
         if self.amount is not None and self.amount < 0:
             raise ValidationError({"amount": "Amount must be positive."})
 
-        # -------------------------
-        # SubCategory-driven rules (NO name matching)
-        # -------------------------
         if not self.subcategory_id:
             return
 
-        sc = self.subcategory  # expects: requires_payee, payee_role, requires_transport, requires_vehicle
+        sc = self.subcategory
 
         # Payee rules
-        if getattr(sc, "requires_payee", False) and not self.payee_id:
+        if sc.requires_payee and not self.payee_id:
             raise ValidationError({"payee": "This subcategory requires a payee."})
 
-        # Role rules (only enforce if payee present AND role not 'any')
-        role = getattr(sc, "payee_role", "any") or "any"
+        role = sc.payee_role or "any"
         if self.payee_id and role != "any":
             if role == "contractor" and not self.payee.is_contractor:
                 raise ValidationError({"payee": "Select a payee marked as a contractor."})
@@ -267,13 +385,8 @@ class Transaction(OwnedModelMixin):
             if role == "customer" and not self.payee.is_customer:
                 raise ValidationError({"payee": "Select a payee marked as a customer."})
 
-        # Transport + Vehicle rules (SubCategory-driven)
-        # Expect:
-        # - Transaction.transport_type choices now include: personal_vehicle, rental_car, business_vehicle
-        # - Transaction.vehicle FK exists (nullable)
-        # - SubCategory has: requires_transport, requires_vehicle
-
-        if getattr(sc, "requires_transport", False):
+        # Transport + Vehicle rules
+        if sc.requires_transport:
             if not self.transport_type:
                 raise ValidationError({"transport_type": "Select a transport type."})
 
@@ -281,128 +394,23 @@ class Transaction(OwnedModelMixin):
             if self.transport_type not in valid:
                 raise ValidationError({"transport_type": "Invalid transport type."})
 
-            # If transport is business vehicle, a specific Vehicle must be selected
             if self.transport_type == "business_vehicle":
                 if not self.vehicle_id:
                     raise ValidationError({"vehicle": "Select a business vehicle."})
             else:
-                # Personal/Rental should not have a Vehicle FK selected
                 if self.vehicle_id:
                     raise ValidationError({"vehicle": "Remove vehicle; only used for business vehicles."})
-
         else:
-            # Subcategory does not require transport; enforce blank fields
             if self.transport_type:
-                raise ValidationError(
-                    {"transport_type": "Remove transport type; it is not needed for this subcategory."}
-                )
+                raise ValidationError({"transport_type": "Remove transport type; it is not needed for this subcategory."})
             if self.vehicle_id:
                 raise ValidationError({"vehicle": "Remove vehicle; it is not needed for this subcategory."})
 
-        # Vehicle rules (only apply when subcategory explicitly requires a vehicle)
-        # (This is independent from requires_transport; it lets you require a vehicle even if you later
-        # have subcategories that need a vehicle without transport selection.)
-        if getattr(sc, "requires_vehicle", False):
-            if not self.vehicle_id:
-                raise ValidationError({"vehicle": "Select a vehicle for this subcategory."})
-
+        if sc.requires_vehicle and not self.vehicle_id:
+            raise ValidationError({"vehicle": "Select a vehicle for this subcategory."})
 
     def save(self, *args, **kwargs):
         if self.subcategory_id:
             self.category = self.subcategory.category
         self.full_clean()
         return super().save(*args, **kwargs)
-
-
-
-
-
-class Payee(OwnedModelMixin):
-    display_name  = models.CharField(max_length=255)
-    legal_name    = models.CharField(max_length=255, blank=True)
-    business_name = models.CharField(max_length=255, blank=True)
-    email         = models.EmailField(blank=True)
-    phone         = models.CharField(max_length=50, blank=True)
-    address1      = models.CharField(max_length=255, blank=True)
-    address2      = models.CharField(max_length=255, blank=True)
-    city          = models.CharField(max_length=120, blank=True)
-    state         = models.CharField(max_length=50, blank=True)
-    zip_code      = models.CharField(max_length=20, blank=True)
-    country       = models.CharField(max_length=50, blank=True, default="US")
-    is_vendor     = models.BooleanField(default=True)
-    is_customer   = models.BooleanField(default=False)
-    is_contractor = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ["display_name"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "display_name"], name="uniq_payee_display_name_per_user"
-            )
-        ]
-
-    def __str__(self) -> str:
-        return self.display_name
-
-
-
-class PayeeTaxProfile(OwnedModelMixin):
-    """
-    Tax / compliance information for payees. Keep sensitive data minimal.
-    Prefer W-9 PDF + last4, not full TIN storage.
-    """
-    payee            = models.OneToOneField(Payee, on_delete=models.CASCADE, related_name="tax_profile")
-
-    is_1099_eligible = models.BooleanField(default=False)
-
-    ENTITY_CHOICES   = [
-        ("individual", "Individual / Sole Proprietor"),
-        ("llc", "LLC"),
-        ("partnership", "Partnership"),
-        ("c_corp", "C Corporation"),
-        ("s_corp", "S Corporation"),
-        ("other", "Other"),
-    ]
-    entity_type      = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
-
-    TIN_CHOICES      = [("ssn", "SSN"), ("ein", "EIN")]
-    tin_type         = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
-    tin_last4        = models.CharField(max_length=4, blank=True)
-
-    W9_STATUS = [
-        ("missing", "Missing"),
-        ("requested", "Requested"),
-        ("received", "Received"),
-        ("verified", "Verified"),
-    ]
-    w9_status        = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
-    w9_document      = models.FileField(upload_to="w9/", blank=True, null=True)
-
-    notes            = models.TextField(blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["user", "payee"], name="uniq_taxprofile_payee_per_user")
-        ]
-
-    def clean(self):
-        super().clean()
-        if self.payee_id and self.user_id and self.payee.user_id != self.user_id:
-            raise ValidationError({"payee": "Payee does not belong to this user."})
-
-
-
-
-class Job(OwnedModelMixin):
-    title             = models.CharField(max_length=255)
-    year              = models.PositiveIntegerField(default=timezone.now().year)
-    is_active         = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["-year", "title"]
-        constraints = [
-            models.UniqueConstraint(fields=["user", "year", "title"], name="uniq_job_user_year_title")
-        ]
-
-    def __str__(self):
-        return f"{self.year} • {self.title}"
