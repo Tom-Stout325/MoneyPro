@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from django.db import transaction
 from django.utils import timezone
 from allauth.account.adapter import DefaultAccountAdapter
-from .models import Invitation
-from core.models import Business, BusinessMembership
 
+from core.models import Business, BusinessMembership
+from .models import Invitation
 
 
 class InviteOnlyAccountAdapter(DefaultAccountAdapter):
@@ -51,17 +52,27 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
         user = super().save_user(request, user, form, commit=commit)
 
         if commit:
+            # Create a default business if user doesn't already have one
             if not BusinessMembership.objects.filter(user=user, is_active=True).exists():
-                biz = Business.objects.create(name=(user.get_full_name() or user.username or "My Business"))
+                biz = Business.objects.create(
+                    name=(user.get_full_name() or user.username or "My Business")
+                )
                 BusinessMembership.objects.create(
                     user=user,
                     business=biz,
                     role=BusinessMembership.Role.OWNER,
                     is_active=True,
                 )
+
+                # Seed Schedule C categories/subcategories AFTER the signup transaction commits
+                def _seed_defaults():
+                    from ledger.services import seed_schedule_c_defaults
+                    seed_schedule_c_defaults(biz)
+
+                transaction.on_commit(_seed_defaults)
+
         inv = self._get_invitation_from_session(request)
         if inv is not None:
-
             invited_email = (inv.email or "").strip().lower()
             if invited_email:
                 user.email = invited_email
@@ -79,11 +90,11 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
                 request.session[self.SESSION_INVITE_TOKEN_KEY] = inv.token
                 request.session[self.SESSION_INVITE_EMAIL_KEY] = inv.email.lower()
                 request.session.modified = True
-
             except Exception:
                 pass
 
         return user
+
 
 
 

@@ -55,23 +55,21 @@ class Category(BusinessOwnedModelMixin):
         # -------------------------
         OTHER_EXPENSES_V = "other_expenses_part_v", "27b"
 
-    name = models.CharField(max_length=80)
-    slug = models.SlugField(max_length=120, blank=True)
-    category_type = models.CharField(max_length=10, choices=CategoryType.choices)
-    is_active = models.BooleanField(default=True)
-    sort_order = models.PositiveIntegerField(default=0)
-
-    # Visibility flags for reports
-    book_reports = models.BooleanField(default=True)
-    tax_reports = models.BooleanField(default=True)
-
     schedule_c_line = models.CharField(
         max_length=30,
         choices=ScheduleCLine.choices,
         blank=True,
         default="",
     )
-    report_group = models.CharField(max_length=60, blank=True, default="")
+    name              = models.CharField(max_length=80)
+    slug              = models.SlugField(max_length=120, blank=True)
+    category_type     = models.CharField(max_length=10, choices=CategoryType.choices)
+    is_active         = models.BooleanField(default=True)
+    sort_order        = models.PositiveIntegerField(default=0)
+    book_reports      = models.BooleanField(default=True)
+    tax_reports       = models.BooleanField(default=True)
+
+    report_group      = models.CharField(max_length=60, blank=True, default="")
 
     class Meta:
         ordering = ["category_type", "sort_order", "name"]
@@ -115,38 +113,21 @@ class SubCategory(BusinessOwnedModelMixin):
         CONTRACTOR = "contractor", "Contractor"
         CUSTOMER = "customer", "Customer"
 
-    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
-    name = models.CharField(max_length=80)
-    slug = models.SlugField(max_length=140, blank=True, null=True)
-
-    is_active = models.BooleanField(default=True)
-    sort_order = models.PositiveIntegerField(default=0)
-
-    book_enabled = models.BooleanField(default=True)
-    tax_enabled = models.BooleanField(default=True)
-
-    schedule_c_line = models.CharField(
-        max_length=30,
-        choices=Category.ScheduleCLine.choices,
-        blank=True,
-        default="",
-        help_text="Optional override. If blank, reports may use Category.schedule_c_line.",
-    )
-
-    deduction_rule = models.CharField(
-        max_length=20,
-        choices=DeductionRule.choices,
-        default=DeductionRule.FULL,
-    )
-
+    category                   = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
+    name                       = models.CharField(max_length=80)
+    slug                       = models.SlugField(max_length=140, blank=True, null=True)
+    is_active                  = models.BooleanField(default=True)
+    sort_order                 = models.PositiveIntegerField(default=0)
+    book_enabled               = models.BooleanField(default=True)
+    tax_enabled                = models.BooleanField(default=True)
+    schedule_c_line            = models.CharField(max_length=30, choices=Category.ScheduleCLine.choices, blank=True, default="", help_text="Optional override. If blank, reports may use Category.schedule_c_line.",)
+    deduction_rule             = models.CharField(max_length=20, choices=DeductionRule.choices, default=DeductionRule.FULL,)  
     is_1099_reportable_default = models.BooleanField(default=False)
-    is_capitalizable = models.BooleanField(default=False)
-
-    requires_payee = models.BooleanField(default=False)
-    payee_role = models.CharField(max_length=15, choices=PayeeRole.choices, default=PayeeRole.ANY)
-
-    requires_transport = models.BooleanField(default=False)
-    requires_vehicle = models.BooleanField(default=False)
+    is_capitalizable           = models.BooleanField(default=False)
+    requires_payee             = models.BooleanField(default=False)
+    payee_role                 = models.CharField(max_length=15, choices=PayeeRole.choices, default=PayeeRole.ANY)   
+    requires_transport         = models.BooleanField(default=False)
+    requires_vehicle           = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["category__category_type", "category__sort_order", "sort_order", "name"]
@@ -165,7 +146,6 @@ class SubCategory(BusinessOwnedModelMixin):
     def clean(self):
         super().clean()
 
-        # Tenant consistency: category must belong to same business
         if self.category_id and self.business_id and self.category.business_id != self.business_id:
             raise ValidationError({"category": "Category does not belong to this business."})
 
@@ -183,7 +163,7 @@ class SubCategory(BusinessOwnedModelMixin):
         return self.schedule_c_line or (self.category.schedule_c_line if self.category_id else "")
 
     def __str__(self) -> str:
-        return f"{self.category.name} → {self.name}"
+        return f"{self.name}"
 
     def is_book_visible(self) -> bool:
         return self.book_enabled and self.category.book_reports
@@ -210,9 +190,9 @@ class Payee(BusinessOwnedModelMixin):
     zip_code = models.CharField(max_length=20, blank=True)
     country = models.CharField(max_length=50, blank=True, default="US")
 
-    is_vendor = models.BooleanField(default=True)
-    is_customer = models.BooleanField(default=False)
-    is_contractor = models.BooleanField(default=False)
+    is_vendor         = models.BooleanField(default=True)
+    is_customer       = models.BooleanField(default=False)
+    is_contractor     = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["display_name"]
@@ -222,6 +202,20 @@ class Payee(BusinessOwnedModelMixin):
                 name="uniq_payee_display_name_per_business",
             )
         ]
+
+    @classmethod
+    def get_unknown(cls, *, business: Business) -> "Payee":
+        """Return (and create if needed) the default placeholder payee for imports/review."""
+        obj, _created = cls.objects.get_or_create(
+            business=business,
+            display_name="Unknown / Needs Review",
+            defaults={
+                "is_vendor": True,
+                "is_customer": True,
+                "is_contractor": False,
+            },
+        )
+        return obj
 
     def __str__(self) -> str:
         return self.display_name
@@ -305,11 +299,19 @@ class Transaction(BusinessOwnedModelMixin):
         ("business_vehicle", "Business vehicle"),
     ]
 
+
+    class TransactionType(models.TextChoices):
+        INCOME = "income", "Income"
+        EXPENSE = "expense", "Expense"
+
+
     date              = models.DateField(default=timezone.now)
     amount            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     description       = models.CharField(max_length=255)
     subcategory       = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="transactions")
     category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
+    trans_type        = models.CharField(max_length=10, choices=TransactionType.choices, editable=False)
+    is_refund         = models.BooleanField(default=False)
     payee             = models.ForeignKey(Payee, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
@@ -352,6 +354,13 @@ class Transaction(BusinessOwnedModelMixin):
                 raise ValidationError({"category": "Category must match the selected subcategory."})
 
         # -------------------------
+        # Auto type consistency
+        # -------------------------
+        expected_type = self.subcategory.category.category_type
+        if self.trans_type and self.trans_type != expected_type:
+            raise ValidationError({"trans_type": "Transaction type must match the selected subcategory."})
+
+        # -------------------------
         # Amount validation
         # -------------------------
         if self.amount is not None and self.amount < 0:
@@ -362,11 +371,11 @@ class Transaction(BusinessOwnedModelMixin):
 
         sc = self.subcategory
 
-        # Payee rules
+        # Payee rules (only required for certain subcategories)
         if sc.requires_payee and not self.payee_id:
-            raise ValidationError({"payee": "This subcategory requires a payee."})
+            raise ValidationError({"payee": "Select a payee."})
 
-        role = sc.payee_role or "any"
+        role = (sc.payee_role or "any").lower()
         if self.payee_id and role != "any":
             if role == "contractor" and not self.payee.is_contractor:
                 raise ValidationError({"payee": "Select a payee marked as a contractor."})
@@ -374,6 +383,7 @@ class Transaction(BusinessOwnedModelMixin):
                 raise ValidationError({"payee": "Select a payee marked as a vendor."})
             if role == "customer" and not self.payee.is_customer:
                 raise ValidationError({"payee": "Select a payee marked as a customer."})
+
 
         # Transport + Vehicle rules
         if sc.requires_transport:
@@ -402,5 +412,14 @@ class Transaction(BusinessOwnedModelMixin):
     def save(self, *args, **kwargs):
         if self.subcategory_id:
             self.category = self.subcategory.category
+            self.trans_type = self.subcategory.category.category_type
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+    @property
+    def effective_amount(self) -> Decimal:
+        """Amount with refund/reversal applied (refunds reduce totals)."""
+        if self.amount is None:
+            return Decimal("0.00")
+        return -self.amount if self.is_refund else self.amount

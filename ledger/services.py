@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable
-
 from django.db import transaction
 from django.utils.text import slugify
 
@@ -54,8 +53,7 @@ class CategorySpec:
 
 CATEGORY_SPECS: list[CategorySpec] = [
     CategorySpec("Gross Receipts", "1", "income", True, True, "Part I"),
-    CategorySpec("Returns & Allowances", "2", "income", False, True, "Part I"),  # Tax only per your list
-
+    CategorySpec("Returns & Allowances", "2", "income", False, True, "Part I"),
     CategorySpec("Advertising", "8", "expense", True, True, "Part II"),
     CategorySpec("Car & Truck Expenses", "9", "expense", True, True, "Part II"),
     CategorySpec("Commissions & Fees", "10", "expense", True, True, "Part II"),
@@ -79,13 +77,8 @@ CATEGORY_SPECS: list[CategorySpec] = [
     CategorySpec("Utilities", "25", "expense", True, True, "Part II"),
     CategorySpec("Wages", "26", "expense", True, True, "Part II"),
     CategorySpec("Energy Efficient Buildings", "27a", "expense", True, True, "Part II"),
-
-    # Your spreadsheet: 27b is Part V
     CategorySpec("Other Expenses", "27b", "expense", True, True, "Part V"),
 ]
-
-
-# Spreadsheet Schedule C line code -> Category.ScheduleCLine enum key
 SCHEDULE_C_LINE_TO_CHOICE: dict[str, str] = {
     # Part I
     "1": Category.ScheduleCLine.GROSS_RECEIPTS,
@@ -115,7 +108,6 @@ SCHEDULE_C_LINE_TO_CHOICE: dict[str, str] = {
     "25": Category.ScheduleCLine.UTILITIES,
     "26": Category.ScheduleCLine.WAGES,
     "27a": Category.ScheduleCLine.ENERGY_EFFICIENT,
-
     # Part V
     "27b": Category.ScheduleCLine.OTHER_EXPENSES_V,
 }
@@ -142,13 +134,9 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Drone Services", "Gross Receipts"),
     ("Photography Services", "Gross Receipts"),
 
-    # Returns & Allowances
+
     ("Returns & Allowances", "Returns & Allowances"),
-
-    # Advertising
     ("Advertising", "Advertising"),
-
-    # Car & Truck
     ("Gas", "Car & Truck Expenses"),
     ("Vehicle Loan Interest", "Car & Truck Expenses"),
     ("Vehicle Maintenance", "Car & Truck Expenses"),
@@ -156,76 +144,36 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Vehicle Equipment Purchases", "Car & Truck Expenses"),
     ("Vehicle Repairs", "Car & Truck Expenses"),
     ("Vehicle Other Expenses", "Car & Truck Expenses"),
-
-    # Commissions & Fees
     ("Commissions & Fees", "Commissions & Fees"),
-
-    # Contract Labor
     ("Contractors", "Contract Labor"),
-
-    # Depletion
     ("Depletion", "Depletion"),
-
-    # Depreciation & Section 179
     ("Depreciation", "Depreciation & Section 179"),
     ("Section 179", "Depreciation & Section 179"),
-
-    # Employee Benefits
     ("Accident Insurance", "Employee Benefits"),
-
-    # Insurance
     ("Aviation Insurance", "Insurance"),
     ("Liability Insurance", "Insurance"),
-
-    # Interest
     ("Mortgage Interest", "Interest: Mortgage"),
     ("Other Interest", "Interest: Other"),
-
-    # Legal & Professional
     ("Accounting Services", "Legal & Professional"),
     ("Legal Services", "Legal & Professional"),
-
-    # Office Expenses
     ("Office Supplies", "Office Expenses"),
     ("Postage & Shipping", "Office Expenses"),
-
-    # Pension & Profit Sharing
     ("Employee Retirement Contributions", "Pension & Profit Sharing"),
-
-    # Rent or Lease
     ("Machinery Rental", "Rent or Lease: Vehicles & Machinery"),
     ("Drone Equipment Rental", "Rent or Lease: Other Business Property"),
     ("Photography Equipment Rental", "Rent or Lease: Other Business Property"),
-
-    # Repairs
     ("Drone Equipment Repairs", "Repairs & Maintenance"),
-
-    # Supplies
     ("Materials & Supplies", "Supplies"),
-
-    # Taxes & Licenses
     ("Sales Tax Paid", "Taxes & Licenses"),
-
-    # Travel
     ("Hotels", "Travel & Meals: Travel"),
     ("Car Rental", "Travel & Meals: Travel"),
     ("Airfare", "Travel & Meals: Travel"),
     ("Parking & Tolls", "Travel & Meals: Travel"),
-
-    # Meals
     ("Travel Meals", "Travel & Meals: Meals"),
-
-    # Utilities
     ("Cell Phone", "Utilities"),
     ("Internet", "Utilities"),
-
-    # Wages
     ("Wages", "Wages"),
-
-    # 27a
     ("Energy Efficient Buildings", "Energy Efficient Buildings"),
-
-    # Other Expenses (Part V detail)
     ("Bank Fees", "Other Expenses"),
     ("Computer Equipment", "Other Expenses"),
     ("Drone Equipment", "Other Expenses"),
@@ -238,6 +186,22 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Business Meals", "Other Expenses"),
 ]
 
+# Subcategory default rules (seed-time defaults)
+SUBCATEGORY_RULES: dict[str, dict[str, object]] = {
+    # Payee required
+    "Contractors": {"requires_payee": True, "payee_role": "contractor"},
+    "Wages": {"requires_payee": True, "payee_role": "any"},
+
+    # Vehicle required (business_vehicle + vehicle)
+    "Vehicle Equipment Purchases": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle Loan Interest": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle Loan Payments": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle Maintenance": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle Other Expenses": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle Repairs": {"requires_transport": True, "requires_vehicle": True},
+    "Gas": {"requires_transport": True, "requires_vehicle": True},
+    "Car Rental": {"requires_transport": True, "requires_vehicle": False},
+}
 
 # ------------------------------------------------------------------------------
 # Main seeding function
@@ -258,7 +222,7 @@ def seed_schedule_c_defaults(business) -> None:
     cat_slug_max = _field_max_length(Category, "slug", 120)
     sub_slug_max = _field_max_length(SubCategory, "slug", 140)
 
-    # Track existing slugs to avoid collisions within the user's namespace
+    # Track existing slugs to avoid collisions within the business namespace
     used_cat_slugs = set(
         Category.objects.filter(business=business)
         .exclude(slug__isnull=True)
@@ -277,6 +241,7 @@ def seed_schedule_c_defaults(business) -> None:
 
     for idx, spec in enumerate(CATEGORY_SPECS, start=1):
         desired_line = _schedule_c_choice(spec.schedule_c_line)
+
         cat, _created = Category.objects.get_or_create(
             business=business,
             name=spec.name,
@@ -292,7 +257,6 @@ def seed_schedule_c_defaults(business) -> None:
             },
         )
 
-        # Keep seeded categories aligned with the spec (idempotent updates)
         updates: dict[str, object] = {}
 
         if cat.sort_order != idx:
@@ -327,8 +291,6 @@ def seed_schedule_c_defaults(business) -> None:
         categories_by_name[spec.name] = cat
 
     # ---- Seed list sanity: ensure SubCategory names are unique within the seed list ----
-    # (Your DB constraint is unique per (user, category, name). This is a stricter safety check
-    # to prevent identical names across categories in your seed list.)
     seen: set[str] = set()
     dupes: set[str] = set()
     for n, _parent in SUBCATEGORY_SPECS:
@@ -338,12 +300,16 @@ def seed_schedule_c_defaults(business) -> None:
     if dupes:
         raise ValueError(f"Duplicate SubCategory names in SUBCATEGORY_SPECS: {sorted(dupes)}")
 
+
     # ---- Create / update SubCategories ----
     has_requires_payee = _model_has_field(SubCategory, "requires_payee")
     has_payee_role = _model_has_field(SubCategory, "payee_role")
+    has_requires_transport = _model_has_field(SubCategory, "requires_transport")
+    has_requires_vehicle = _model_has_field(SubCategory, "requires_vehicle")
 
     existing_subs = {
-        s.name: s for s in SubCategory.objects.filter(business=business).select_related("category")
+        s.name: s
+        for s in SubCategory.objects.filter(business=business).select_related("category")
     }
 
     to_create: list[SubCategory] = []
@@ -355,7 +321,10 @@ def seed_schedule_c_defaults(business) -> None:
                 f"Missing parent Category '{parent_cat_name}' for SubCategory '{sub_name}'"
             )
 
+        rules = SUBCATEGORY_RULES.get(sub_name, {})
         existing = existing_subs.get(sub_name)
+
+        # Update existing (idempotent)
         if existing:
             updates: dict[str, object] = {}
 
@@ -363,15 +332,40 @@ def seed_schedule_c_defaults(business) -> None:
                 updates["category_id"] = parent.id
 
             if not existing.slug:
-                updates["slug"] = _unique_slug(f"{parent.name}-{sub_name}", used_sub_slugs, sub_slug_max)
+                updates["slug"] = _unique_slug(
+                    f"{parent.name}-{sub_name}", used_sub_slugs, sub_slug_max
+                )
 
             if getattr(existing, "is_active", True) is not True:
                 updates["is_active"] = True
 
+            # Apply rule-based defaults
+            if has_requires_payee:
+                desired = bool(rules.get("requires_payee", False))
+                if existing.requires_payee != desired:
+                    updates["requires_payee"] = desired
+
+            if has_payee_role:
+                desired = str(rules.get("payee_role", "any"))
+                if (existing.payee_role or "any") != desired:
+                    updates["payee_role"] = desired
+
+            if has_requires_transport:
+                desired = bool(rules.get("requires_transport", False))
+                if getattr(existing, "requires_transport", False) != desired:
+                    updates["requires_transport"] = desired
+
+            if has_requires_vehicle:
+                desired = bool(rules.get("requires_vehicle", False))
+                if getattr(existing, "requires_vehicle", False) != desired:
+                    updates["requires_vehicle"] = desired
+
             if updates:
                 SubCategory.objects.filter(pk=existing.pk).update(**updates)
+
             continue
 
+        # Create new
         kwargs: dict[str, object] = {
             "business": business,
             "category": parent,
@@ -380,11 +374,14 @@ def seed_schedule_c_defaults(business) -> None:
             "is_active": True,
         }
 
-        # Optional fields: if your SubCategory model includes these, keep defaults consistent.
         if has_requires_payee:
-            kwargs["requires_payee"] = False
+            kwargs["requires_payee"] = bool(rules.get("requires_payee", False))
         if has_payee_role:
-            kwargs["payee_role"] = "any"
+            kwargs["payee_role"] = str(rules.get("payee_role", "any"))
+        if has_requires_transport:
+            kwargs["requires_transport"] = bool(rules.get("requires_transport", False))
+        if has_requires_vehicle:
+            kwargs["requires_vehicle"] = bool(rules.get("requires_vehicle", False))
 
         to_create.append(SubCategory(**kwargs))
 

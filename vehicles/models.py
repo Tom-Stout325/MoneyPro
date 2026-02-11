@@ -12,21 +12,30 @@ from core.models import BusinessOwnedModelMixin
 
 
 class Vehicle(BusinessOwnedModelMixin):
-    label              = models.CharField(max_length=120, help_text="What you want to see in dropdowns (e.g., 2018 Ford F-150).",)
-    year               = models.PositiveIntegerField(blank=True, null=True)
-    make               = models.CharField(max_length=60, blank=True)
-    model              = models.CharField(max_length=60, blank=True)
-    vin_last6          = models.CharField(max_length=6, blank=True)
-    plate              = models.CharField(max_length=20, blank=True)
+    label = models.CharField(
+        max_length=120,
+        help_text="What you want to see in dropdowns (e.g., 2018 Ford F-150).",
+    )
+    year = models.PositiveIntegerField(blank=True, null=True)
+    make = models.CharField(max_length=60, blank=True)
+    model = models.CharField(max_length=60, blank=True)
+    vin_last6 = models.CharField(max_length=6, blank=True)
+    plate = models.CharField(max_length=20, blank=True)
 
-    in_service_date    = models.DateField(blank=True, null=True, default=None)
-    in_service_mileage = models.DecimalField(max_digits=10, decimal_places=1, validators=[MinValueValidator(0)], null=True, blank=True,)
-    sold_date          = models.DateField(blank=True, null=True, default=None)
+    in_service_date = models.DateField(blank=True, null=True, default=None)
+    in_service_mileage = models.DecimalField(
+        max_digits=10,
+        decimal_places=1,
+        validators=[MinValueValidator(0)],
+        null=True,
+        blank=True,
+    )
+    sold_date = models.DateField(blank=True, null=True, default=None)
 
-    is_business        = models.BooleanField(default=True)
-    is_active          = models.BooleanField(default=True)
-    sort_order         = models.PositiveIntegerField(default=0)
-    created_at         = models.DateTimeField(auto_now_add=True)
+    is_business = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["sort_order", "label"]

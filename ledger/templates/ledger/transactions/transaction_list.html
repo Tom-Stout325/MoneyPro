@@ -43,13 +43,13 @@
             <tr>
               <td class="text-nowrap">{{ t.date }}</td>
               <td>
-                <div class="fw-semibold">{{ t.description }}</div>
+                <div class="fw-semibold">{{ t.description }} {% if t.is_refund %}<span class="badge text-bg-warning ms-1">Refund</span>{% endif %}</div>
                 <div class="text-muted small d-md-none">
                   {{ t.subcategory.name }}
                 </div>
               </td>
               <td class="d-none d-md-table-cell">{{ t.subcategory.name }}</td>
-              <td class="text-end">${{ t.amount|floatformat:2|intcomma }}</td>
+              <td class="text-end">{% if t.is_refund %}-{% endif %}${{ t.amount|floatformat:2|intcomma }}</td>
               <td class="text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'ledger:transaction_update' t.pk %}">Edit</a>
                 <a class="btn btn-sm btn-outline-danger" href="{% url 'ledger:transaction_delete' t.pk %}">Delete</a>

@@ -5,9 +5,11 @@ from django import forms
 from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Div, Field, HTML, Layout
+from django.db.models.functions import Lower
 
 from ledger.models import Job, Payee, SubCategory, Transaction
 from vehicles.models import Vehicle
+
 
 
 class TransactionForm(forms.ModelForm):
@@ -24,6 +26,7 @@ class TransactionForm(forms.ModelForm):
         fields = [
             "date",
             "amount",
+            "is_refund",
             "description",
             "subcategory",
             "payee",
@@ -42,19 +45,20 @@ class TransactionForm(forms.ModelForm):
 
         # Scope dropdowns
         self.fields["subcategory"].queryset = (
-            SubCategory.objects.filter(business=self.business, is_active=True)
+            SubCategory.objects
+            .filter(business=self.business, is_active=True)
             .select_related("category")
-            .order_by("category__category_type", "category__sort_order", "sort_order", "name")
+            .order_by(Lower("name"))
         )
         self.fields["payee"].queryset = Payee.objects.filter(business=self.business).order_by("display_name")
         self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-year", "title")
 
-        # Amount widget behavior (USD, 2 decimals)
+        self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
+
         self.fields["amount"].widget.attrs.setdefault("class", "form-control")
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
 
-        # Build transport choices (personal/rental + business vehicles)
         vehicle_choices = [
             (f"veh:{v.id}", v.label)
             for v in Vehicle.objects.filter(
@@ -71,7 +75,6 @@ class TransactionForm(forms.ModelForm):
             *vehicle_choices,
         ]
 
-        # Pre-fill selector for edit
         if self.instance and self.instance.pk:
             if self.instance.transport_type == "business_vehicle" and self.instance.vehicle_id:
                 self.initial["transport_selector"] = f"veh:{self.instance.vehicle_id}"
@@ -80,7 +83,6 @@ class TransactionForm(forms.ModelForm):
             else:
                 self.initial["transport_selector"] = ""
 
-        # Crispy layout
         self.helper = FormHelper()
         self.helper.form_tag = False
         self.helper.disable_csrf = True
@@ -93,7 +95,7 @@ class TransactionForm(forms.ModelForm):
                 Div(Field("description"), css_class="col-12 col-md-4"),
                 css_class="row g-3",
             ),
-            HTML('<div class="mt-3">{% include "ledger/transactions/_subcategory_select.html" %}</div>'),
+            HTML('{% include "ledger/partials/_subcategory_select.html" %}'),
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Links & extras</div>'),
             Div(
@@ -101,7 +103,7 @@ class TransactionForm(forms.ModelForm):
                 Div(Field("invoice_number"), css_class="col-12 col-md-6"),
                 css_class="row g-3",
             ),
-            HTML('{% include "ledger/transactions/_payee_and_transport.html" %}'),
+            HTML('{% include "ledger/partials/_payee_and_transport.html" %}'),
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Notes</div>'),
             Field("notes"),
@@ -165,3 +167,46 @@ class TransactionForm(forms.ModelForm):
             return cleaned
 
         return cleaned
+
+
+
+#<------------------------------------  P A Y E E   F O R M   ---------------------------->
+
+class PayeeForm(forms.ModelForm):
+    """Business-scoped Payee form."""
+    class Meta:
+        model = Payee
+        fields = [
+            "display_name",
+            "legal_name",
+            "business_name",
+            "email",
+            "phone",
+            "address1",
+            "address2",
+            "city",
+            "state",
+            "zip_code",
+            "country",
+            "is_vendor",
+            "is_customer",
+            "is_contractor",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.business = kwargs.pop("business", None)
+        super().__init__(*args, **kwargs)
+
+        if not self.business:
+            raise ValueError("PayeeForm requires business=...")
+
+        # Mobile-friendly defaults
+        for name, field in self.fields.items():
+            widget = field.widget
+            if hasattr(widget, "attrs"):
+                if getattr(widget, "input_type", "") != "checkbox":
+                    widget.attrs.setdefault("class", "form-control")
+
+        # Checkbox styling
+        for cb in ("is_vendor", "is_customer", "is_contractor"):
+            self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
