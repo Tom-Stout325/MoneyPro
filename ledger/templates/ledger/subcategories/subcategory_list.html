@@ -1,0 +1,87 @@
+{% extends "index.html" %}
+
+{% block title %}Sub-Categories | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">Sub-Categories</h1>
+      <div class="text-muted small">Fine-grained buckets under each Category.</div>
+    </div>
+    <a class="btn btn-primary" href="{% url 'ledger:subcategory_create' %}">New Sub-Category</a>
+  </div>
+
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+      <input class="form-control" name="q" value="{{ q }}" placeholder="Search sub-categories…">
+    </div>
+    <div class="col-12 col-md-3">
+      <select class="form-select" name="type">
+        <option value="" {% if not type %}selected{% endif %}>Income + Expense</option>
+        <option value="income" {% if type == "income" %}selected{% endif %}>Income</option>
+        <option value="expense" {% if type == "expense" %}selected{% endif %}>Expense</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-3">
+      <select class="form-select" name="category">
+        <option value="" {% if not category %}selected{% endif %}>All categories</option>
+        {% for c in categories %}
+          <option value="{{ c.id }}" {% if category|add:"" == c.id|add:"" %}selected{% endif %}>
+            {{ c.get_category_type_display }}: {{ c.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-1 d-grid">
+      <button class="btn btn-outline-secondary">Go</button>
+    </div>
+  </form>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Sub-Category</th>
+            <th class="text-muted">Category</th>
+            <th class="text-muted">Rules</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sc in subcategories %}
+          <tr>
+            <td class="fw-semibold">
+              {{ sc.name }}
+              {% if not sc.is_active %}
+                <span class="badge text-bg-secondary ms-2">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">
+              {{ sc.category.get_category_type_display }}: {{ sc.category.name }}
+            </td>
+            <td class="text-muted small">
+              <span class="me-2">{{ sc.get_deduction_rule_display }}</span>
+              {% if sc.requires_payee %}<span class="badge text-bg-light border me-1">Payee</span>{% endif %}
+              {% if sc.requires_transport %}<span class="badge text-bg-light border me-1">Transport</span>{% endif %}
+              {% if sc.requires_vehicle %}<span class="badge text-bg-light border me-1">Vehicle</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'ledger:subcategory_update' sc.pk %}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger" href="{% url 'ledger:subcategory_delete' sc.pk %}">Delete</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-muted py-4">No sub-categories yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

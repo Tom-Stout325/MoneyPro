@@ -7,7 +7,7 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Div, Field, HTML, Layout
 from django.db.models.functions import Lower
 
-from ledger.models import Job, Payee, SubCategory, Transaction
+from ledger.models import Category, Job, Payee, SubCategory, Transaction, Team
 from vehicles.models import Vehicle
 
 
@@ -30,6 +30,7 @@ class TransactionForm(forms.ModelForm):
             "description",
             "subcategory",
             "payee",
+            "team",
             "job",
             "invoice_number",
             "transport_selector",
@@ -51,6 +52,7 @@ class TransactionForm(forms.ModelForm):
             .order_by(Lower("name"))
         )
         self.fields["payee"].queryset = Payee.objects.filter(business=self.business).order_by("display_name")
+        self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
         self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-year", "title")
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
@@ -99,8 +101,9 @@ class TransactionForm(forms.ModelForm):
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Links & extras</div>'),
             Div(
-                Div(Field("job"), css_class="col-12 col-md-6"),
-                Div(Field("invoice_number"), css_class="col-12 col-md-6"),
+                Div(Field("team"), css_class="col-12 col-md-4"),
+                Div(Field("job"), css_class="col-12 col-md-4"),
+                Div(Field("invoice_number"), css_class="col-12 col-md-4"),
                 css_class="row g-3",
             ),
             HTML('{% include "ledger/partials/_payee_and_transport.html" %}'),
@@ -210,3 +213,143 @@ class PayeeForm(forms.ModelForm):
         # Checkbox styling
         for cb in ("is_vendor", "is_customer", "is_contractor"):
             self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+
+
+#<------------------------------------  T E A M   F O R M   ---------------------------->
+
+
+class TeamForm(forms.ModelForm):
+    """Business-scoped Team form."""
+
+    class Meta:
+        model = Team
+        fields = [
+            "name",
+            "is_active",
+            "sort_order",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.business = kwargs.pop("business", None)
+        super().__init__(*args, **kwargs)
+
+        if not self.business:
+            raise ValueError("TeamForm requires business=...")
+
+        for name, field in self.fields.items():
+            widget = field.widget
+            if hasattr(widget, "attrs"):
+                if getattr(widget, "input_type", "") != "checkbox":
+                    widget.attrs.setdefault("class", "form-control")
+
+        self.fields["is_active"].widget.attrs.setdefault("class", "form-check-input")
+
+
+# <------------------------------------  S U B - C A T E G O R Y   F O R M  ---------------------------->
+
+
+class SubCategoryForm(forms.ModelForm):
+    """Business-scoped SubCategory form."""
+
+    class Meta:
+        model = SubCategory
+        fields = [
+            "category",
+            "name",
+            "slug",
+            "is_active",
+            "sort_order",
+            "book_enabled",
+            "tax_enabled",
+            "schedule_c_line",
+            "deduction_rule",
+            "is_1099_reportable_default",
+            "is_capitalizable",
+            "requires_payee",
+            "payee_role",
+            "requires_transport",
+            "requires_vehicle",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.business = kwargs.pop("business", None)
+        super().__init__(*args, **kwargs)
+
+        if not self.business:
+            raise ValueError("SubCategoryForm requires business=...")
+
+        self.fields["category"].queryset = (
+            Category.objects.filter(business=self.business, is_active=True)
+            .order_by("category_type", "sort_order", "name")
+        )
+
+        # Mobile-friendly defaults
+        for name, field in self.fields.items():
+            widget = field.widget
+            if hasattr(widget, "attrs"):
+                if getattr(widget, "input_type", "") != "checkbox":
+                    widget.attrs.setdefault("class", "form-control")
+
+        for cb in (
+            "is_active",
+            "book_enabled",
+            "tax_enabled",
+            "is_1099_reportable_default",
+            "is_capitalizable",
+            "requires_payee",
+            "requires_transport",
+            "requires_vehicle",
+        ):
+            self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+
+        # Better select styling
+        self.fields["category"].widget.attrs.setdefault("class", "form-select")
+        self.fields["schedule_c_line"].widget.attrs.setdefault("class", "form-select")
+        self.fields["deduction_rule"].widget.attrs.setdefault("class", "form-select")
+        self.fields["payee_role"].widget.attrs.setdefault("class", "form-select")
+
+        # Optional: keep slug small and unobtrusive
+        self.fields["slug"].required = False
+        self.fields["slug"].help_text = "Optional. Leave blank to auto-generate." 
+
+        # Crispy layout (no <form> tag; templates own the form tag)
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.disable_csrf = True
+        self.helper.layout = Layout(
+            HTML('<div class="fw-semibold mb-2">Basics</div>'),
+            Div(
+                Div(Field("category"), css_class="col-12 col-md-6"),
+                Div(Field("name"), css_class="col-12 col-md-6"),
+                css_class="row g-3",
+            ),
+            Div(
+                Div(Field("slug"), css_class="col-12 col-md-6"),
+                Div(Field("sort_order"), css_class="col-12 col-md-3"),
+                Div(Field("is_active"), css_class="col-12 col-md-3 pt-md-4"),
+                css_class="row g-3 mt-0",
+            ),
+            HTML("<hr class='my-4'>"),
+            HTML('<div class="fw-semibold mb-2">Reporting</div>'),
+            Div(
+                Div(Field("book_enabled"), css_class="col-12 col-md-3"),
+                Div(Field("tax_enabled"), css_class="col-12 col-md-3"),
+                Div(Field("schedule_c_line"), css_class="col-12 col-md-3"),
+                Div(Field("deduction_rule"), css_class="col-12 col-md-3"),
+                css_class="row g-3",
+            ),
+            HTML("<hr class='my-4'>"),
+            HTML('<div class="fw-semibold mb-2">Rules</div>'),
+            Div(
+                Div(Field("is_1099_reportable_default"), css_class="col-12 col-md-3"),
+                Div(Field("is_capitalizable"), css_class="col-12 col-md-3"),
+                Div(Field("requires_payee"), css_class="col-12 col-md-3"),
+                Div(Field("payee_role"), css_class="col-12 col-md-3"),
+                css_class="row g-3",
+            ),
+            Div(
+                Div(Field("requires_transport"), css_class="col-12 col-md-3"),
+                Div(Field("requires_vehicle"), css_class="col-12 col-md-3"),
+                css_class="row g-3 mt-0",
+            ),
+        )

@@ -16,6 +16,7 @@ from core.models import Business, BusinessMembership
 
 
 
+
 class OnboardingView(LoginRequiredMixin, UpdateView):
     model = CompanyProfile
     form_class = CompanyProfileForm
@@ -30,38 +31,46 @@ class OnboardingView(LoginRequiredMixin, UpdateView):
         return profile
 
     def dispatch(self, request, *args, **kwargs):
+        """
+        Only skip onboarding if:
+        - profile is complete AND
+        - user has an active business membership
+        """
         profile, _ = CompanyProfile.objects.get_or_create(user=request.user)
-        if profile.is_complete and request.method.lower() == "get":
+        has_membership = BusinessMembership.objects.filter(
+            user=request.user, is_active=True
+        ).exists()
+
+        if profile.is_complete and has_membership and request.method.lower() == "get":
             return redirect("dashboard:home")
+
         return super().dispatch(request, *args, **kwargs)
 
-def form_valid(self, form):
-    response = super().form_valid(form)
+    def form_valid(self, form):
+        response = super().form_valid(form)
 
-    # once profile is complete, create business/membership if missing
-    if self.object.is_complete:
-        with transaction.atomic():
-            membership = (
-                BusinessMembership.objects.select_for_update()
-                .filter(user=self.request.user, is_active=True)
-                .select_related("business")
-                .first()
-            )
-            if not membership:
-                biz = Business.objects.create(name=self.object.company_name or "My Business")
-                BusinessMembership.objects.create(
-                    business=biz,
-                    user=self.request.user,
-                    role=BusinessMembership.Role.OWNER,
-                    is_active=True,
+        # If profile is now complete, ensure Business + active membership exist.
+        if self.object.is_complete:
+            with transaction.atomic():
+                membership = (
+                    BusinessMembership.objects.select_for_update()
+                    .filter(user=self.request.user, is_active=True)
+                    .select_related("business")
+                    .first()
                 )
+                if not membership:
+                    biz = Business.objects.create(
+                        name=self.object.company_name or "My Business"
+                    )
+                    BusinessMembership.objects.create(
+                        business=biz,
+                        user=self.request.user,
+                        role=BusinessMembership.Role.OWNER,
+                        is_active=True,
+                    )
 
-        # force fresh login AFTER the single onboarding flow
-        logout(self.request)
-        messages.success(self.request, "Account setup complete. Please log in again to continue.")
-        return redirect("account_login")
-
-    return response
+        messages.success(self.request, "Company setup saved.")
+        return response
 
     
 

@@ -268,6 +268,9 @@ class PayeeTaxProfile(BusinessOwnedModelMixin):
         if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
             raise ValidationError({"payee": "Payee does not belong to this business."})
 
+        if self.team_id and self.business_id and self.team.business_id != self.business_id:
+            raise ValidationError({"team": "Team does not belong to this business."})
+
 
 
 
@@ -288,7 +291,20 @@ class Job(BusinessOwnedModelMixin):
 
 
 
+class Team(models.Model):
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="teams")
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["business", "name"], name="uniq_team_per_business_name"),
+        ]
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Transaction(BusinessOwnedModelMixin):
@@ -313,6 +329,7 @@ class Transaction(BusinessOwnedModelMixin):
     trans_type        = models.CharField(max_length=10, choices=TransactionType.choices, editable=False)
     is_refund         = models.BooleanField(default=False)
     payee             = models.ForeignKey(Payee, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+    team              = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
     transport_type    = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")

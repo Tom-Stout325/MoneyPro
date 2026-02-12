@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from django.db import transaction
 from django.utils import timezone
 from allauth.account.adapter import DefaultAccountAdapter
 
@@ -64,13 +63,6 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
                     is_active=True,
                 )
 
-                # Seed Schedule C categories/subcategories AFTER the signup transaction commits
-                def _seed_defaults():
-                    from ledger.services import seed_schedule_c_defaults
-                    seed_schedule_c_defaults(biz)
-
-                transaction.on_commit(_seed_defaults)
-
         inv = self._get_invitation_from_session(request)
         if inv is not None:
             invited_email = (inv.email or "").strip().lower()
@@ -94,26 +86,3 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
                 pass
 
         return user
-
-
-
-
-
-
-
-
-
-
-
-
-
-from core.models import Business, BusinessMembership
-
-def is_open_for_signup(self, request):
-    ok = self._get_invitation_from_session(request) is not None
-    return ok
-
-def is_open_for_signup(self, request):
-    inv = self._get_invitation_from_session(request)
-    print("✅ is_open_for_signup:", bool(inv), "session:", dict(request.session))
-    return inv is not None

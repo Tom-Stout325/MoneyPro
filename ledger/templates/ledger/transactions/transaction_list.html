@@ -34,6 +34,7 @@
             <th>Date</th>
             <th>Description</th>
             <th class="d-none d-md-table-cell">Subcategory</th>
+            <th class="d-none d-lg-table-cell">Team</th>
             <th class="text-end">Amount</th>
             <th class="text-end" style="width: 1%;">Actions</th>
           </tr>
@@ -45,10 +46,11 @@
               <td>
                 <div class="fw-semibold">{{ t.description }} {% if t.is_refund %}<span class="badge text-bg-warning ms-1">Refund</span>{% endif %}</div>
                 <div class="text-muted small d-md-none">
-                  {{ t.subcategory.name }}
+                  {{ t.subcategory.name }}{% if t.team %} • {{ t.team.name }}{% endif %}
                 </div>
               </td>
               <td class="d-none d-md-table-cell">{{ t.subcategory.name }}</td>
+              <td class="d-none d-lg-table-cell">{% if t.team %}{{ t.team.name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
               <td class="text-end">{% if t.is_refund %}-{% endif %}${{ t.amount|floatformat:2|intcomma }}</td>
               <td class="text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'ledger:transaction_update' t.pk %}">Edit</a>
@@ -57,7 +59,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="5" class="p-4 text-center text-muted">
+              <td colspan="6" class="p-4 text-center text-muted">
                 No transactions yet. Add your first one.
               </td>
             </tr>

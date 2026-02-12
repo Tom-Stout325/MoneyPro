@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.db.models import QuerySet
 
 from core.models import BusinessMembership
-from .models import Category, Job, Payee, PayeeTaxProfile, SubCategory, Transaction
+from .models import Category, Job, Payee, PayeeTaxProfile, SubCategory, Team, Transaction
 
 
 class BusinessAdminMixin(admin.ModelAdmin):
@@ -66,6 +66,13 @@ class JobAdmin(BusinessAdminMixin):
     list_display = ("title", "year", "is_active", "business")
     list_filter = ("year", "is_active", "business")
     search_fields = ("title",)
+
+
+@admin.register(Team)
+class TeamAdmin(BusinessAdminMixin):
+    list_display = ("name", "is_active", "sort_order", "business")
+    list_filter = ("is_active", "business")
+    search_fields = ("name",)
 
 
 @admin.register(Transaction)
