@@ -3,10 +3,29 @@ from __future__ import annotations
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from .forms import PayeeForm, SubCategoryForm, TransactionForm, TeamForm
-from .models import Category, Payee, SubCategory, Transaction, Team
+from django.views.generic import (
+        CreateView, 
+        DeleteView, 
+        ListView, 
+        UpdateView,
+    )
+
+from .forms import (
+        PayeeForm, 
+        SubCategoryForm, 
+        TransactionForm, 
+        TeamForm 
+    )
+
+
+from .models import (
+        Payee, 
+        SubCategory, 
+        Transaction, 
+        Team, 
+        Category, 
+    )
 
 
 class TransactionListView(LoginRequiredMixin, ListView):
@@ -18,21 +37,64 @@ class TransactionListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = (
             Transaction.objects.filter(business=self.request.business)
-            .select_related("category", "subcategory", "payee", "team", "job", "vehicle")
+            .select_related("category", "subcategory", "team", "payee", "job", "vehicle")
             .order_by("-date", "-id")
         )
+
         q = (self.request.GET.get("q") or "").strip()
+        ttype = (self.request.GET.get("type") or "").strip()  # income|expense
+        cat = (self.request.GET.get("category") or "").strip()
+        subcat = (self.request.GET.get("subcategory") or "").strip()
+
         if q:
             qs = qs.filter(
                 Q(description__icontains=q)
                 | Q(notes__icontains=q)
                 | Q(subcategory__name__icontains=q)
+                | Q(category__category__icontains=q)
+
+                | Q(team__name__icontains=q)
             )
+
+        if ttype in ("income", "expense"):
+            qs = qs.filter(trans_type=ttype)
+
+        if cat:
+            try:
+                cat_id = int(cat)
+            except ValueError:
+                cat_id = None
+            if cat_id:
+                qs = qs.filter(category_id=cat_id)
+
+        if subcat:
+            try:
+                subcat_id = int(subcat)
+            except ValueError:
+                subcat_id = None
+            if subcat_id:
+                qs = qs.filter(subcategory_id=subcat_id)
+
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+
+        # current filters
         ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["type"] = (self.request.GET.get("type") or "").strip()
+        ctx["category"] = (self.request.GET.get("category") or "").strip()
+        ctx["subcategory"] = (self.request.GET.get("subcategory") or "").strip()
+
+        # dropdown options
+        ctx["categories"] = Category.objects.filter(business=self.request.business, is_active=True).order_by("name")
+        ctx["subcategories"] = SubCategory.objects.filter(business=self.request.business, is_active=True).order_by("name")
+
+        # for pagination links (preserve filters/search)
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        ctx["qs"] = params.urlencode()
+
         return ctx
 
 
@@ -163,6 +225,101 @@ class PayeeDeleteView(LoginRequiredMixin, DeleteView):
         return Payee.objects.filter(business=self.request.business)
 
 
+# <-------------------------------  S U B C A T E G O R Y   V I E W S  ------------------------------>
+
+
+class SubCategoryListView(LoginRequiredMixin, ListView):
+    model = SubCategory
+    template_name = "ledger/subcategories/subcategory_list.html"
+    context_object_name = "subcategories"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = (
+            SubCategory.objects.filter(business=self.request.business)
+            .select_related("category")
+            .order_by("category__category_type", "category__sort_order", "sort_order", "name")
+        )
+
+        q = (self.request.GET.get("q") or "").strip()
+        ctype = (self.request.GET.get("type") or "").strip()
+        cat = (self.request.GET.get("category") or "").strip()
+
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(category__name__icontains=q))
+
+        if ctype in ("income", "expense"):
+            qs = qs.filter(category__category_type=ctype)
+
+        if cat:
+            try:
+                cat_id = int(cat)
+            except ValueError:
+                cat_id = None
+            if cat_id:
+                qs = qs.filter(category_id=cat_id)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["type"] = (self.request.GET.get("type") or "").strip()
+        ctx["category"] = (self.request.GET.get("category") or "").strip()
+        ctx["categories"] = Category.objects.filter(
+            business=self.request.business,
+            is_active=True,
+        ).order_by("category_type", "sort_order", "name")
+
+        return ctx
+
+
+class SubCategoryCreateView(LoginRequiredMixin, CreateView):
+    model = SubCategory
+    form_class = SubCategoryForm
+    template_name = "ledger/subcategories/subcategory_form.html"
+    success_url = reverse_lazy("ledger:subcategory_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["business"] = self.request.business
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.business = self.request.business
+        return super().form_valid(form)
+
+
+class SubCategoryUpdateView(LoginRequiredMixin, UpdateView):
+    model = SubCategory
+    form_class = SubCategoryForm
+    template_name = "ledger/subcategories/subcategory_form.html"
+    success_url = reverse_lazy("ledger:subcategory_list")
+
+    def get_queryset(self):
+        return SubCategory.objects.filter(business=self.request.business)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["business"] = self.request.business
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.business = self.request.business
+        return super().form_valid(form)
+
+
+class SubCategoryDeleteView(LoginRequiredMixin, DeleteView):
+    model = SubCategory
+    template_name = "ledger/subcategories/subcategory_confirm_delete.html"
+    success_url = reverse_lazy("ledger:subcategory_list")
+
+    def get_queryset(self):
+        return SubCategory.objects.filter(business=self.request.business)
+
+
+
+
 # <----------------------------------    T E A M   V I E W S          ------------------------------>
 
 
@@ -236,95 +393,3 @@ class TeamDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_queryset(self):
         return Team.objects.filter(business=self.request.business)
-
-
-# <-------------------------------  S U B C A T E G O R Y   V I E W S  ------------------------------>
-
-
-class SubCategoryListView(LoginRequiredMixin, ListView):
-    model = SubCategory
-    template_name = "ledger/subcategories/subcategory_list.html"
-    context_object_name = "subcategories"
-    paginate_by = 50
-
-    def get_queryset(self):
-        qs = (
-            SubCategory.objects.filter(business=self.request.business)
-            .select_related("category")
-            .order_by("name")
-        )
-
-        q = (self.request.GET.get("q") or "").strip()
-        ctype = (self.request.GET.get("type") or "").strip()
-        cat = (self.request.GET.get("category") or "").strip()
-
-        if q:
-            qs = qs.filter(Q(name__icontains=q) | Q(category__name__icontains=q))
-
-        if ctype in ("income", "expense"):
-            qs = qs.filter(category__category_type=ctype)
-
-        if cat:
-            try:
-                cat_id = int(cat)
-            except ValueError:
-                cat_id = None
-            if cat_id:
-                qs = qs.filter(category_id=cat_id)
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["q"] = (self.request.GET.get("q") or "").strip()
-        ctx["type"] = (self.request.GET.get("type") or "").strip()
-        ctx["category"] = (self.request.GET.get("category") or "").strip()
-        ctx["categories"] = Category.objects.filter(
-            business=self.request.business,
-            is_active=True,
-        ).order_by("category_type", "sort_order", "name")
-        return ctx
-
-
-class SubCategoryCreateView(LoginRequiredMixin, CreateView):
-    model = SubCategory
-    form_class = SubCategoryForm
-    template_name = "ledger/subcategories/subcategory_form.html"
-    success_url = reverse_lazy("ledger:subcategory_list")
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["business"] = self.request.business
-        return kwargs
-
-    def form_valid(self, form):
-        form.instance.business = self.request.business
-        return super().form_valid(form)
-
-
-class SubCategoryUpdateView(LoginRequiredMixin, UpdateView):
-    model = SubCategory
-    form_class = SubCategoryForm
-    template_name = "ledger/subcategories/subcategory_form.html"
-    success_url = reverse_lazy("ledger:subcategory_list")
-
-    def get_queryset(self):
-        return SubCategory.objects.filter(business=self.request.business)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["business"] = self.request.business
-        return kwargs
-
-    def form_valid(self, form):
-        form.instance.business = self.request.business
-        return super().form_valid(form)
-
-
-class SubCategoryDeleteView(LoginRequiredMixin, DeleteView):
-    model = SubCategory
-    template_name = "ledger/subcategories/subcategory_confirm_delete.html"
-    success_url = reverse_lazy("ledger:subcategory_list")
-
-    def get_queryset(self):
-        return SubCategory.objects.filter(business=self.request.business)
