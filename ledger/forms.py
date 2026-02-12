@@ -280,7 +280,7 @@ class SubCategoryForm(forms.ModelForm):
 
         self.fields["category"].queryset = (
             Category.objects.filter(business=self.business, is_active=True)
-            .order_by("category_type", "sort_order", "name")
+            .order_by("name")
         )
 
         # Mobile-friendly defaults

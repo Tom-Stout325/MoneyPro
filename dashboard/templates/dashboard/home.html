@@ -67,7 +67,27 @@
   <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
     <ul>
       <li>
+        <a href="{% url 'ledger:transaction_list' %}">Transactions List</a>
+      </li>
+      <li>
         <a href="{% url 'ledger:team_list' %}">Team List</a>
+      </li>
+      <li>
+        <a href="{% url 'vehicles:vehicle_list' %}">Vehicle List</a>
+      </li>
+      <li>
+        <a href="{% url 'vehicles:vehicle_miles_list' %}">Mileage List</a>
+      </li>
+      <li>
+        <a href="{% url 'vehicles:vehicle_year_list' %}">Vehicle Year List</a>
+      </li>
+      <li>
+        <a href="{% url 'ledger:payee_list' %}">Payee List</a>
+      </li>
+
+      
+      <li>
+        <a href="{% url 'vehicles:vehicle_year_list' %}">Vehicle Year List</a>
       </li>
     </ul>
   </div>

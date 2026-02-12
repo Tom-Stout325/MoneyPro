@@ -130,7 +130,7 @@ class SubCategory(BusinessOwnedModelMixin):
     requires_vehicle           = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ["category__category_type", "category__sort_order", "sort_order", "name"]
+        ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["business", "category", "name"],

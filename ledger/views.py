@@ -251,7 +251,7 @@ class SubCategoryListView(LoginRequiredMixin, ListView):
         qs = (
             SubCategory.objects.filter(business=self.request.business)
             .select_related("category")
-            .order_by("category__category_type", "category__sort_order", "sort_order", "name")
+            .order_by("name")
         )
 
         q = (self.request.GET.get("q") or "").strip()
