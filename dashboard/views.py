@@ -111,12 +111,26 @@ def _dashboard_payload(*, business, start_date: date, end_date: date) -> dict:
     }
 
 
+
 def _onboarding_gate_or_redirect(request):
-    profile = getattr(request.user, "company_profile", None)  # ok if OneToOne
-    has_membership = BusinessMembership.objects.filter(user=request.user, is_active=True).exists()
-    if not profile or not profile.is_complete or not has_membership:
+    business = getattr(request, "business", None)
+    if business is None:
         return redirect("accounts:onboarding")
+
+    profile = getattr(business, "company_profile", None)
+    if not profile or not profile.is_complete:
+        return redirect("accounts:onboarding")
+
     return None
+
+
+
+
+@login_required
+def home(request):
+    print("DASHBOARD HIT", request.path, "business:", getattr(request, "business", None))
+
+    return redirect("dashboard:dashboard_home")
 
 
 @login_required
@@ -155,6 +169,7 @@ def dashboard_home(request):
         "selected_year_value": selected_year_value,
         "years": years,
         "has_seeded": Category.objects.filter(business=business).exists(),
+        "can_rebuild": not Transaction.objects.filter(business=business).exists(),
         "income_total": payload["income_total"],
         "expense_total": payload["expense_total"],
         "net_total": payload["net_total"],
@@ -212,9 +227,8 @@ def seed_defaults(request):
         messages.error(request, "No active business is set for your account.")
         return redirect("dashboard:home")
 
-    # Determine whether this is a first seed or a re-seed (idempotent either way)
+    # Idempotent: fills in missing defaults without deleting anything.
     already_seeded = Category.objects.filter(business=business).exists()
-
     seed_schedule_c_defaults(business)
 
     if already_seeded:
@@ -223,3 +237,44 @@ def seed_defaults(request):
         messages.success(request, "Defaults seeded successfully.")
 
     return redirect("dashboard:home")
+
+
+
+
+@login_required
+@require_POST
+def rebuild_defaults(request):
+    """Destructively rebuild default categories/subcategories for a business.
+
+    Safety rule:
+    - Only allowed when the business has **no transactions**.
+    """
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("dashboard:home")
+
+    if Transaction.objects.filter(business=business).exists():
+        messages.error(
+            request,
+            "Rebuild Defaults is only allowed when there are no transactions. "
+            "Use Re-Seed to fill in missing defaults instead.",
+        )
+        return redirect("dashboard:home")
+
+    from ledger.models import SubCategory  # local import to avoid circulars
+
+    # Wipe + re-seed in a single transaction
+    from django.db import transaction as db_transaction
+    with db_transaction.atomic():
+        SubCategory.objects.filter(business=business).delete()
+        Category.objects.filter(business=business).delete()
+        seed_schedule_c_defaults(business)
+
+    messages.success(request, "Defaults rebuilt successfully.")
+    return redirect("dashboard:home")
+

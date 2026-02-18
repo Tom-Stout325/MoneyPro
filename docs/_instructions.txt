@@ -17,8 +17,9 @@ Add Accordion forms to update settings and user info
 
 
 
-
-
+Create account - email & passwords
+Business Registration
+Dashboard - click on "Seed"
 
 
 

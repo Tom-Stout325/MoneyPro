@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.db.models import QuerySet
 
 from core.models import BusinessMembership
-from .models import Category, Job, Payee, PayeeTaxProfile, SubCategory, Team, Transaction
+from .models import Category, Job, Contact, ContactTaxProfile, SubCategory, Team, Transaction
 
 
 class BusinessAdminMixin(admin.ModelAdmin):
@@ -47,25 +47,25 @@ class SubCategoryAdmin(BusinessAdminMixin):
     search_fields = ("name", "category__name")
 
 
-@admin.register(Payee)
-class PayeeAdmin(BusinessAdminMixin):
+@admin.register(Contact)
+class ContactAdmin(BusinessAdminMixin):
     list_display = ("display_name", "is_vendor", "is_customer", "is_contractor", "business")
     list_filter = ("is_vendor", "is_customer", "is_contractor", "business")
     search_fields = ("display_name", "legal_name", "business_name")
 
 
-@admin.register(PayeeTaxProfile)
-class PayeeTaxProfileAdmin(BusinessAdminMixin):
-    list_display = ("payee", "is_1099_eligible", "w9_status", "business")
+@admin.register(ContactTaxProfile)
+class ContactTaxProfileAdmin(BusinessAdminMixin):
+    list_display = ("contact", "is_1099_eligible", "w9_status", "business")
     list_filter = ("is_1099_eligible", "w9_status", "business")
-    search_fields = ("payee__display_name",)
+    search_fields = ("contact__display_name",)
 
 
 @admin.register(Job)
 class JobAdmin(BusinessAdminMixin):
-    list_display = ("title", "year", "is_active", "business")
-    list_filter = ("year", "is_active", "business")
-    search_fields = ("title",)
+    list_display = ("job_number", "title", "job_type", "client", "is_active", "business")
+    list_filter = ("job_type", "is_active", "business")
+    search_fields = ("job_number", "title", "client__display_name")
 
 
 @admin.register(Team)

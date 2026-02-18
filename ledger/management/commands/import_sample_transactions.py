@@ -13,7 +13,7 @@ from django.db import transaction
 from django.utils.dateparse import parse_date
 
 from core.models import Business
-from ledger.models import Category, Job, Payee, SubCategory, Transaction
+from ledger.models import Category, Job, Contact, SubCategory, Transaction
 
 try:
     # Team is added in your later work; keep optional so this command doesn't explode if absent.
@@ -236,7 +236,7 @@ class Command(BaseCommand):
         vehicle_obj = None
 
         if subcategory.requires_payee:
-            payee_obj = Payee.get_unknown(business=business)
+            payee_obj = Contact.get_unknown(business=business)
 
         if subcategory.requires_vehicle:
             vehicle_obj = (

@@ -1,16 +1,13 @@
-# project/views.py
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
-from core.models import BusinessMembership
-
-
 
 def home(request):
     if request.user.is_authenticated:
-        profile = getattr(request.user, "company_profile", None)
-        has_membership = BusinessMembership.objects.filter(user=request.user, is_active=True).exists()
+        business = getattr(request, "business", None)
+        if not business:
+            return redirect("accounts:onboarding")
 
-        if not profile or not profile.is_complete or not has_membership:
+        profile = getattr(business, "company_profile", None)
+        if not profile or not profile.is_complete:
             return redirect("accounts:onboarding")
 
         return redirect("dashboard:home")

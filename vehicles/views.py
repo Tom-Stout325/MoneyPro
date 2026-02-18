@@ -7,12 +7,13 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 from vehicles.forms import VehicleForm, VehicleMilesForm, VehicleYearForm
 from vehicles.models import Vehicle, VehicleMiles, VehicleYear
 
 
-class VehicleListView(ListView):
+class VehicleListView(ListView, LoginRequiredMixin):
     model = Vehicle
     template_name = "vehicles/vehicle_list.html"
     context_object_name = "vehicles"
@@ -21,7 +22,7 @@ class VehicleListView(ListView):
         return Vehicle.objects.filter(business=self.request.business).order_by("-is_active", "sort_order", "label")
 
 
-class VehicleDetailView(DetailView):
+class VehicleDetailView(DetailView, LoginRequiredMixin):
     model = Vehicle
     template_name = "vehicles/vehicle_detail.html"
     context_object_name = "vehicle"
@@ -30,7 +31,7 @@ class VehicleDetailView(DetailView):
         return Vehicle.objects.filter(business=self.request.business)
 
 
-class VehicleCreateView(CreateView):
+class VehicleCreateView(CreateView, LoginRequiredMixin):
     model = Vehicle
     form_class = VehicleForm
     template_name = "vehicles/vehicle_form.html"
@@ -41,7 +42,7 @@ class VehicleCreateView(CreateView):
         return super().form_valid(form)
 
 
-class VehicleUpdateView(UpdateView):
+class VehicleUpdateView(UpdateView, LoginRequiredMixin):
     model = Vehicle
     form_class = VehicleForm
     template_name = "vehicles/vehicle_form.html"
@@ -55,7 +56,7 @@ class VehicleUpdateView(UpdateView):
         return super().form_valid(form)
 
 
-class VehicleDeleteView(DeleteView):
+class VehicleDeleteView(DeleteView, LoginRequiredMixin):
     model = Vehicle
     template_name = "vehicles/vehicle_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_list")
@@ -97,7 +98,7 @@ def vehicle_unarchive(request: HttpRequest, pk: int) -> HttpResponse:
 # ---------------------------------------------------------------------
 
 
-class VehicleYearListView(ListView):
+class VehicleYearListView(ListView, LoginRequiredMixin):
     model = VehicleYear
     template_name = "vehicles/vehicle_year_list.html"
     context_object_name = "vehicle_years"
@@ -107,7 +108,7 @@ class VehicleYearListView(ListView):
         return VehicleYear.objects.filter(business=self.request.business).select_related("vehicle").order_by("-year", "vehicle__label")
 
 
-class VehicleYearCreateView(CreateView):
+class VehicleYearCreateView(CreateView, LoginRequiredMixin):
     model = VehicleYear
     form_class = VehicleYearForm
     template_name = "vehicles/vehicle_year_form.html"
@@ -123,7 +124,7 @@ class VehicleYearCreateView(CreateView):
         return super().form_valid(form)
 
 
-class VehicleYearUpdateView(UpdateView):
+class VehicleYearUpdateView(UpdateView, LoginRequiredMixin):
     model = VehicleYear
     form_class = VehicleYearForm
     template_name = "vehicles/vehicle_year_form.html"
@@ -142,7 +143,7 @@ class VehicleYearUpdateView(UpdateView):
         return super().form_valid(form)
 
 
-class VehicleYearDeleteView(DeleteView):
+class VehicleYearDeleteView(DeleteView, LoginRequiredMixin):
     model = VehicleYear
     template_name = "vehicles/vehicle_year_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_year_list")
@@ -156,7 +157,7 @@ class VehicleYearDeleteView(DeleteView):
 # ---------------------------------------------------------------------
 
 
-class VehicleMilesListView(ListView):
+class VehicleMilesListView(ListView, LoginRequiredMixin):
     model = VehicleMiles
     template_name = "vehicles/vehicle_miles_list.html"
     context_object_name = "miles_entries"
@@ -166,7 +167,7 @@ class VehicleMilesListView(ListView):
         return VehicleMiles.objects.filter(business=self.request.business).select_related("vehicle").order_by("-date", "-id")
 
 
-class VehicleMilesCreateView(CreateView):
+class VehicleMilesCreateView(CreateView, LoginRequiredMixin):
     model = VehicleMiles
     form_class = VehicleMilesForm
     template_name = "vehicles/vehicle_miles_form.html"
@@ -182,7 +183,7 @@ class VehicleMilesCreateView(CreateView):
         return super().form_valid(form)
 
 
-class VehicleMilesUpdateView(UpdateView):
+class VehicleMilesUpdateView(UpdateView, LoginRequiredMixin):
     model = VehicleMiles
     form_class = VehicleMilesForm
     template_name = "vehicles/vehicle_miles_form.html"
@@ -201,7 +202,7 @@ class VehicleMilesUpdateView(UpdateView):
         return super().form_valid(form)
 
 
-class VehicleMilesDeleteView(DeleteView):
+class VehicleMilesDeleteView(DeleteView, LoginRequiredMixin):
     model = VehicleMiles
     template_name = "vehicles/vehicle_miles_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_miles_list")

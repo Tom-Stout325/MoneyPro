@@ -86,6 +86,7 @@ LOCAL_APPS = [
     'reports',
     'core',
     'vehicles',
+    'invoices',
 
 ]
 
@@ -135,6 +136,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "accounts.context_processors.company_context",
             ],
         },
     }
@@ -354,7 +356,8 @@ USE_X_FORWARDED_HOST = True
 DEFAULT_COMPANY_NAME = env("DEFAULT_COMPANY_NAME", default="")
 
 
+DATE_FORMAT = "m-d-Y"
+SHORT_DATE_FORMAT = "m-d-Y"
+DATETIME_FORMAT = "m-d-Y P"
+SHORT_DATETIME_FORMAT = "m-d-Y P"
 
-
-
-# ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]   replaces EMAIL_REQUIRED/USERNAME_REQUIRED

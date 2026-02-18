@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from typing import Any
-
+import re
 from django import template
 
 register = template.Library()
@@ -75,3 +75,19 @@ def mdy(value: Any) -> str:
         return value.strftime("%m/%d/%Y")
     except Exception:
         return "-"
+
+
+
+@register.filter
+def phone_us(value):
+    """
+    Format a US phone number as 317-987-7387
+    """
+    if not value:
+        return ""
+
+    digits = re.sub(r"\D", "", str(value))
+
+    if len(digits) == 10:
+        return f"{digits[0:3]}-{digits[3:6]}-{digits[6:10]}"
+    return value

@@ -1,10 +1,9 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth import logout
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import UpdateView
 from django.db import transaction
@@ -15,80 +14,104 @@ from .adapters import InviteOnlyAccountAdapter
 from core.models import Business, BusinessMembership
 
 
+def _get_active_membership(user):
+    return (
+        BusinessMembership.objects.filter(user=user, is_active=True)
+        .select_related("business")
+        .first()
+    )
+
 
 
 class OnboardingView(LoginRequiredMixin, UpdateView):
+    """Business onboarding (single funnel).
+
+    Ensures:
+    - user has an active BusinessMembership
+    - Business has a CompanyProfile (NOT complete by default)
+
+    After POST success:
+    - sync Business.name to CompanyProfile.company_name
+    - redirect to dashboard
+    """
     model = CompanyProfile
     form_class = CompanyProfileForm
     template_name = "accounts/onboarding.html"
     success_url = reverse_lazy("dashboard:home")
 
     def get_object(self, queryset=None):
-        profile, created = CompanyProfile.objects.get_or_create(user=self.request.user)
-        if created and not profile.company_name:
-            profile.company_name = getattr(settings, "DEFAULT_COMPANY_NAME", "")
-            profile.save(update_fields=["company_name"])
-        return profile
+        with transaction.atomic():
+            membership = (
+                BusinessMembership.objects.select_for_update()
+                .filter(user=self.request.user, is_active=True)
+                .select_related("business")
+                .first()
+            )
 
-    def dispatch(self, request, *args, **kwargs):
-        """
-        Only skip onboarding if:
-        - profile is complete AND
-        - user has an active business membership
-        """
-        profile, _ = CompanyProfile.objects.get_or_create(user=request.user)
-        has_membership = BusinessMembership.objects.filter(
-            user=request.user, is_active=True
-        ).exists()
+            if not membership:
+                default_name = (getattr(settings, "DEFAULT_COMPANY_NAME", "") or "").strip() or "Your Business"
+                business = Business.objects.create(name=default_name)
+                membership = BusinessMembership.objects.create(
+                    business=business,
+                    user=self.request.user,
+                    role=BusinessMembership.Role.OWNER,
+                    is_active=True,
+                )
 
-        if profile.is_complete and has_membership and request.method.lower() == "get":
-            return redirect("dashboard:home")
+            business = membership.business
 
-        return super().dispatch(request, *args, **kwargs)
+            # IMPORTANT: do NOT mark profile "complete" on GET by copying business.name
+            profile, _ = CompanyProfile.objects.get_or_create(
+                business=business,
+                defaults={
+                    "created_by": self.request.user,
+                    "company_name": "",  # force the user to enter a real business name
+                },
+            )
+            return profile
 
     def form_valid(self, form):
-        response = super().form_valid(form)
+        self.object = form.save()
 
-        # If profile is now complete, ensure Business + active membership exist.
-        if self.object.is_complete:
-            with transaction.atomic():
-                membership = (
-                    BusinessMembership.objects.select_for_update()
-                    .filter(user=self.request.user, is_active=True)
-                    .select_related("business")
-                    .first()
-                )
-                if not membership:
-                    biz = Business.objects.create(
-                        name=self.object.company_name or "My Business"
-                    )
-                    BusinessMembership.objects.create(
-                        business=biz,
-                        user=self.request.user,
-                        role=BusinessMembership.Role.OWNER,
-                        is_active=True,
-                    )
+        # Keep Business name aligned to submitted CompanyProfile name
+        business = self.object.business
+        new_name = (self.object.company_name or "").strip()
+        if new_name and business.name != new_name:
+            business.name = new_name
+            business.save(update_fields=["name"])
 
         messages.success(self.request, "Company setup saved.")
-        return response
+        return redirect("dashboard:home") 
 
-    
 
 class SettingsView(LoginRequiredMixin, View):
     template_name = "accounts/settings.html"
 
-    def _get_profile(self, request):
-        profile, _ = CompanyProfile.objects.get_or_create(user=request.user)
-        return profile
+    def _get_profile_or_redirect(self, request):
+        membership = _get_active_membership(request.user)
+        if not membership:
+            return None, redirect("accounts:onboarding")
+
+        business = membership.business
+        profile, _ = CompanyProfile.objects.get_or_create(
+            business=business,
+            defaults={"created_by": request.user, "company_name": business.name},
+        )
+        return profile, None
 
     def dispatch(self, request, *args, **kwargs):
-        profile = self._get_profile(request)
+        profile, resp = self._get_profile_or_redirect(request)
+        if resp:
+            return resp
         if not profile.is_complete:
             return redirect("accounts:onboarding")
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        profile = self._get_profile(request)
+        profile, resp = self._get_profile_or_redirect(request)
+        if resp:
+            return resp
+
         return render(
             request,
             self.template_name,
@@ -99,7 +122,10 @@ class SettingsView(LoginRequiredMixin, View):
         )
 
     def post(self, request):
-        profile = self._get_profile(request)
+        profile, resp = self._get_profile_or_redirect(request)
+        if resp:
+            return resp
+
         form_id = request.POST.get("form_id", "")
 
         company_form = CompanyProfileForm(instance=profile, prefix="company")
@@ -108,7 +134,13 @@ class SettingsView(LoginRequiredMixin, View):
         if form_id == "company":
             company_form = CompanyProfileForm(request.POST, request.FILES, instance=profile, prefix="company")
             if company_form.is_valid():
-                company_form.save()
+                obj = company_form.save()
+
+                name = (obj.company_name or "").strip()
+                if name and obj.business.name != name:
+                    obj.business.name = name
+                    obj.business.save(update_fields=["name"])
+
                 messages.success(request, "Company settings saved.")
                 return redirect("accounts:settings")
 

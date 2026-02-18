@@ -7,12 +7,18 @@ from core.models import Business, BusinessMembership
 from .models import Invitation
 
 
+
 class InviteOnlyAccountAdapter(DefaultAccountAdapter):
     """Invite-only signup adapter.
 
-    Normal public signup is disabled.
-    Signup is allowed only when a valid Invitation token has been placed into
-    the session (via `accounts.views.invite_start`).
+    - Public signup is disabled.
+    - Signup is allowed only when a valid Invitation token has been placed
+      into the session (via `accounts.views.invite_start`).
+
+    Notes:
+    - We DO create a placeholder Business + active membership at signup
+      (Option B), but we do NOT mark the company profile complete here.
+      Onboarding remains the step that makes the business "real".
     """
 
     SESSION_INVITE_TOKEN_KEY = "invite_token"
@@ -36,10 +42,11 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
         if inv.is_expired or inv.is_used:
             return None
 
+        # Persist into session so subsequent steps (including allauth internal
+        # redirects) keep the invite context.
         request.session[self.SESSION_INVITE_TOKEN_KEY] = inv.token
         request.session[self.SESSION_INVITE_EMAIL_KEY] = (inv.email or "").strip().lower()
         request.session.modified = True
-
         return inv
 
     def is_open_for_signup(self, request):
@@ -47,15 +54,28 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
         return self._get_invitation_from_session(request) is not None
 
     def save_user(self, request, user, form, commit=True):
-        """On successful signup, mark the invite as accepted."""
+        """On successful signup:
+        - Create a placeholder Business + active membership if none exists (Option B).
+        - Mark the invite as accepted.
+        - Lock the user's email to the invited email.
+        """
         user = super().save_user(request, user, form, commit=commit)
 
+        inv = self._get_invitation_from_session(request)
+        if inv is None:
+            # Should not happen because is_open_for_signup gates it, but keep safe.
+            return user
+
+        invited_email = (inv.email or "").strip().lower()
+        if invited_email:
+            user.email = invited_email
+            if commit:
+                user.save(update_fields=["email"])
+
         if commit:
-            # Create a default business if user doesn't already have one
+            # Option B: create placeholder business/membership at signup
             if not BusinessMembership.objects.filter(user=user, is_active=True).exists():
-                biz = Business.objects.create(
-                    name=(user.get_full_name() or user.username or "My Business")
-                )
+                biz = Business.objects.create(name="Your Business")
                 BusinessMembership.objects.create(
                     user=user,
                     business=biz,
@@ -63,24 +83,14 @@ class InviteOnlyAccountAdapter(DefaultAccountAdapter):
                     is_active=True,
                 )
 
-        inv = self._get_invitation_from_session(request)
-        if inv is not None:
-            invited_email = (inv.email or "").strip().lower()
-            if invited_email:
-                user.email = invited_email
-
-            if commit:
-                user.save(update_fields=["email"])
-
             inv.accepted_user = user
             inv.accepted_at = timezone.now()
             inv.save(update_fields=["accepted_user", "accepted_at"])
 
+            # Clear invite context from session
             try:
                 request.session.pop(self.SESSION_INVITE_TOKEN_KEY, None)
                 request.session.pop(self.SESSION_INVITE_EMAIL_KEY, None)
-                request.session[self.SESSION_INVITE_TOKEN_KEY] = inv.token
-                request.session[self.SESSION_INVITE_EMAIL_KEY] = inv.email.lower()
                 request.session.modified = True
             except Exception:
                 pass

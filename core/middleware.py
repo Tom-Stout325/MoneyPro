@@ -1,14 +1,8 @@
 # core/middleware.py
-from __future__ import annotations
-
 from django.shortcuts import redirect
-from django.urls import reverse
-
 from core.models import BusinessMembership
 
-
 class ActiveBusinessMiddleware:
-
     ALLOW_PREFIXES = (
         "/admin/",
         "/accounts/",
@@ -20,25 +14,27 @@ class ActiveBusinessMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        path = request.path or "/"
 
         request.business = None
+        if request.user.is_authenticated:
+            membership = (
+                BusinessMembership.objects.filter(user=request.user, is_active=True)
+                .select_related("business")
+                .first()
+            )
+            if membership:
+                request.business = membership.business
 
-        if not request.user.is_authenticated:
-            return self.get_response(request)
-
-        path = request.path or "/"
         if any(path.startswith(prefix) for prefix in self.ALLOW_PREFIXES):
             return self.get_response(request)
 
-        membership = (
-            BusinessMembership.objects.filter(user=request.user, is_active=True)
-            .select_related("business")
-            .first()
-        )
+        if request.user.is_authenticated:
+            if request.business is None:
+                return redirect("accounts:onboarding")
 
-        if not membership:
-            onboarding_url = reverse("accounts:onboarding")
-            return redirect(f"{onboarding_url}?next={request.get_full_path()}")
+            profile = getattr(request.business, "company_profile", None)
+            if not profile or not profile.is_complete:
+                return redirect("accounts:onboarding")
 
-        request.business = membership.business
         return self.get_response(request)

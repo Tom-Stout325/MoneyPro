@@ -1,0 +1,83 @@
+{% extends "index.html" %}
+{% load humanize %}
+
+{% block title %}Invoices | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+      <h1 class="h2 mb-0 text-primary">Invoices</h1>
+      <div class="text-muted small">Draft → Sent → Paid</div>
+    </div>
+    <div class="d-grid d-md-flex gap-2">
+      <a class="btn btn-primary" href="{% url 'invoices:invoice_create' %}">New invoice</a>
+    </div>
+  </div>
+
+  <div class="d-grid gap-2">
+    {% for inv in invoices %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">
+                <a class="text-decoration-none" href="{% url 'invoices:invoice_detail' inv.pk %}">
+                  {{ inv.invoice_number|default:"(unassigned)" }}
+                </a>
+              </div>
+              <div class="text-muted small">{{ inv.payee.display_name }}</div>
+              {% if inv.job %}<div class="text-muted small">Job: {{ inv.job.title }}</div>{% endif %}
+            </div>
+            <span class="badge
+              {% if inv.status == 'draft' %}bg-secondary
+              {% elif inv.status == 'sent' %}bg-primary
+              {% elif inv.status == 'paid' %}bg-success
+              {% else %}bg-danger{% endif %}
+            ">{{ inv.get_status_display }}</span>
+          </div>
+
+          <div class="mt-2 d-flex justify-content-between small text-muted">
+            <div>Issue: {{ inv.issue_date|date:"m/d/Y" }}</div>
+            <div class="fw-semibold text-dark">${{ inv.total|floatformat:2|intcomma }}</div>
+          </div>
+
+          <div class="mt-3 d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'invoices:invoice_pdf_preview' inv.pk %}" target="_blank" rel="noopener">
+              Preview PDF
+            </a>
+
+            {% if inv.status == 'draft' %}
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'invoices:invoice_update' inv.pk %}">Edit</a>
+              <form method="post" action="{% url 'invoices:invoice_send' inv.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-primary" type="submit">Send</button>
+              </form>
+            {% endif %}
+
+            {% if inv.status == 'sent' %}
+              <form method="post" action="{% url 'invoices:invoice_mark_paid' inv.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-success" type="submit">Mark paid</button>
+              </form>
+            {% endif %}
+
+            {% if inv.status != 'paid' and inv.status != 'void' %}
+              <form method="post" action="{% url 'invoices:invoice_void' inv.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" type="submit">Void</button>
+              </form>
+            {% endif %}
+
+            {% if inv.pdf_file %}
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'invoices:invoice_pdf_download' inv.pk %}">Download</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="text-muted">No invoices yet.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

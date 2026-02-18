@@ -95,6 +95,13 @@ class Category(BusinessOwnedModelMixin):
         self.full_clean()
         return super().save(*args, **kwargs)
 
+
+    def clean(self):
+        super().clean()
+
+        if self.client_id and self.business_id and self.client.business_id != self.business_id:
+            raise ValidationError({"client": "Client does not belong to this business."})
+
     def __str__(self) -> str:
         return f"{self.get_category_type_display()}: {self.name}"
 
@@ -175,7 +182,7 @@ class SubCategory(BusinessOwnedModelMixin):
 
 
 
-class Payee(BusinessOwnedModelMixin):
+class Contact(BusinessOwnedModelMixin):
     display_name = models.CharField(max_length=255)
     legal_name = models.CharField(max_length=255, blank=True)
     business_name = models.CharField(max_length=255, blank=True)
@@ -195,6 +202,9 @@ class Payee(BusinessOwnedModelMixin):
     is_contractor     = models.BooleanField(default=False)
 
     class Meta:
+        db_table = "ledger_payee"
+        verbose_name = "Contact"
+        verbose_name_plural = "Contacts"
         ordering = ["display_name"]
         constraints = [
             models.UniqueConstraint(
@@ -204,7 +214,7 @@ class Payee(BusinessOwnedModelMixin):
         ]
 
     @classmethod
-    def get_unknown(cls, *, business: Business) -> "Payee":
+    def get_unknown(cls, *, business: Business) -> "Contact":
         """Return (and create if needed) the default placeholder payee for imports/review."""
         obj, _created = cls.objects.get_or_create(
             business=business,
@@ -223,7 +233,7 @@ class Payee(BusinessOwnedModelMixin):
 
 
 
-class PayeeTaxProfile(BusinessOwnedModelMixin):
+class ContactTaxProfile(BusinessOwnedModelMixin):
     """Tax/compliance information for payees.
 
     Prefer W-9 PDF + last4, not full TIN storage.
@@ -244,7 +254,7 @@ class PayeeTaxProfile(BusinessOwnedModelMixin):
         ("verified", "Verified"),
     ]
 
-    payee = models.OneToOneField(Payee, on_delete=models.CASCADE, related_name="tax_profile")
+    contact = models.OneToOneField(Contact, on_delete=models.CASCADE, related_name="tax_profile", db_column="payee_id")
 
     is_1099_eligible = models.BooleanField(default=False)
     entity_type = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
@@ -259,14 +269,15 @@ class PayeeTaxProfile(BusinessOwnedModelMixin):
     notes = models.TextField(blank=True)
 
     class Meta:
+        db_table = "ledger_payeetaxprofile"
         constraints = [
-            models.UniqueConstraint(fields=["business", "payee"], name="uniq_taxprofile_payee_per_business"),
+            models.UniqueConstraint(fields=["business", "contact"], name="uniq_taxprofile_payee_per_business"),
         ]
 
     def clean(self):
         super().clean()
-        if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
-            raise ValidationError({"payee": "Payee does not belong to this business."})
+        if self.contact_id and self.business_id and self.contact.business_id != self.business_id:
+            raise ValidationError({"contact": "Contact does not belong to this business."})
 
         if self.team_id and self.business_id and self.team.business_id != self.business_id:
             raise ValidationError({"team": "Team does not belong to this business."})
@@ -276,18 +287,44 @@ class PayeeTaxProfile(BusinessOwnedModelMixin):
 
 
 class Job(BusinessOwnedModelMixin):
+    class JobType(models.TextChoices):
+        COMMERCIAL = "commercial", "Commercial"
+        REAL_ESTATE = "real_estate", "Real Estate"
+        INSPECTION = "inspection", "Inspection"
+        CONSTRUCTION = "construction", "Construction"
+        PHOTOGRAPHY = "photography", "Photography"
+        MAPPING = "mapping", "Mapping"
+        TRAINING = "training", "Training"
+        INTERNAL = "internal", "Internal"
+        OTHER = "other", "Other"
+
+    job_number = models.CharField(max_length=30)
     title = models.CharField(max_length=255)
-    year = models.PositiveIntegerField(default=timezone.now().year)
+    client = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name="client_jobs",
+        null=True,
+        blank=True,
+        help_text="Optional. Select a Contact marked as a Customer.",
+    )
+    job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
+    city = models.CharField(max_length=120, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
-        ordering = ["-year", "title"]
+        ordering = ["-is_active", "job_number", "title"]
         constraints = [
-            models.UniqueConstraint(fields=["business", "year", "title"], name="uniq_job_business_year_title")
+            models.UniqueConstraint(fields=["business", "job_number"], name="uniq_job_business_job_number"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.year} • {self.title}"
+        return f"{self.job_number} • {self.title}"
 
 
 
@@ -328,7 +365,7 @@ class Transaction(BusinessOwnedModelMixin):
     category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
     trans_type        = models.CharField(max_length=10, choices=TransactionType.choices, editable=False)
     is_refund         = models.BooleanField(default=False)
-    payee             = models.ForeignKey(Payee, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+    payee             = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     team              = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
@@ -353,8 +390,8 @@ class Transaction(BusinessOwnedModelMixin):
         if self.category_id and self.business_id and self.category.business_id != self.business_id:
             raise ValidationError({"category": "Category does not belong to this business."})
 
-        if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
-            raise ValidationError({"payee": "Payee does not belong to this business."})
+        if self.contact_id and self.business_id and self.contact.business_id != self.business_id:
+            raise ValidationError({"contact": "Contact does not belong to this business."})
 
         if self.job_id and self.business_id and self.job.business_id != self.business_id:
             raise ValidationError({"job": "Job does not belong to this business."})

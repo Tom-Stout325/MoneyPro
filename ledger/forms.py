@@ -7,7 +7,7 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Div, Field, HTML, Layout
 from django.db.models.functions import Lower
 
-from ledger.models import Category, Job, Payee, SubCategory, Transaction, Team
+from ledger.models import Category, Job, Contact, SubCategory, Transaction, Team
 from vehicles.models import Vehicle
 
 
@@ -51,9 +51,10 @@ class TransactionForm(forms.ModelForm):
             .select_related("category")
             .order_by(Lower("name"))
         )
-        self.fields["payee"].queryset = Payee.objects.filter(business=self.business).order_by("display_name")
+        self.fields["payee"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
+        self.fields["payee"].label = "Contact"
         self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
-        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-year", "title")
+        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "job_number", "title")
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
 
@@ -175,10 +176,10 @@ class TransactionForm(forms.ModelForm):
 
 #<------------------------------------  P A Y E E   F O R M   ---------------------------->
 
-class PayeeForm(forms.ModelForm):
-    """Business-scoped Payee form."""
+class ContactForm(forms.ModelForm):
+    """Business-scoped Contact form."""
     class Meta:
-        model = Payee
+        model = Contact
         fields = [
             "display_name",
             "legal_name",
@@ -201,7 +202,7 @@ class PayeeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if not self.business:
-            raise ValueError("PayeeForm requires business=...")
+            raise ValueError("ContactForm requires business=...")
 
         # Mobile-friendly defaults
         for name, field in self.fields.items():
@@ -213,6 +214,50 @@ class PayeeForm(forms.ModelForm):
         # Checkbox styling
         for cb in ("is_vendor", "is_customer", "is_contractor"):
             self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+
+
+
+
+#<------------------------------------  J O B   F O R M   ---------------------------->
+
+
+class JobForm(forms.ModelForm):
+    """Business-scoped Job form."""
+
+    class Meta:
+        model = Job
+        fields = [
+            "job_number",
+            "title",
+            "client",
+            "job_type",
+            "city",
+            "address",
+            "notes",
+            "is_active",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.business = kwargs.pop("business", None)
+        super().__init__(*args, **kwargs)
+
+        if not self.business:
+            raise ValueError("JobForm requires business=...")
+
+        # Scope client dropdown to contacts marked as customers in this business
+        self.fields["client"].queryset = (
+            Contact.objects.filter(business=self.business, is_customer=True)
+            .order_by("display_name")
+        )
+
+        # Mobile-friendly defaults
+        for name, field in self.fields.items():
+            widget = field.widget
+            if hasattr(widget, "attrs"):
+                if getattr(widget, "input_type", "") != "checkbox":
+                    widget.attrs.setdefault("class", "form-control")
+
+        self.fields["is_active"].widget.attrs.setdefault("class", "form-check-input")
 
 
 #<------------------------------------  T E A M   F O R M   ---------------------------->

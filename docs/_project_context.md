@@ -10,7 +10,7 @@ Auth CSS:           static/css/auth.css
 
 Auth
     allauth is the system of record for auth flows (login/register/password reset).
-    Email is the unique identifier (since ACCOUNT_LOGIN_METHODS={"email"}).
+    Email is the unique identifier.
   
 Data Scoping
     All Models are to be business-owned unless specifically stated differently

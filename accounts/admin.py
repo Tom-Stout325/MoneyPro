@@ -12,11 +12,7 @@ from .models import CompanyProfile, Invitation
 
 
 class OwnedOneToOneAdminMixin:
-    """
-    For non-superusers:
-    - only show their own profile
-    - auto-assign user on create
-    """
+
     def get_queryset(self, request) -> QuerySet:
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -45,18 +41,40 @@ class OwnedOneToOneAdminMixin:
 
 
 @admin.register(CompanyProfile)
-class CompanyProfileAdmin(OwnedOneToOneAdminMixin, admin.ModelAdmin):
-    list_display = ("company_name", "user", "billing_email", "phone_display", "timezone", "currency", "created_at")
-    search_fields = ("company_name", "legal_name", "ein", "billing_email", "user__username", "user__email")
+class CompanyProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "company_name",
+        "business",
+        "billing_email",
+        "phone_display",
+        "timezone",
+        "currency",
+        "created_at",
+    )
+    search_fields = (
+        "company_name",
+        "legal_name",
+        "ein",
+        "billing_email",
+        "business__name",
+        "created_by__email",
+        "created_by__username",
+    )
     list_filter = ("timezone", "currency", "country")
-    readonly_fields = ("created_at", "updated_at", "phone_display", "is_complete")
+    readonly_fields = ("created_at", "updated_at", "phone_display")
+
+    # Helps admin avoid N+1 queries
+    list_select_related = ("business", "created_by")
 
     fieldsets = (
+        ("Business", {
+            "fields": ("business", "created_by"),
+        }),
         ("Identity", {
-            "fields": ("user", "company_name", "legal_name", "ein"),
+            "fields": ("company_name", "legal_name", "ein"),
         }),
         ("Contact", {
-            "fields": ("phone", "phone_display", "billing_email"),
+            "fields": ("phone", "phone_display", "billing_email", "website"),
         }),
         ("Address", {
             "fields": ("address_line1", "address_line2", "city", "state", "postal_code", "country"),
@@ -68,19 +86,24 @@ class CompanyProfileAdmin(OwnedOneToOneAdminMixin, admin.ModelAdmin):
             "fields": ("timezone", "currency"),
         }),
         ("Status", {
-            "fields": ("is_complete", "created_at", "updated_at"),
+            "fields": ("created_at", "updated_at"),
         }),
     )
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("business", "created_by")
+
     def get_form(self, request, obj=None, **kwargs):
         """
-        Lock user field for non-superusers to prevent cross-user assignment.
+        Lock business field for non-superusers to prevent cross-business assignment.
         """
         form = super().get_form(request, obj, **kwargs)
-        if not request.user.is_superuser and "user" in form.base_fields:
-            form.base_fields["user"].disabled = True
+        if not request.user.is_superuser and "business" in form.base_fields:
+            form.base_fields["business"].disabled = True
+        if not request.user.is_superuser and "created_by" in form.base_fields:
+            form.base_fields["created_by"].disabled = True
         return form
-
 
 
 @admin.register(Invitation)

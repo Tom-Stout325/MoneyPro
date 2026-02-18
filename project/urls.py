@@ -26,6 +26,7 @@ urlpatterns = [
     path("", include("ledger.urls")),
     path("reports/", include("reports.urls", namespace="reports")),
     path("vehicles/", include("vehicles.urls", namespace="vehicles")),
+    path("invoices/", include("invoices.urls", namespace="invoices")),
 ]
 
 

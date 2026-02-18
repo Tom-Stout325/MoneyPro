@@ -1,6 +1,6 @@
 <div class="row g-3 mt-0">
   <div class="col-12 col-md-6" id="payeeWrap">
-    <label class="form-label">Payee</label>
+    <label class="form-label">Contact</label>
     <select name="{{ form.payee.name }}" id="id_payee" class="form-select">
       <option value="">— Select —</option>
       {% for p in form.fields.payee.queryset %}
@@ -17,7 +17,7 @@
     {% if form.payee.errors %}
       <div class="invalid-feedback d-block">{{ form.payee.errors|striptags }}</div>
     {% endif %}
-    <div class="form-text">Filtered automatically based on Subcategory rules.</div>
+    <div class="form-text">Filtered automatically based on Subcategory rules (customer/vendor/contractor).</div>
   </div>
 
   <div class="col-12 col-md-6" id="transportWrap" style="display:none;">

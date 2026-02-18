@@ -7,24 +7,27 @@ from django.urls import reverse_lazy
 from django.views.generic import (
         CreateView, 
         DeleteView, 
+        DetailView,
         ListView, 
         UpdateView,
     )
 
 from .forms import (
-        PayeeForm, 
+        ContactForm, 
         SubCategoryForm, 
         TransactionForm, 
-        TeamForm 
+        TeamForm,
+        JobForm
     )
 
 
 from .models import (
-        Payee, 
+        Contact, 
         SubCategory, 
         Transaction, 
         Team, 
-        Category, 
+        Category,
+        Job,
     )
 
 
@@ -51,7 +54,7 @@ class TransactionListView(LoginRequiredMixin, ListView):
                 Q(description__icontains=q)
                 | Q(notes__icontains=q)
                 | Q(subcategory__name__icontains=q)
-                | Q(category__category__icontains=q)
+                | Q(category__name__icontains=q)
 
                 | Q(team__name__icontains=q)
             )
@@ -146,14 +149,14 @@ class TransactionDeleteView(LoginRequiredMixin, DeleteView):
 # <----------------------------------    P A Y E E   V I E W S          ------------------------------>
 
 
-class PayeeListView(LoginRequiredMixin, ListView):
-    model = Payee
-    template_name = "ledger/payees/payee_list.html"
-    context_object_name = "payees"
+class ContactListView(LoginRequiredMixin, ListView):
+    model = Contact
+    template_name = "ledger/contacts/contact_list.html"
+    context_object_name = "contacts"
     paginate_by = 25
 
     def get_queryset(self):
-        qs = Payee.objects.filter(business=self.request.business).order_by("display_name")
+        qs = Contact.objects.filter(business=self.request.business).order_by("display_name")
         q = (self.request.GET.get("q") or "").strip()
         role = (self.request.GET.get("role") or "").strip()
 
@@ -181,11 +184,11 @@ class PayeeListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class PayeeCreateView(LoginRequiredMixin, CreateView):
-    model = Payee
-    form_class = PayeeForm
-    template_name = "ledger/payees/payee_form.html"
-    success_url = reverse_lazy("ledger:payee_list")
+class ContactCreateView(LoginRequiredMixin, CreateView):
+    model = Contact
+    form_class = ContactForm
+    template_name = "ledger/contacts/contact_form.html"
+    success_url = reverse_lazy("ledger:contact_list")
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -197,14 +200,14 @@ class PayeeCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class PayeeUpdateView(LoginRequiredMixin, UpdateView):
-    model = Payee
-    form_class = PayeeForm
-    template_name = "ledger/payees/payee_form.html"
-    success_url = reverse_lazy("ledger:payee_list")
+class ContactUpdateView(LoginRequiredMixin, UpdateView):
+    model = Contact
+    form_class = ContactForm
+    template_name = "ledger/contacts/contact_form.html"
+    success_url = reverse_lazy("ledger:contact_list")
 
     def get_queryset(self):
-        return Payee.objects.filter(business=self.request.business)
+        return Contact.objects.filter(business=self.request.business)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -216,13 +219,13 @@ class PayeeUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class PayeeDeleteView(LoginRequiredMixin, DeleteView):
-    model = Payee
-    template_name = "ledger/payees/payee_confirm_delete.html"
-    success_url = reverse_lazy("ledger:payee_list")
+class ContactDeleteView(LoginRequiredMixin, DeleteView):
+    model = Contact
+    template_name = "ledger/contacts/contact_confirm_delete.html"
+    success_url = reverse_lazy("ledger:contact_list")
 
     def get_queryset(self):
-        return Payee.objects.filter(business=self.request.business)
+        return Contact.objects.filter(business=self.request.business)
 
 
 # <-------------------------------  S U B C A T E G O R Y   V I E W S  ------------------------------>
@@ -238,7 +241,7 @@ class SubCategoryListView(LoginRequiredMixin, ListView):
         qs = (
             SubCategory.objects.filter(business=self.request.business)
             .select_related("category")
-            .order_by("category__category_type", "category__sort_order", "sort_order", "name")
+            .order_by("name")
         )
 
         q = (self.request.GET.get("q") or "").strip()
@@ -319,6 +322,110 @@ class SubCategoryDeleteView(LoginRequiredMixin, DeleteView):
 
 
 
+
+
+
+# <----------------------------------    J O B   V I E W S          ------------------------------>
+
+
+class JobListView(LoginRequiredMixin, ListView):
+    model = Job
+    template_name = "ledger/jobs/job_list.html"
+    context_object_name = "jobs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Job.objects.filter(business=self.request.business).order_by("-is_active", "job_number", "title")
+        q = (self.request.GET.get("q") or "").strip()
+        jtype = (self.request.GET.get("job_type") or "").strip()
+        active = (self.request.GET.get("active") or "").strip()
+
+        if q:
+            qs = qs.filter(
+                Q(job_number__icontains=q)
+                | Q(title__icontains=q)
+                | Q(client__display_name__icontains=q)
+                | Q(city__icontains=q)
+                | Q(address__icontains=q)
+                | Q(notes__icontains=q)
+            )
+
+        if jtype:
+            qs = qs.filter(job_type=jtype)
+
+        if active in ("1", "0"):
+            qs = qs.filter(is_active=(active == "1"))
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        ctx["job_type"] = (self.request.GET.get("job_type") or "").strip()
+        ctx["active"] = (self.request.GET.get("active") or "").strip()
+        ctx["job_type_choices"] = Job.JobType.choices
+
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        ctx["qs"] = params.urlencode()
+        return ctx
+
+
+class JobDetailView(LoginRequiredMixin, DetailView):
+    model = Job
+    template_name = "ledger/jobs/job_detail.html"
+    context_object_name = "job"
+
+    def get_queryset(self):
+        return Job.objects.filter(business=self.request.business).select_related("client")
+
+
+class JobCreateView(LoginRequiredMixin, CreateView):
+    model = Job
+    form_class = JobForm
+    template_name = "ledger/jobs/job_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("ledger:job_detail", kwargs={"pk": self.object.pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["business"] = self.request.business
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.business = self.request.business
+        return super().form_valid(form)
+
+
+class JobUpdateView(LoginRequiredMixin, UpdateView):
+    model = Job
+    form_class = JobForm
+    template_name = "ledger/jobs/job_form.html"
+
+    def get_queryset(self):
+        return Job.objects.filter(business=self.request.business)
+
+    def get_success_url(self):
+        return reverse_lazy("ledger:job_detail", kwargs={"pk": self.object.pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["business"] = self.request.business
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.business = self.request.business
+        return super().form_valid(form)
+
+
+class JobDeleteView(LoginRequiredMixin, DeleteView):
+    model = Job
+    template_name = "ledger/jobs/job_confirm_delete.html"
+    success_url = reverse_lazy("ledger:job_list")
+
+    def get_queryset(self):
+        return Job.objects.filter(business=self.request.business)
 
 # <----------------------------------    T E A M   V I E W S          ------------------------------>
 
