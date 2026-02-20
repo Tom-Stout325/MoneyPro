@@ -53,10 +53,11 @@ def _amount_expression_for_mode(mode: ReportMode):
 
     is_returns = Q(subcategory__category__schedule_c_line=Category.ScheduleCLine.RETURNS_ALLOWANCES)
     meals_50 = Q(subcategory__deduction_rule=SubCategory.DeductionRule.MEALS_50)
+    meals_slug = Q(subcategory__slug="meals") | Q(subcategory__slug__endswith="-meals")
 
     tax_expr = Case(
         When(is_returns, then=returns_normalized),
-        When(meals_50, then=ExpressionWrapper(base_amt * Value(Decimal("0.50")), output_field=out)),
+        When(meals_50 | meals_slug, then=ExpressionWrapper(base_amt * Value(Decimal("0.50")), output_field=out)),
         default=base_amt,
         output_field=out,
     )

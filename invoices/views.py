@@ -269,7 +269,6 @@ def invoice_pdf_preview(request: HttpRequest, pk: int) -> HttpResponse:
     if invoice.pdf_file:
         return _invoice_pdf_fileresponse(invoice=invoice, inline=True)
 
-    # Draft (or no stored pdf): render current state
     pdf_bytes = render_invoice_pdf_bytes(invoice=invoice, base_url=request.build_absolute_uri("/"))
     filename = f"{invoice.invoice_number or 'invoice'}.pdf"
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
