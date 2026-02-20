@@ -37,57 +37,37 @@ class Invoice(BusinessOwnedModelMixin):
         PAID = "paid", "Invoice paid"
         VOID = "void", "Voided"
 
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    status         = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
 
-    issue_date = models.DateField(default=timezone.localdate)
-    due_date = models.DateField(null=True, blank=True)
-
-    sent_date = models.DateField(null=True, blank=True)
-    paid_date = models.DateField(null=True, blank=True)
-
-    payee = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
-    job = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
-
-    location = models.CharField(max_length=255, blank=True)
-
+    issue_date     = models.DateField(default=timezone.localdate)
+    due_date       = models.DateField(null=True, blank=True)
+    sent_date      = models.DateField(null=True, blank=True)
+    paid_date      = models.DateField(null=True, blank=True)
+    contact        = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
+    job            = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
+    location       = models.CharField(max_length=255, blank=True)
     invoice_number = models.CharField(max_length=12, blank=True)  # YY#### or YY####a
-    revises = models.ForeignKey(
-        "self",
-        on_delete=models.PROTECT,
-        related_name="revisions",
-        null=True,
-        blank=True,
-        help_text="If set, this invoice is a revision of another invoice.",
-    )
+    revises = models.ForeignKey("self", on_delete=models.PROTECT, related_name="revisions", null=True, blank=True, help_text="If set, this invoice is a revision of another invoice.",)
 
     # Snapshot fields (frozen at SEND)
-    bill_to_name = models.CharField(max_length=255, blank=True)
-    bill_to_email = models.EmailField(blank=True)
-    bill_to_address1 = models.CharField(max_length=255, blank=True)
-    bill_to_address2 = models.CharField(max_length=255, blank=True)
-    bill_to_city = models.CharField(max_length=120, blank=True)
-    bill_to_state = models.CharField(max_length=50, blank=True)
+    bill_to_name        = models.CharField(max_length=255, blank=True)
+    bill_to_email       = models.EmailField(blank=True)
+    bill_to_address1    = models.CharField(max_length=255, blank=True)
+    bill_to_address2    = models.CharField(max_length=255, blank=True)
+    bill_to_city        = models.CharField(max_length=120, blank=True)
+    bill_to_state       = models.CharField(max_length=50, blank=True)
     bill_to_postal_code = models.CharField(max_length=20, blank=True)
-    bill_to_country = models.CharField(max_length=50, blank=True, default="US")
+    bill_to_country     = models.CharField(max_length=50, blank=True, default="US")
 
-    memo = models.TextField(blank=True)
-    footer = models.TextField(blank=True)
+    memo                = models.TextField(blank=True)
+    subtotal            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total               = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    pdf_file            = models.FileField(upload_to="invoices/final/", blank=True, null=True)
 
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    income_transaction  = models.OneToOneField(Transaction, on_delete=models.SET_NULL, related_name="invoice_income_for", null=True, blank=True,)
 
-    pdf_file = models.FileField(upload_to="invoices/final/", blank=True, null=True)
-
-    income_transaction = models.OneToOneField(
-        Transaction,
-        on_delete=models.SET_NULL,
-        related_name="invoice_income_for",
-        null=True,
-        blank=True,
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at          = models.DateTimeField(auto_now_add=True)
+    updated_at          = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-issue_date", "-id"]
@@ -101,8 +81,8 @@ class Invoice(BusinessOwnedModelMixin):
     def clean(self):
         super().clean()
 
-        if self.payee_id and self.business_id and self.payee.business_id != self.business_id:
-            raise ValidationError({"payee": "Contact does not belong to this business."})
+        if self.contact_id and self.business_id and self.contact.business_id != self.business_id:
+            raise ValidationError({"contact": "Contact does not belong to this business."})
         if self.job_id and self.business_id and self.job.business_id != self.business_id:
             raise ValidationError({"job": "Job does not belong to this business."})
 
@@ -140,11 +120,13 @@ class InvoiceItem(BusinessOwnedModelMixin):
         return super().save(*args, **kwargs)
 
 
+
+
 class InvoicePayment(BusinessOwnedModelMixin):
-    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
-    date = models.DateField(default=timezone.localdate)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    notes = models.TextField(blank=True)
+    invoice     = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
+    date        = models.DateField(default=timezone.localdate)
+    amount      = models.DecimalField(max_digits=12, decimal_places=2)
+    notes       = models.TextField(blank=True)
 
     class Meta:
         ordering = ["date", "id"]

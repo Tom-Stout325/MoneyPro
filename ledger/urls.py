@@ -31,17 +31,17 @@ urlpatterns = [
     path("transactions/<int:pk>/edit/", TransactionUpdateView.as_view(), name="transaction_update"),
     path("transactions/<int:pk>/delete/", TransactionDeleteView.as_view(), name="transaction_delete"),
 
-    # Contacts (formerly Payees)
+    # Contacts (formerly contacts)
     path("contacts/", ContactListView.as_view(), name="contact_list"),
     path("contacts/new/", ContactCreateView.as_view(), name="contact_create"),
     path("contacts/<int:pk>/edit/", ContactUpdateView.as_view(), name="contact_update"),
     path("contacts/<int:pk>/delete/", ContactDeleteView.as_view(), name="contact_delete"),
 
-    # Legacy Payee URLs (aliases)
-    path("payees/", ContactListView.as_view(), name="payee_list"),
-    path("payees/new/", ContactCreateView.as_view(), name="payee_create"),
-    path("payees/<int:pk>/edit/", ContactUpdateView.as_view(), name="payee_update"),
-    path("payees/<int:pk>/delete/", ContactDeleteView.as_view(), name="payee_delete"),
+    # Legacy contact URLs (aliases)
+    path("contacts/", ContactListView.as_view(), name="contact_list"),
+    path("contacts/new/", ContactCreateView.as_view(), name="contact_create"),
+    path("contacts/<int:pk>/edit/", ContactUpdateView.as_view(), name="contact_update"),
+    path("contacts/<int:pk>/delete/", ContactDeleteView.as_view(), name="contact_delete"),
     
 
     path("subcategories/", SubCategoryListView.as_view(), name="subcategory_list"),

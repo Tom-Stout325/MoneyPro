@@ -8,8 +8,10 @@
       {% for sc in form.fields.subcategory.queryset %}
         <option value="{{ sc.pk }}"
                 {% if form.subcategory.value|stringformat:"s" == sc.pk|stringformat:"s" %}selected{% endif %}
-                data-requires-payee="{{ sc.requires_payee|yesno:'1,0' }}"
-                data-payee-role="{{ sc.payee_role }}"
+                data-category-name="{{ sc.category.name|default:'' }}"
+                data-category-type="{{ sc.category.category_type|default:'' }}"
+                data-requires-contact="{{ sc.requires_contact|yesno:'1,0' }}"
+                data-contact-role="{{ sc.contact_role }}"
                 data-requires-transport="{{ sc.requires_transport|yesno:'1,0' }}"
                 data-requires-vehicle="{{ sc.requires_vehicle|yesno:'1,0' }}">
           {{ sc.name }}
@@ -20,6 +22,11 @@
     {% if form.subcategory.errors %}
       <div class="invalid-feedback d-block">{{ form.subcategory.errors|striptags }}</div>
     {% endif %}
+
+    <div class="d-flex flex-wrap gap-2 mt-2" id="subcatDerivedWrap" style="display:none;">
+      <span class="badge rounded-pill text-bg-primary" id="subcatTypeBadge">Type: —</span>
+      <span class="badge rounded-pill text-bg-secondary" id="subcatCategoryBadge">Category: —</span>
+    </div>
 
     <div class="form-text">This controls whether Contact/Transport is required.</div>
   </div>

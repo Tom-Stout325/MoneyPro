@@ -148,8 +148,9 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Depletion", "Depletion"),
     ("Depreciation", "Depreciation & Section 179"),
     ("Section 179", "Depreciation & Section 179"),
-    ("Insurance: Accident", "Employee Benefits"),
+    ("Insurance: Health", "Employee Benefits"),
     ("Insurance: Aviation", "Insurance"),
+    ("Insurance: Business", "Insurance"),
     ("Insurance: Liability", "Insurance"),
     ("Mortgage Interest", "Interest: Mortgage"),
     ("Other Interest", "Interest: Other"),
@@ -165,6 +166,7 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Materials & Supplies", "Supplies"),
     ("Sales Tax Paid", "Taxes & Licenses"),
     ("Travel: Hotels", "Travel & Meals: Travel"),
+    ("Travel: Gas", "Travel & Meals: Travel"),
     ("Travel: Car Rental", "Travel & Meals: Travel"),
     ("Travel: Airfare", "Travel & Meals: Travel"),
     ("Travel: Parking & Tolls", "Travel & Meals: Travel"),
@@ -183,13 +185,17 @@ SUBCATEGORY_SPECS: list[tuple[str, str]] = [
     ("Web Hosting", "Other Expenses"),
     ("Cloud Services", "Other Expenses"),
     ("Business Meals", "Other Expenses"),
+    ("Supplies: Photography", "Supplies"),
+    ("Licensing & Fees", "Other Expenses"),
+    ("Travel: Other", "Travel & Meals: Travel"),
+    
 ]
 
 # Subcategory default rules (seed-time defaults)
 SUBCATEGORY_RULES: dict[str, dict[str, object]] = {
-    # Payee required
-    "Contractors": {"requires_payee": True, "payee_role": "contractor"},
-    "Wages": {"requires_payee": True, "payee_role": "any"},
+    # contact required
+    "Contractors": {"requires_contact": True, "contact_role": "contractor"},
+    "Wages": {"requires_contact": True, "contact_role": "any"},
 
     # Vehicle required (business_vehicle + vehicle)
     "Vehicle: Equipment Purchases": {"requires_transport": True, "requires_vehicle": True},
@@ -301,8 +307,8 @@ def seed_schedule_c_defaults(business) -> None:
 
 
     # ---- Create / update SubCategories ----
-    has_requires_payee = _model_has_field(SubCategory, "requires_payee")
-    has_payee_role = _model_has_field(SubCategory, "payee_role")
+    has_requires_contact = _model_has_field(SubCategory, "requires_contact")
+    has_contact_role = _model_has_field(SubCategory, "contact_role")
     has_requires_transport = _model_has_field(SubCategory, "requires_transport")
     has_requires_vehicle = _model_has_field(SubCategory, "requires_vehicle")
 
@@ -339,15 +345,15 @@ def seed_schedule_c_defaults(business) -> None:
                 updates["is_active"] = True
 
             # Apply rule-based defaults
-            if has_requires_payee:
-                desired = bool(rules.get("requires_payee", False))
-                if existing.requires_payee != desired:
-                    updates["requires_payee"] = desired
+            if has_requires_contact:
+                desired = bool(rules.get("requires_contact", False))
+                if existing.requires_contact != desired:
+                    updates["requires_contact"] = desired
 
-            if has_payee_role:
-                desired = str(rules.get("payee_role", "any"))
-                if (existing.payee_role or "any") != desired:
-                    updates["payee_role"] = desired
+            if has_contact_role:
+                desired = str(rules.get("contact_role", "any"))
+                if (existing.contact_role or "any") != desired:
+                    updates["contact_role"] = desired
 
             if has_requires_transport:
                 desired = bool(rules.get("requires_transport", False))
@@ -373,10 +379,10 @@ def seed_schedule_c_defaults(business) -> None:
             "is_active": True,
         }
 
-        if has_requires_payee:
-            kwargs["requires_payee"] = bool(rules.get("requires_payee", False))
-        if has_payee_role:
-            kwargs["payee_role"] = str(rules.get("payee_role", "any"))
+        if has_requires_contact:
+            kwargs["requires_contact"] = bool(rules.get("requires_contact", False))
+        if has_contact_role:
+            kwargs["contact_role"] = str(rules.get("contact_role", "any"))
         if has_requires_transport:
             kwargs["requires_transport"] = bool(rules.get("requires_transport", False))
         if has_requires_vehicle:

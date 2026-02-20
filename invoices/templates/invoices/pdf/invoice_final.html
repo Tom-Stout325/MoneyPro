@@ -137,12 +137,12 @@
           {{ invoice.bill_to_city }}{% if invoice.bill_to_state %}, {{ invoice.bill_to_state }}{% endif %} {{ invoice.bill_to_postal_code }}
         </div>
       {% else %}
-        <div><strong>{{ invoice.payee.display_name }}</strong></div>
-        {% if invoice.payee.email %}<div class="muted">{{ invoice.payee.email }}</div>{% endif %}
-        {% if invoice.payee.address1 %}<div class="muted">{{ invoice.payee.address1 }}</div>{% endif %}
-        {% if invoice.payee.address2 %}<div class="muted">{{ invoice.payee.address2 }}</div>{% endif %}
+        <div><strong>{{ invoice.contact.display_name }}</strong></div>
+        {% if invoice.contact.email %}<div class="muted">{{ invoice.contact.email }}</div>{% endif %}
+        {% if invoice.contact.address1 %}<div class="muted">{{ invoice.contact.address1 }}</div>{% endif %}
+        {% if invoice.contact.address2 %}<div class="muted">{{ invoice.contact.address2 }}</div>{% endif %}
         <div class="muted">
-          {{ invoice.payee.city }}{% if invoice.payee.state %}, {{ invoice.payee.state }}{% endif %} {{ invoice.payee.zip_code }}
+          {{ invoice.contact.city }}{% if invoice.contact.state %}, {{ invoice.contact.state }}{% endif %} {{ invoice.contact.zip_code }}
         </div>
       {% endif %}
     </div>

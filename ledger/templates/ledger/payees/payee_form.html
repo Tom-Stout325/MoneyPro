@@ -1,17 +1,17 @@
 {% extends "index.html" %}
 {% load crispy_forms_tags %}
 
-{% block title %}{% if object %}Edit Payee{% else %}New Payee{% endif %} | MoneyPro{% endblock %}
+{% block title %}{% if object %}Edit Contact{% else %}New Contact{% endif %} | MoneyPro{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-2 px-md-3 py-3">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">{% if object %}Edit Payee{% else %}New Payee{% endif %}</h1>
+      <h1 class="h4 mb-0">{% if object %}Edit Contact{% else %}New Contact{% endif %}</h1>
       <div class="text-muted small">Create vendors, contractors, and customers.</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'ledger:payee_list' %}">Back</a>
+    <a class="btn btn-outline-secondary" href="{% url 'ledger:contact_list' %}">Back</a>
   </div>
 
   <div class="card shadow-sm">
@@ -53,7 +53,7 @@
         </div>
 
         <div class="d-grid d-sm-flex gap-2 justify-content-sm-end mt-4">
-          <a class="btn btn-outline-secondary w-100 w-sm-auto py-2" href="{% url 'ledger:payee_list' %}">Cancel</a>
+          <a class="btn btn-outline-secondary w-100 w-sm-auto py-2" href="{% url 'ledger:contact_list' %}">Cancel</a>
           <button class="btn btn-primary w-100 w-sm-auto py-2" type="submit">Save</button>
         </div>
 

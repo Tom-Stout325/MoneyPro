@@ -16,13 +16,13 @@ class InvoiceForm(forms.ModelForm):
             "invoice_number",
             "issue_date",
             "due_date",
-            "payee",
+            "contact",
             "job",
             "location",
             "paid_date",
             "status",
             "memo",
-            "footer",
+          
         ]
 
         widgets = {
@@ -30,14 +30,14 @@ class InvoiceForm(forms.ModelForm):
             "due_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "paid_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "memo": forms.Textarea(attrs={"rows": 3}),
-            "footer": forms.Textarea(attrs={"rows": 3}),
+       
         }
 
     def __init__(self, *args, business, **kwargs):
         self.business = business
         super().__init__(*args, **kwargs)
 
-        self.fields["payee"].queryset = Contact.objects.filter(business=business, is_customer=True).order_by("display_name")
+        self.fields["contact"].queryset = Contact.objects.filter(business=business, is_customer=True).order_by("display_name")
         self.fields["job"].queryset = Job.objects.filter(business=business).order_by("title")
         self.fields["status"].disabled = True
         self.fields["paid_date"].disabled = True  # controlled by Mark Paid
@@ -64,7 +64,7 @@ class InvoiceForm(forms.ModelForm):
                 css_class="row g-2",
             ),
             Div(
-                Div(Field("payee"), css_class="col-12 col-md-6"),
+                Div(Field("contact"), css_class="col-12 col-md-6"),
                 Div(Field("job"), css_class="col-12 col-md-6"),
                 css_class="row g-2",
             ),
@@ -75,7 +75,7 @@ class InvoiceForm(forms.ModelForm):
                 css_class="row g-2",
             ),
             Field("memo"),
-            Field("footer"),
+   
         )
 
     def clean_invoice_number(self):

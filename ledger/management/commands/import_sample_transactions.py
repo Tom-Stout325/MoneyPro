@@ -1,27 +1,42 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import transaction as db_transaction
+from django.db.models import Max
 from django.utils.dateparse import parse_date
 
 from core.models import Business
-from ledger.models import Category, Job, Contact, SubCategory, Transaction
+from ledger.models import Contact, Job, SubCategory, Transaction, Team
 
 try:
-    # Team is added in your later work; keep optional so this command doesn't explode if absent.
-    from ledger.models import Team  # type: ignore
+    from vehicles.models import Vehicle
 except Exception:  # pragma: no cover
-    Team = None  # type: ignore
+    Vehicle = None  # type: ignore
 
-from vehicles.models import Vehicle
+
+CSV_HEADERS = {
+    "Business",
+    "Date",
+    "Amount",
+    "Invoice Number",
+    "Description",
+    "SubCategory",
+    "Contact",
+    "Team",
+    "Job",
+    "Vehicle",
+    "Transport",
+    "Notes",
+}
 
 
 @dataclass
@@ -30,38 +45,21 @@ class RowError:
     error: str
 
 
-def _s(val: object) -> str:
-    """Normalize CSV cell to stripped string (handles None)."""
+def _s(val: Any) -> str:
     if val is None:
         return ""
     return str(val).strip()
 
 
-def _parse_amount(raw: str) -> tuple[Decimal, bool]:
-    """Return (amount_abs, is_refund). Refunds are represented by negative values."""
-    raw = raw.replace("$", "").replace(",", "").strip()
-    if raw == "":
-        raise InvalidOperation("blank")
-    amt = Decimal(raw)
-    if amt < 0:
-        return (-amt, True)
-    return (amt, False)
-
-
 def _parse_date_flex(raw: str):
-    """Parse a date from common CSV formats.
-
-    Accepts ISO (YYYY-MM-DD) and common US formats (M/D/YY, M/D/YYYY).
-    """
     raw = (raw or "").strip()
     if not raw:
         return None
-    # First try Django's ISO parser.
+
     dt = parse_date(raw)
     if dt:
         return dt
 
-    # Then try common US formats.
     for fmt in ("%m/%d/%y", "%m/%d/%Y"):
         try:
             return datetime.strptime(raw, fmt).date()
@@ -70,48 +68,242 @@ def _parse_date_flex(raw: str):
     return None
 
 
+def _parse_amount(raw: str) -> tuple[Decimal, bool]:
+    """
+    Returns (amount_abs, is_refund).
+    Negative amounts become refunds (abs stored + is_refund=True).
+    """
+    s = (raw or "").strip()
+    if not s:
+        raise InvalidOperation("blank amount")
+    s = s.replace("$", "").replace(",", "").strip()
+    amt = Decimal(s)
+    if amt < 0:
+        return (-amt, True)
+    return (amt, False)
+
+
+def _normalize_invoice_number(raw: str) -> str:
+    """
+    Normalize invoice numbers and treat null-like values as blank.
+    """
+    if raw is None:
+        return ""
+
+    s = str(raw).strip()
+
+    # Treat pandas nulls and similar as blank
+    if not s or s.lower() in {"<na>", "nan", "none"}:
+        return ""
+
+    # 250105.0 -> 250105
+    if re.fullmatch(r"\d+\.0+", s):
+        return s.split(".", 1)[0]
+
+    return s
+
+
+
+def _normalize_transport(raw: str) -> str:
+    """
+    Maps CSV values to Transaction.TRANSPORT_CHOICES keys.
+    Allowed final values: "", "personal_vehicle", "rental_car", "business_vehicle"
+    """
+    s = _s(raw).lower().replace("-", "_").replace(" ", "_")
+    if not s or s in {"—", "-", "none", "na", "n/a"}:
+        return ""
+
+    aliases = {
+        "personal": "personal_vehicle",
+        "personal_vehicle": "personal_vehicle",
+        "personal_car": "personal_vehicle",
+        "pv": "personal_vehicle",
+        "rental": "rental_car",
+        "rental_car": "rental_car",
+        "rent_car": "rental_car",
+        "company_vehicle": "business_vehicle",
+        "business": "business_vehicle",
+        "business_vehicle": "business_vehicle",
+        "bv": "business_vehicle",
+    }
+    return aliases.get(s, s)
+
+
+# -------------------------
+# Contact matching
+# -------------------------
+_SUFFIX_RE = re.compile(r"[\s,]*(llc|inc|l\.l\.c\.|corp|co)\.?$", re.IGNORECASE)
+
+
+def _normalize_contact_token(s: str) -> str:
+    s = (s or "").strip()
+    if not s:
+        return ""
+    s = s.replace("&", "and")
+    s = re.sub(r"\s+", " ", s)
+    s = _SUFFIX_RE.sub("", s).strip()
+    return s.lower()
+
+
+def _find_contact(*, business: Business, raw_name: str) -> Contact | None:
+    """
+    Your Contact model uses:
+      - display_name (required, unique per business)
+      - business_name (optional)
+      - legal_name (optional)
+
+    We match case-insensitively and also try a normalized form that drops suffixes like ", LLC".
+    """
+    raw_name = (raw_name or "").strip()
+    if not raw_name:
+        return None
+
+    qs = Contact.objects.filter(business=business)
+
+    # direct iexact on display_name
+    obj = qs.filter(display_name__iexact=raw_name).first()
+    if obj:
+        return obj
+
+    # iexact on business_name/legal_name
+    obj = qs.filter(business_name__iexact=raw_name).first()
+    if obj:
+        return obj
+    obj = qs.filter(legal_name__iexact=raw_name).first()
+    if obj:
+        return obj
+
+    # normalized match (strip LLC/Inc/etc.)
+    token = _normalize_contact_token(raw_name)
+    if not token:
+        return None
+
+    # Try pulling candidates and comparing normalized values
+    # (keeps it simple + DB-agnostic)
+    for c in qs.only("id", "display_name", "business_name", "legal_name"):
+        if token == _normalize_contact_token(c.display_name):
+            return c
+        if c.business_name and token == _normalize_contact_token(c.business_name):
+            return c
+        if c.legal_name and token == _normalize_contact_token(c.legal_name):
+            return c
+
+    return None
+
+
+def _create_contact_minimal(*, business: Business, display_name: str) -> Contact:
+    """
+    Minimal create compatible with your model.
+    """
+    return Contact.objects.create(
+        business=business,
+        display_name=display_name,
+        # Defaults are safe; can be edited later.
+        is_vendor=True,
+        is_customer=False,
+        is_contractor=False,
+    )
+
+
+# -------------------------
+# Job creation
+# -------------------------
+def _next_job_number(*, business: Business) -> str:
+    """
+    Generates JOB-0001 style numbers per business.
+    Uses the current max JOB-#### and increments.
+    """
+    qs = Job.objects.filter(business=business, job_number__regex=r"^JOB-\d{4}$")
+    max_val = qs.aggregate(m=Max("job_number")).get("m")
+    if not max_val:
+        return "JOB-0001"
+    try:
+        n = int(max_val.split("-", 1)[1])
+    except Exception:
+        n = 0
+    return f"JOB-{n + 1:04d}"
+
+
+def _get_or_create_job_by_title(*, business: Business, title: str) -> Job:
+    title = (title or "").strip()
+    if not title:
+        raise ValidationError("blank job title")
+
+    obj = Job.objects.filter(business=business, title__iexact=title).first()
+    if obj:
+        return obj
+
+    return Job.objects.create(
+        business=business,
+        job_number=_next_job_number(business=business),
+        title=title,
+    )
+
+
+def _get_or_create_team(*, business: Business, name: str) -> Team | None:
+    name = (name or "").strip()
+    if not name:
+        return None
+    obj, _ = Team.objects.get_or_create(business=business, name=name)
+    return obj
+
+
+def _find_vehicle(*, business: Business, raw: str):
+    """
+    Vehicle model uses 'label' (unique per business).
+    """
+    if Vehicle is None:
+        return None
+    label = _s(raw)
+    if not label:
+        return None
+    return Vehicle.objects.filter(business=business, label__iexact=label).first()
+
+
 class Command(BaseCommand):
-    help = "One-time importer for sample transactions CSV (business-scoped)."
+    help = "Import transactions from the business-scoped CSV format."
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--business-id",
-            type=int,
-            required=True,
-            help="Business ID to import into.",
-        )
+        parser.add_argument("--business-id", type=int, required=True, help="Business ID to import into.")
         parser.add_argument(
             "--csv",
             dest="csv_path",
             type=str,
-            required=True,
-            help="Path to the sample CSV file.",
+            default="transactions-all.cleaned.csv",
+            help="Path to CSV file (default: transactions-all.cleaned.csv).",
         )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Validate only; do not write to the database.",
-        )
+        parser.add_argument("--dry-run", action="store_true", help="Validate only; do not write to the database.")
         parser.add_argument(
             "--errors-out",
             type=str,
             default="",
             help="Optional path for an errors CSV (defaults to <csv>.errors.csv).",
         )
+        parser.add_argument(
+            "--skip-existing",
+            action="store_true",
+            help="Skip rows that appear to already exist (conservative fingerprint).",
+        )
+        parser.add_argument(
+            "--create-missing-contacts",
+            action="store_true",
+            help="Create Contact records if missing (minimal fields only).",
+        )
 
     def handle(self, *args, **options):
         business_id: int = options["business_id"]
         csv_path = Path(options["csv_path"]).expanduser().resolve()
         dry_run: bool = bool(options["dry_run"])
+        skip_existing: bool = bool(options["skip_existing"])
+        create_missing_contacts: bool = bool(options["create_missing_contacts"])
         errors_out_opt: str = options["errors_out"] or ""
 
         if not csv_path.exists():
             raise CommandError(f"CSV not found: {csv_path}")
 
-        try:
-            business = Business.objects.get(pk=business_id)
-        except Business.DoesNotExist as exc:
-            raise CommandError(f"Business not found: id={business_id}") from exc
+        business = Business.objects.filter(pk=business_id).first()
+        if not business:
+            raise CommandError(f"Business not found: id={business_id}")
 
         errors_out = (
             Path(errors_out_opt).expanduser().resolve()
@@ -123,166 +315,150 @@ class Command(BaseCommand):
         skipped = 0
         errors: list[RowError] = []
 
-        with csv_path.open("r", newline="", encoding="utf-8-sig") as f:
+        ctx = db_transaction.atomic() if not dry_run else _noop_ctx()
+
+        with csv_path.open("r", newline="", encoding="utf-8-sig") as f, ctx:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
                 raise CommandError("CSV has no header row.")
 
-            required_headers = {
-                "Date",
-                "Type",
-                "Description",
-                "Category",
-                "SubCategory",
-                "Amount",
-                "Team",
-                "Event",
-                "Invoice Number",
-            }
-            missing_headers = required_headers - set(reader.fieldnames)
+            missing_headers = CSV_HEADERS - set(reader.fieldnames)
             if missing_headers:
                 raise CommandError(f"Missing CSV columns: {', '.join(sorted(missing_headers))}")
 
             for idx, row in enumerate(reader, start=2):  # start=2 (row 1 is header)
                 try:
-                    self._import_row(business=business, row=row, row_num=idx, dry_run=dry_run)
+                    did_create = self._import_row(
+                        business=business,
+                        row=row,
+                        row_num=idx,
+                        dry_run=dry_run,
+                        skip_existing=skip_existing,
+                        create_missing_contacts=create_missing_contacts,
+                    )
+                    if did_create:
+                        created += 1
+                    else:
+                        skipped += 1
                 except Exception as exc:
-                    skipped += 1
                     errors.append(RowError(row_num=idx, error=str(exc)))
-                else:
-                    created += 1
 
-        # Write error report if any
         if errors:
-            with errors_out.open("w", newline="", encoding="utf-8") as ef:
-                w = csv.writer(ef)
-                w.writerow(["row", "error"])
-                for e in errors:
-                    w.writerow([e.row_num, e.error])
+            self._write_errors(errors_out, errors)
+            self.stdout.write(self.style.WARNING(f"{len(errors)} rows had errors. See: {errors_out}"))
+        self.stdout.write(self.style.SUCCESS(f"Done. created={created}, skipped={skipped}, errors={len(errors)}"))
 
-        self.stdout.write(self.style.SUCCESS(f"Done. Imported={created} Skipped={skipped} DryRun={dry_run}"))
-        if errors:
-            self.stdout.write(self.style.WARNING(f"Errors written to: {errors_out}"))
-
-    def _import_row(self, *, business: Business, row: dict, row_num: int, dry_run: bool) -> None:
-        date_str = _s(row.get("Date"))
-        dt = _parse_date_flex(date_str)
-        if not dt:
-            raise ValueError(f"Row {row_num}: invalid Date '{date_str}'")
-
-        desc = _s(row.get("Description"))
-        if not desc:
-            raise ValueError(f"Row {row_num}: Description is required")
-
-        type_str = _s(row.get("Type")).lower()
-        # Map CSV values like "Income"/"Expense" to our internal enum values
-        type_map = {"income": "income", "expense": "expense"}
-        category_type = type_map.get(type_str)
-        if not category_type:
-            raise ValueError(f"Row {row_num}: invalid Type '{row.get('Type')}'")
-
-        cat_name = _s(row.get("Category"))
-        sub_name = _s(row.get("SubCategory"))
-        if not cat_name or not sub_name:
-            raise ValueError(f"Row {row_num}: Category and SubCategory are required")
-
-        category = Category.objects.filter(
-            business=business,
-            name=cat_name,
-            category_type=category_type,
-        ).first()
-        if not category:
-            raise ValueError(f"Row {row_num}: Category not found: '{cat_name}' ({category_type})")
-
-        subcategory = SubCategory.objects.filter(
-            business=business,
-            category=category,
-            name=sub_name,
-        ).first()
-        if not subcategory:
-            # helpful hint if subcategory exists under a different category
-            other = SubCategory.objects.filter(business=business, name=sub_name).select_related("category").first()
-            if other:
-                raise ValueError(
-                    f"Row {row_num}: SubCategory '{sub_name}' exists but under Category '{other.category.name}'"
-                )
-            raise ValueError(f"Row {row_num}: SubCategory not found: '{sub_name}'")
-
+    def _import_row(
+        self,
+        *,
+        business: Business,
+        row: dict[str, str],
+        row_num: int,
+        dry_run: bool,
+        skip_existing: bool,
+        create_missing_contacts: bool,
+    ) -> bool:
+        date_raw = _s(row.get("Date"))
         amount_raw = _s(row.get("Amount"))
-        try:
-            amount, is_refund = _parse_amount(amount_raw)
-        except (InvalidOperation, ValueError):
-            raise ValueError(f"Row {row_num}: invalid Amount '{amount_raw}'")
+        desc = _s(row.get("Description"))
+        subcat_name = _s(row.get("SubCategory"))
 
-        invoice_number = _s(row.get("Invoice Number"))
+        if not date_raw or not amount_raw or not desc or not subcat_name:
+            raise CommandError(f"Row {row_num}: missing required fields (Date, Amount, Description, SubCategory).")
 
-        # Optional Team
-        team_obj = None
+        dt = _parse_date_flex(date_raw)
+        if not dt:
+            raise CommandError(f"Row {row_num}: invalid date '{date_raw}'.")
+
+        amt, is_refund = _parse_amount(amount_raw)
+
+        subcat = SubCategory.objects.filter(business=business, name=subcat_name).first()
+        if not subcat:
+            raise CommandError(f"Row {row_num}: SubCategory not found for business: '{subcat_name}'")
+
+        invoice_number = _normalize_invoice_number(row.get("Invoice Number", ""))
+
+        contact_raw = _s(row.get("Contact"))
         team_name = _s(row.get("Team"))
-        if team_name:
-            if Team is None:
-                raise ValueError(f"Row {row_num}: Team column provided but Team model is not available")
-            team_obj, _ = Team.objects.get_or_create(business=business, name=team_name)
+        job_title = _s(row.get("Job"))
+        vehicle_raw = _s(row.get("Vehicle"))
+        transport_raw = _s(row.get("Transport"))
+        notes = _s(row.get("Notes"))
 
-        # Optional Event -> Job
-        job_obj = None
-        event_title = _s(row.get("Event"))
-        if event_title:
-            job_obj, _ = Job.objects.get_or_create(business=business, year=dt.year, title=event_title)
+        transport_type = _normalize_transport(transport_raw)
 
-        # Defaults for required rules
-        payee_obj = None
-        transport_type = ""
-        vehicle_obj = None
-
-        if subcategory.requires_payee:
-            payee_obj = Contact.get_unknown(business=business)
-
-        if subcategory.requires_vehicle:
-            vehicle_obj = (
-                Vehicle.objects.filter(business=business, is_active=True, is_business=True)
-                .order_by("sort_order", "label")
-                .first()
-            )
-            if not vehicle_obj:
-                raise ValueError(
-                    f"Row {row_num}: SubCategory '{sub_name}' requires a vehicle but no active business vehicle exists"
+        # Contact
+        contact = None
+        if contact_raw:
+            contact = _find_contact(business=business, raw_name=contact_raw)
+            if not contact and create_missing_contacts:
+                contact = _create_contact_minimal(business=business, display_name=contact_raw)
+            if not contact:
+                raise CommandError(
+                    f"Row {row_num}: Contact '{contact_raw}' not found. "
+                    f"Create it first or rerun with --create-missing-contacts."
                 )
-            transport_type = "business_vehicle"
-        elif subcategory.requires_transport:
-            transport_type = "personal_vehicle"
 
-        obj = Transaction(
+        team = _get_or_create_team(business=business, name=team_name) if team_name else None
+
+        # Job: your model requires (job_number, title). We create by title.
+        job = _get_or_create_job_by_title(business=business, title=job_title) if job_title else None
+
+        vehicle = _find_vehicle(business=business, raw=vehicle_raw) if vehicle_raw else None
+
+        # If vehicle provided but no transport, assume business_vehicle.
+        if vehicle and not transport_type:
+            transport_type = "business_vehicle"
+
+        # Conservative duplicate skipping (use abs amount + is_refund)
+        if skip_existing:
+            exists = Transaction.objects.filter(
+                business=business,
+                date=dt,
+                amount=amt,
+                is_refund=is_refund,
+                description=desc,
+                subcategory=subcat,
+                invoice_number=invoice_number,
+            ).exists()
+            if exists:
+                return False
+
+        txn = Transaction(
             business=business,
             date=dt,
-            amount=amount,
+            amount=amt,
             is_refund=is_refund,
             description=desc,
-            subcategory=subcategory,
-            category=subcategory.category,
-            trans_type=subcategory.category.category_type,
-            payee=payee_obj,
-            job=job_obj,
+            subcategory=subcat,
             invoice_number=invoice_number,
+            notes=notes,
+            contact=contact,
+            team=team,
+            job=job,
             transport_type=transport_type,
-            vehicle=vehicle_obj,
+            vehicle=vehicle,
         )
 
-        # Attach Team if available on Transaction
-        if team_obj is not None:
-            # Transaction.team may not exist in older code; set only if present
-            if hasattr(obj, "team"):
-                setattr(obj, "team", team_obj)
-
-        # Validate so you get clean data (and so later edits don't suddenly break)
-        try:
-            obj.full_clean()
-        except ValidationError as ve:
-            raise ValueError(f"Row {row_num}: validation failed: {ve.message_dict or ve.messages}")
-
         if dry_run:
-            return
+            txn.full_clean()
+            return True
 
-        # Save with an atomic block so a single bad row doesn't poison the connection.
-        with transaction.atomic():
-            obj.save()
+        txn.save()
+        return True
+
+    def _write_errors(self, path: Path, errors: list[RowError]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["row_num", "error"])
+            for e in errors:
+                w.writerow([e.row_num, e.error])
+
+
+class _noop_ctx:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, exc_type, exc, tb):
+        return False

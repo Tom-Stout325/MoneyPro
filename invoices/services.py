@@ -48,7 +48,7 @@ def recalc_totals(*, invoice: Invoice, save: bool = True) -> tuple[Decimal, Deci
 
 
 def snapshot_bill_to(*, invoice: Invoice) -> None:
-    p = invoice.payee
+    p = invoice.contact
     invoice.bill_to_name = getattr(p, "display_name", "") or ""
     invoice.bill_to_email = getattr(p, "email", "") or ""
     invoice.bill_to_address1 = getattr(p, "address1", "") or ""
@@ -125,13 +125,13 @@ def create_revision(*, invoice: Invoice) -> Invoice:
         status=Invoice.Status.DRAFT,
         issue_date=timezone.localdate(),
         due_date=invoice.due_date,
-        payee=invoice.payee,
+        contact=invoice.contact,
         job=invoice.job,
         location=invoice.location,
         invoice_number=new_number,
         revises=invoice,
         memo=invoice.memo,
-        footer=invoice.footer,
+
     )
 
     for it in invoice.items.all():
@@ -171,9 +171,9 @@ def mark_paid(*, invoice: Invoice, paid_date=None) -> Transaction:
         business=invoice.business,
         date=paid_date,
         amount=invoice.total,
-        description=f"Invoice payment {invoice.invoice_number} - {invoice.payee.display_name}",
+        description=f"Invoice payment {invoice.invoice_number} - {invoice.contact.display_name}",
         subcategory=first.subcategory,
-        payee=invoice.payee,
+        contact=invoice.contact,
         job=invoice.job,
         invoice_number=invoice.invoice_number,
         notes="Auto-generated from paid invoice.",

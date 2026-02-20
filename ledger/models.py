@@ -50,17 +50,13 @@ class Category(BusinessOwnedModelMixin):
         WAGES = "wages", "26"
         ENERGY_EFFICIENT = "energy_efficient_buildings", "27a"
 
+
         # -------------------------
         # Part V — Other expenses
         # -------------------------
         OTHER_EXPENSES_V = "other_expenses_part_v", "27b"
 
-    schedule_c_line = models.CharField(
-        max_length=30,
-        choices=ScheduleCLine.choices,
-        blank=True,
-        default="",
-    )
+    schedule_c_line = models.CharField(max_length=30, choices=ScheduleCLine.choices, blank=True, default="",)
     name              = models.CharField(max_length=80)
     slug              = models.SlugField(max_length=120, blank=True)
     category_type     = models.CharField(max_length=10, choices=CategoryType.choices)
@@ -95,13 +91,6 @@ class Category(BusinessOwnedModelMixin):
         self.full_clean()
         return super().save(*args, **kwargs)
 
-
-    def clean(self):
-        super().clean()
-
-        if self.client_id and self.business_id and self.client.business_id != self.business_id:
-            raise ValidationError({"client": "Client does not belong to this business."})
-
     def __str__(self) -> str:
         return f"{self.get_category_type_display()}: {self.name}"
 
@@ -114,7 +103,7 @@ class SubCategory(BusinessOwnedModelMixin):
         MEALS_50 = "meals_50", "Meals (50%)"
         NONDEDUCTIBLE = "nondeductible", "Not deductible"
 
-    class PayeeRole(models.TextChoices):
+    class ContactRole(models.TextChoices):
         ANY = "any", "Any"
         VENDOR = "vendor", "Vendor"
         CONTRACTOR = "contractor", "Contractor"
@@ -131,8 +120,8 @@ class SubCategory(BusinessOwnedModelMixin):
     deduction_rule             = models.CharField(max_length=20, choices=DeductionRule.choices, default=DeductionRule.FULL,)  
     is_1099_reportable_default = models.BooleanField(default=False)
     is_capitalizable           = models.BooleanField(default=False)
-    requires_payee             = models.BooleanField(default=False)
-    payee_role                 = models.CharField(max_length=15, choices=PayeeRole.choices, default=PayeeRole.ANY)   
+    requires_contact             = models.BooleanField(default=False)
+    contact_role                 = models.CharField(max_length=15, choices=ContactRole.choices, default=ContactRole.ANY)   
     requires_transport         = models.BooleanField(default=False)
     requires_vehicle           = models.BooleanField(default=False)
 
@@ -202,20 +191,20 @@ class Contact(BusinessOwnedModelMixin):
     is_contractor     = models.BooleanField(default=False)
 
     class Meta:
-        db_table = "ledger_payee"
+        db_table = "ledger_contact"
         verbose_name = "Contact"
         verbose_name_plural = "Contacts"
         ordering = ["display_name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["business", "display_name"],
-                name="uniq_payee_display_name_per_business",
+                name="uniq_contact_display_name_per_business",
             )
         ]
 
     @classmethod
     def get_unknown(cls, *, business: Business) -> "Contact":
-        """Return (and create if needed) the default placeholder payee for imports/review."""
+        """Return (and create if needed) the default placeholder contact for imports/review."""
         obj, _created = cls.objects.get_or_create(
             business=business,
             display_name="Unknown / Needs Review",
@@ -234,7 +223,7 @@ class Contact(BusinessOwnedModelMixin):
 
 
 class ContactTaxProfile(BusinessOwnedModelMixin):
-    """Tax/compliance information for payees.
+    """Tax/compliance information for contacts.
 
     Prefer W-9 PDF + last4, not full TIN storage.
     """
@@ -254,24 +243,20 @@ class ContactTaxProfile(BusinessOwnedModelMixin):
         ("verified", "Verified"),
     ]
 
-    contact = models.OneToOneField(Contact, on_delete=models.CASCADE, related_name="tax_profile", db_column="payee_id")
-
-    is_1099_eligible = models.BooleanField(default=False)
-    entity_type = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
-
-    TIN_CHOICES = [("ssn", "SSN"), ("ein", "EIN")]
-    tin_type = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
-    tin_last4 = models.CharField(max_length=4, blank=True)
-
-    w9_status = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
-    w9_document = models.FileField(upload_to="w9/", blank=True, null=True)
-
-    notes = models.TextField(blank=True)
+    contact              = models.OneToOneField(Contact, on_delete=models.CASCADE, related_name="tax_profile", db_column="contact_id")
+    is_1099_eligible     = models.BooleanField(default=False)
+    entity_type          = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
+    TIN_CHOICES          = [("ssn", "SSN"), ("ein", "EIN")]
+    tin_type             = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
+    tin_last4            = models.CharField(max_length=4, blank=True)
+    w9_status            = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
+    w9_document          = models.FileField(upload_to="w9/", blank=True, null=True)
+    notes                = models.TextField(blank=True)
 
     class Meta:
-        db_table = "ledger_payeetaxprofile"
+        db_table = "ledger_contacttaxprofile"
         constraints = [
-            models.UniqueConstraint(fields=["business", "contact"], name="uniq_taxprofile_payee_per_business"),
+            models.UniqueConstraint(fields=["business", "contact"], name="uniq_taxprofile_contact_per_business"),
         ]
 
     def clean(self):
@@ -298,24 +283,16 @@ class Job(BusinessOwnedModelMixin):
         INTERNAL = "internal", "Internal"
         OTHER = "other", "Other"
 
-    job_number = models.CharField(max_length=30)
-    title = models.CharField(max_length=255)
-    client = models.ForeignKey(
-        Contact,
-        on_delete=models.PROTECT,
-        related_name="client_jobs",
-        null=True,
-        blank=True,
-        help_text="Optional. Select a Contact marked as a Customer.",
-    )
-    job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
-    city = models.CharField(max_length=120, blank=True)
-    address = models.CharField(max_length=255, blank=True)
-    notes = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    job_number       = models.CharField(max_length=30)
+    title            = models.CharField(max_length=255)
+    client           = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="client_jobs", null=True, blank=True, help_text="Optional. Select a Contact marked as a Customer.",)
+    job_type         = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
+    city             = models.CharField(max_length=120, blank=True)
+    address          = models.CharField(max_length=255, blank=True)
+    notes            = models.TextField(blank=True)
+    is_active        = models.BooleanField(default=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    updated_at       = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-is_active", "job_number", "title"]
@@ -329,10 +306,10 @@ class Job(BusinessOwnedModelMixin):
 
 
 class Team(models.Model):
-    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="teams")
-    name = models.CharField(max_length=120)
-    is_active = models.BooleanField(default=True)
-    sort_order = models.PositiveIntegerField(default=0)
+    business         = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="teams")
+    name             = models.CharField(max_length=120)
+    is_active        = models.BooleanField(default=True)
+    sort_order       = models.PositiveIntegerField(default=0)
 
     class Meta:
         constraints = [
@@ -352,7 +329,6 @@ class Transaction(BusinessOwnedModelMixin):
         ("business_vehicle", "Business vehicle"),
     ]
 
-
     class TransactionType(models.TextChoices):
         INCOME = "income", "Income"
         EXPENSE = "expense", "Expense"
@@ -365,7 +341,7 @@ class Transaction(BusinessOwnedModelMixin):
     category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
     trans_type        = models.CharField(max_length=10, choices=TransactionType.choices, editable=False)
     is_refund         = models.BooleanField(default=False)
-    payee             = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+    contact           = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     team              = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
@@ -407,12 +383,6 @@ class Transaction(BusinessOwnedModelMixin):
             if self.category_id and self.category_id != expected:
                 raise ValidationError({"category": "Category must match the selected subcategory."})
 
-        # -------------------------
-        # Auto type consistency
-        # -------------------------
-        expected_type = self.subcategory.category.category_type
-        if self.trans_type and self.trans_type != expected_type:
-            raise ValidationError({"trans_type": "Transaction type must match the selected subcategory."})
 
         # -------------------------
         # Amount validation
@@ -422,21 +392,27 @@ class Transaction(BusinessOwnedModelMixin):
 
         if not self.subcategory_id:
             return
+        # -------------------------
+        # Auto type consistency
+        # -------------------------
+        expected_type = self.subcategory.category.category_type
+        if self.trans_type and self.trans_type != expected_type:
+            raise ValidationError({"trans_type": "Transaction type must match the selected subcategory."})
 
         sc = self.subcategory
 
-        # Payee rules (only required for certain subcategories)
-        if sc.requires_payee and not self.payee_id:
-            raise ValidationError({"payee": "Select a payee."})
+        # contact rules (only required for certain subcategories)
+        if sc.requires_contact and not self.contact_id:
+            raise ValidationError({"contact": "Select a contact."})
 
-        role = (sc.payee_role or "any").lower()
-        if self.payee_id and role != "any":
-            if role == "contractor" and not self.payee.is_contractor:
-                raise ValidationError({"payee": "Select a payee marked as a contractor."})
-            if role == "vendor" and not self.payee.is_vendor:
-                raise ValidationError({"payee": "Select a payee marked as a vendor."})
-            if role == "customer" and not self.payee.is_customer:
-                raise ValidationError({"payee": "Select a payee marked as a customer."})
+        role = (sc.contact_role or "any").lower()
+        if self.contact_id and role != "any":
+            if role == "contractor" and not self.contact.is_contractor:
+                raise ValidationError({"contact": "Select a contact marked as a contractor."})
+            if role == "vendor" and not self.contact.is_vendor:
+                raise ValidationError({"contact": "Select a contact marked as a vendor."})
+            if role == "customer" and not self.contact.is_customer:
+                raise ValidationError({"contact": "Select a contact marked as a customer."})
 
 
         # Transport + Vehicle rules
@@ -477,3 +453,6 @@ class Transaction(BusinessOwnedModelMixin):
         if self.amount is None:
             return Decimal("0.00")
         return -self.amount if self.is_refund else self.amount
+
+
+

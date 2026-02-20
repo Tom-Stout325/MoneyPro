@@ -26,7 +26,7 @@
                   {{ inv.invoice_number|default:"(unassigned)" }}
                 </a>
               </div>
-              <div class="text-muted small">{{ inv.payee.display_name }}</div>
+              <div class="text-muted small">{{ inv.contact.display_name }}</div>
               {% if inv.job %}<div class="text-muted small">Job: {{ inv.job.title }}</div>{% endif %}
             </div>
             <span class="badge

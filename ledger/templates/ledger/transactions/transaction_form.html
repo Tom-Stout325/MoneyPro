@@ -1,14 +1,14 @@
 {% extends "index.html" %}
 {% load crispy_forms_tags %}
 
-{% block title %}{% if object %}Edit Transaction{% else %}Add TEST{% endif %} | MoneyPro{% endblock %}
+{% block title %}{% if object %}Edit Transaction{% else %}Add Transaction{% endif %} | MoneyPro{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-2 px-md-3 py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
       <h1 class="h4 mb-0">{% if object %}Edit Transaction{% else %}Add Transaction{% endif %}</h1>
-      <div class="text-muted small">Track income and expenses with optional job + payee links.</div>
+      <div class="text-muted small">Track income and expenses with optional job + contact links.</div>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'ledger:transaction_list' %}">Back</a>
   </div>
@@ -22,11 +22,83 @@
           <div class="alert alert-danger">{{ form.non_field_errors }}</div>
         {% endif %}
 
-        {{ form|crispy }}
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            {{ form.date|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            {{ form.amount|as_crispy_field }}
+          </div>
+
+          <div class="col-12">
+            <label for="id_subcategory" class="form-label">Sub Category</label>
+            <select name="{{ form.subcategory.name }}" id="id_subcategory" class="form-select" {% if form.subcategory.field.required %}required{% endif %}>
+              <option value="">— Select —</option>
+              {% for sc in form.fields.subcategory.queryset %}
+                <option value="{{ sc.pk }}"
+                        {% if form.subcategory.value|stringformat:"s" == sc.pk|stringformat:"s" %}selected{% endif %}
+                        data-category-name="{{ sc.category.name|default:'' }}"
+                        data-category-type="{{ sc.category.category_type|default:'' }}"
+                        data-requires-contact="{{ sc.requires_contact|yesno:'1,0' }}"
+                        data-contact-role="{{ sc.contact_role }}"
+                        data-requires-transport="{{ sc.requires_transport|yesno:'1,0' }}"
+                        data-requires-vehicle="{{ sc.requires_vehicle|yesno:'1,0' }}">
+                  {{ sc.name }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if form.subcategory.errors %}
+              <div class="invalid-feedback d-block">{{ form.subcategory.errors|striptags }}</div>
+            {% endif %}
+
+            <div class="d-flex flex-wrap gap-2 mt-2" id="subcatDerivedWrap" style="display:none;">
+              <span class="badge rounded-pill text-bg-primary" id="subcatTypeBadge">Type: —</span>
+              <span class="badge rounded-pill text-bg-secondary" id="subcatCategoryBadge">Category: —</span>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            {{ form.is_refund|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-5">
+            {{ form.invoice_number|as_crispy_field }}
+            <div class="form-text">Prefilled with the next number (you can overwrite).</div>
+          </div>
+
+          <div class="col-12 col-md-4" id="contactWrap">
+            {{ form.contact|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            {{ form.team|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            {{ form.job|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-4" id="transportWrap">
+            {{ form.transport_type|as_crispy_field }}
+          </div>
+
+          <div class="col-12 col-md-6" id="vehicleWrap">
+            {{ form.vehicle|as_crispy_field }}
+          </div>
+          <div class="col-12 col-md-6"></div>
+
+          <div class="col-12">
+            {{ form.description|as_crispy_field }}
+          </div>
+
+          <div class="col-12">
+            {{ form.notes|as_crispy_field }}
+          </div>
+        </div>
 
         <div class="d-grid d-sm-flex gap-2 justify-content-sm-end mt-3">
-          <a class="btn btn-outline-secondary w-100 w-sm-auto py-2"
-            href="{% url 'ledger:transaction_list' %}">Cancel</a>
+          <a class="btn btn-outline-secondary w-100 w-sm-auto py-2" href="{% url 'ledger:transaction_list' %}">Cancel</a>
           <button type="submit" class="btn btn-primary w-100 w-sm-auto py-2">Save</button>
         </div>
       </form>
@@ -37,9 +109,38 @@
 <script>
 (function () {
   const subSel = document.getElementById("id_subcategory");
-  const payeeSel = document.getElementById("id_payee");
-  const payeeWrap = document.getElementById("payeeWrap");
+  const contactSel = document.getElementById("id_contact");
+  const contactWrap = document.getElementById("contactWrap");
   const transportWrap = document.getElementById("transportWrap");
+
+  const transportSel = document.getElementById("id_transport_type");
+  const vehicleSel = document.getElementById("id_vehicle");
+  const vehicleWrap = document.getElementById("vehicleWrap");
+
+  const derivedWrap = document.getElementById("subcatDerivedWrap");
+  const typeBadge = document.getElementById("subcatTypeBadge");
+  const categoryBadge = document.getElementById("subcatCategoryBadge");
+
+  function titleCase(s) {
+    if (!s) return "";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function setDerivedBadges(opt) {
+    if (!derivedWrap || !typeBadge || !categoryBadge) return;
+
+    const catType = (opt?.dataset?.categoryType || "").toLowerCase();
+    const catName = (opt?.dataset?.categoryName || "").trim();
+
+    if (!catType && !catName) {
+      derivedWrap.style.display = "none";
+      return;
+    }
+
+    derivedWrap.style.display = "flex";
+    typeBadge.textContent = `Type: ${catType ? titleCase(catType) : "—"}`;
+    categoryBadge.textContent = `Category: ${catName || "—"}`;
+  }
 
   function applyRules() {
     if (!subSel) return;
@@ -47,35 +148,64 @@
     const opt = subSel.options[subSel.selectedIndex];
     if (!opt) return;
 
-    const payeeRole = (opt.dataset.payeeRole || "any").toLowerCase();
-    const requiresTransport = opt.dataset.requiresTransport === "1";
+    // Derived badges
+    setDerivedBadges(opt);
 
-    if (payeeWrap) payeeWrap.style.display = "";
-    if (transportWrap) transportWrap.style.display = requiresTransport ? "" : "none";
+    // Contact filtering
+    const contactRole = (opt.dataset.contactRole || "any").toLowerCase();
+    if (contactWrap) contactWrap.style.display = "";
 
-        if (!requiresTransport) {
-      const transport = document.getElementById("id_transport_selector");
-      if (transport) transport.value = "";
-    }
-
-    if (payeeSel) {
-      for (const pOpt of payeeSel.options) {
+    if (contactSel) {
+      for (const pOpt of contactSel.options) {
         if (!pOpt.value) continue;
 
         let show = true;
-        if (payeeRole === "contractor") show = pOpt.dataset.isContractor === "1";
-        else if (payeeRole === "vendor") show = pOpt.dataset.isVendor === "1";
-        else if (payeeRole === "customer") show = pOpt.dataset.isCustomer === "1";
+        if (contactRole === "contractor") show = pOpt.dataset.isContractor === "1";
+        else if (contactRole === "vendor") show = pOpt.dataset.isVendor === "1";
+        else if (contactRole === "customer") show = pOpt.dataset.isCustomer === "1";
 
         pOpt.hidden = !show;
-        if (!show && pOpt.selected) payeeSel.value = "";
+        if (!show && pOpt.selected) contactSel.value = "";
       }
+    }
+
+    // Transport rules
+    const requiresTransport = opt.dataset.requiresTransport === "1";
+    if (transportWrap) transportWrap.style.display = requiresTransport ? "" : "none";
+    if (!requiresTransport && transportSel) transportSel.value = "";
+
+    // Vehicle rules
+    const transportType = (transportSel?.value || "").trim();
+    if (vehicleWrap) {
+      const showVehicle = requiresTransport && (transportType === "business_vehicle");
+      vehicleWrap.style.display = showVehicle ? "" : "none";
+      if (!showVehicle && vehicleSel) vehicleSel.value = "";
+    }
+  }
+
+  function onTransportChange() {
+    if (!subSel) return;
+    const opt = subSel.options[subSel.selectedIndex];
+    if (!opt) return;
+
+    const requiresTransport = opt.dataset.requiresTransport === "1";
+    const transportType = (transportSel?.value || "").trim();
+
+    if (vehicleWrap) {
+      const showVehicle = requiresTransport && (transportType === "business_vehicle");
+      vehicleWrap.style.display = showVehicle ? "" : "none";
+      if (!showVehicle && vehicleSel) vehicleSel.value = "";
     }
   }
 
   if (subSel) {
     subSel.addEventListener("change", applyRules);
     applyRules();
+  }
+
+  if (transportSel) {
+    transportSel.addEventListener("change", onTransportChange);
+    onTransportChange();
   }
 })();
 </script>

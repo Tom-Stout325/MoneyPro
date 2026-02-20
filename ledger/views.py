@@ -40,7 +40,7 @@ class TransactionListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = (
             Transaction.objects.filter(business=self.request.business)
-            .select_related("category", "subcategory", "team", "payee", "job", "vehicle")
+            .select_related("category", "subcategory", "team", "contact", "job", "vehicle")
             .order_by("-date", "-id")
         )
 

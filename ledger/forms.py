@@ -16,24 +16,24 @@ class TransactionForm(forms.ModelForm):
     """Business-scoped transaction form.
 
     - Filters all dropdowns by the active Business.
-    - Uses a single 'transport_selector' UI field to drive transport_type + vehicle.
+    - Shows Type + Category as derived badges after Subcategory selection.
+    - Uses explicit Transport + Vehicle fields (Vehicle appears only when relevant).
     """
-
-    transport_selector = forms.ChoiceField(required=False, label="Transport")
 
     class Meta:
         model = Transaction
         fields = [
             "date",
             "amount",
-            "is_refund",
-            "description",
             "subcategory",
-            "payee",
+            "is_refund",
+            "invoice_number",
+            "contact",
             "team",
             "job",
-            "invoice_number",
-            "transport_selector",
+            "transport_type",
+            "vehicle",
+            "description",
             "notes",
         ]
 
@@ -51,40 +51,33 @@ class TransactionForm(forms.ModelForm):
             .select_related("category")
             .order_by(Lower("name"))
         )
-        self.fields["payee"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
-        self.fields["payee"].label = "Contact"
+        self.fields["contact"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
+        self.fields["contact"].label = "Contact"
         self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
         self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "job_number", "title")
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
 
+        # Transport + Vehicle fields
+        self.fields["transport_type"].label = "Transport"
+        self.fields["transport_type"].widget.attrs.setdefault("class", "form-select")
+        self.fields["vehicle"].queryset = Vehicle.objects.filter(
+            business=self.business,
+            is_active=True,
+            is_business=True,
+        ).order_by("sort_order", "label")
+        self.fields["vehicle"].required = False
+        self.fields["vehicle"].widget.attrs.setdefault("class", "form-select")
+
         self.fields["amount"].widget.attrs.setdefault("class", "form-control")
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
 
-        vehicle_choices = [
-            (f"veh:{v.id}", v.label)
-            for v in Vehicle.objects.filter(
-                business=self.business,
-                is_active=True,
-                is_business=True,
-            ).order_by("sort_order", "label")
-        ]
-
-        self.fields["transport_selector"].choices = [
-            ("", "—"),
-            ("personal_vehicle", "Personal vehicle"),
-            ("rental_car", "Rental car"),
-            *vehicle_choices,
-        ]
-
-        if self.instance and self.instance.pk:
-            if self.instance.transport_type == "business_vehicle" and self.instance.vehicle_id:
-                self.initial["transport_selector"] = f"veh:{self.instance.vehicle_id}"
-            elif self.instance.transport_type in ("personal_vehicle", "rental_car"):
-                self.initial["transport_selector"] = self.instance.transport_type
-            else:
-                self.initial["transport_selector"] = ""
+        # Invoice number: prefill next number for convenience (still user-editable)
+        if not (self.instance and self.instance.pk) and not (self.initial.get("invoice_number") or "").strip():
+            nxt = self._next_invoice_number()
+            if nxt:
+                self.initial["invoice_number"] = nxt
 
         self.helper = FormHelper()
         self.helper.form_tag = False
@@ -95,21 +88,29 @@ class TransactionForm(forms.ModelForm):
             Div(
                 Div(Field("date"), css_class="col-12 col-sm-6 col-md-4"),
                 Div(Field("amount"), css_class="col-12 col-sm-6 col-md-4"),
-                Div(Field("description"), css_class="col-12 col-md-4"),
                 css_class="row g-3",
             ),
             HTML('{% include "ledger/partials/_subcategory_select.html" %}'),
-            HTML("<hr class='my-4'>"),
-            HTML('<div class="fw-semibold mb-2">Links & extras</div>'),
+            Div(
+                Div(Field("is_refund"), css_class="col-12 col-md-3"),
+                Div(Field("invoice_number"), css_class="col-12 col-md-5"),
+                Div(HTML('{% include "ledger/partials/_contact_select.html" %}'), css_class="col-12 col-md-4"),
+                css_class="row g-3",
+            ),
             Div(
                 Div(Field("team"), css_class="col-12 col-md-4"),
                 Div(Field("job"), css_class="col-12 col-md-4"),
-                Div(Field("invoice_number"), css_class="col-12 col-md-4"),
+                Div(Field("transport_type"), css_class="col-12 col-md-4"),
                 css_class="row g-3",
             ),
-            HTML('{% include "ledger/partials/_payee_and_transport.html" %}'),
+            Div(
+                Div(Field("vehicle"), css_class="col-12 col-md-6", css_id="vehicleWrap"),
+                Div(HTML(""), css_class="col-12 col-md-6"),
+                css_class="row g-3",
+            ),
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Notes</div>'),
+            Field("description"),
             Field("notes"),
             HTML(
                 """
@@ -122,55 +123,58 @@ class TransactionForm(forms.ModelForm):
                 """
             ),
         )
-
-    def clean_transport_selector(self):
-        val = (self.cleaned_data.get("transport_selector") or "").strip()
-        if not val:
-            return ""
-
-        if val in ("personal_vehicle", "rental_car"):
-            return val
-
-        if val.startswith("veh:"):
-            try:
-                vehicle_id = int(val.split(":", 1)[1])
-            except Exception as exc:
-                raise ValidationError("Invalid vehicle selection.") from exc
-
-            if not Vehicle.objects.filter(
-                business=self.business,
-                pk=vehicle_id,
-                is_active=True,
-                is_business=True,
-            ).exists():
-                raise ValidationError("Invalid vehicle selection.")
-
-            return val
-
-        raise ValidationError("Invalid transport selection.")
-
     def clean(self):
         cleaned = super().clean()
-        val = (cleaned.get("transport_selector") or "").strip()
 
-        # If transport selector is empty, clear transport fields
-        if not val:
+        transport = (cleaned.get("transport_type") or "").strip()
+        vehicle = cleaned.get("vehicle")
+
+        if not transport:
+            # clear transport fields when empty
             self.instance.transport_type = ""
             self.instance.vehicle = None
             return cleaned
 
-        if val in ("personal_vehicle", "rental_car"):
-            self.instance.transport_type = val
+        if transport in ("personal_vehicle", "rental_car"):
+            self.instance.transport_type = transport
             self.instance.vehicle = None
             return cleaned
 
-        if val.startswith("veh:"):
-            vehicle_id = int(val.split(":", 1)[1])
+        if transport == "business_vehicle":
             self.instance.transport_type = "business_vehicle"
-            self.instance.vehicle_id = vehicle_id
+            self.instance.vehicle = vehicle
             return cleaned
 
-        return cleaned
+        raise ValidationError({"transport_type": "Invalid transport type."})
+
+    def _next_invoice_number(self) -> str:
+        """Best-effort next invoice number.
+
+        Uses the max numeric invoice_number for this business + 1.
+        If none exist, returns empty string.
+        """
+        qs = (
+            Transaction.objects
+            .filter(business=self.business)
+            .exclude(invoice_number="")
+            .values_list("invoice_number", flat=True)
+        )
+
+        best = None
+        for s in qs:
+            s = (s or "").strip()
+            if not s.isdigit():
+                continue
+            try:
+                n = int(s)
+            except Exception:
+                continue
+            if best is None or n > best:
+                best = n
+
+        if best is None:
+            return ""
+        return str(best + 1)
 
 
 
@@ -310,8 +314,8 @@ class SubCategoryForm(forms.ModelForm):
             "deduction_rule",
             "is_1099_reportable_default",
             "is_capitalizable",
-            "requires_payee",
-            "payee_role",
+            "requires_contact",
+            "contact_role",
             "requires_transport",
             "requires_vehicle",
         ]
@@ -341,7 +345,7 @@ class SubCategoryForm(forms.ModelForm):
             "tax_enabled",
             "is_1099_reportable_default",
             "is_capitalizable",
-            "requires_payee",
+            "requires_contact",
             "requires_transport",
             "requires_vehicle",
         ):
@@ -351,7 +355,7 @@ class SubCategoryForm(forms.ModelForm):
         self.fields["category"].widget.attrs.setdefault("class", "form-select")
         self.fields["schedule_c_line"].widget.attrs.setdefault("class", "form-select")
         self.fields["deduction_rule"].widget.attrs.setdefault("class", "form-select")
-        self.fields["payee_role"].widget.attrs.setdefault("class", "form-select")
+        self.fields["contact_role"].widget.attrs.setdefault("class", "form-select")
 
         # Optional: keep slug small and unobtrusive
         self.fields["slug"].required = False
@@ -388,8 +392,8 @@ class SubCategoryForm(forms.ModelForm):
             Div(
                 Div(Field("is_1099_reportable_default"), css_class="col-12 col-md-3"),
                 Div(Field("is_capitalizable"), css_class="col-12 col-md-3"),
-                Div(Field("requires_payee"), css_class="col-12 col-md-3"),
-                Div(Field("payee_role"), css_class="col-12 col-md-3"),
+                Div(Field("requires_contact"), css_class="col-12 col-md-3"),
+                Div(Field("contact_role"), css_class="col-12 col-md-3"),
                 css_class="row g-3",
             ),
             Div(

@@ -37,7 +37,7 @@ class InvoiceListView(LoginRequiredMixin, BusinessScopedMixin, ListView):
     def get_queryset(self):
         return (
             Invoice.objects.filter(business=self.get_business())
-            .select_related("payee", "job")
+            .select_related("contact", "job")
             .order_by("-issue_date", "-id")
         )
 
@@ -50,7 +50,7 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
     def get_queryset(self):
         return (
             Invoice.objects.filter(business=self.get_business())
-            .select_related("payee", "job", "income_transaction")
+            .select_related("contact", "job", "income_transaction")
             .prefetch_related("items")
         )
 
@@ -261,7 +261,7 @@ def invoice_pdf_preview(request: HttpRequest, pk: int) -> HttpResponse:
     """
     invoice = get_object_or_404(
         Invoice.objects.filter(business=request.business)
-        .select_related("payee", "job")
+        .select_related("contact", "job")
         .prefetch_related("items"),
         pk=pk,
     )
@@ -286,7 +286,7 @@ def invoice_pdf_download(request: HttpRequest, pk: int) -> HttpResponse:
     """
     invoice = get_object_or_404(
         Invoice.objects.filter(business=request.business)
-        .select_related("payee", "job")
+        .select_related("contact", "job")
         .prefetch_related("items"),
         pk=pk,
     )

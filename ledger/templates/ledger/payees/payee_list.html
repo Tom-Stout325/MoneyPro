@@ -1,21 +1,21 @@
 {% extends "index.html" %}
 
-{% block title %}Payees | MoneyPro{% endblock %}
+{% block title %}Contacts | MoneyPro{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-2 px-md-3 py-3">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Payees</h1>
+      <h1 class="h4 mb-0">Contacts</h1>
       <div class="text-muted small">Vendors, contractors, and customers.</div>
     </div>
-    <a class="btn btn-primary" href="{% url 'ledger:payee_create' %}">New Payee</a>
+    <a class="btn btn-primary" href="{% url 'ledger:contact_create' %}">New contact</a>
   </div>
 
   <form method="get" class="row g-2 mb-3">
     <div class="col-12 col-md-6">
-      <input class="form-control" name="q" value="{{ q }}" placeholder="Search payees…">
+      <input class="form-control" name="q" value="{{ q }}" placeholder="Search contacts…">
     </div>
     <div class="col-12 col-md-4">
       <select class="form-select" name="role">
@@ -41,7 +41,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for p in payees %}
+          {% for p in contacts %}
           <tr>
             <td class="fw-semibold">{{ p.display_name }}</td>
             <td class="text-muted small">
@@ -50,12 +50,12 @@
               {% if p.is_contractor %}<span class="me-2">Contractor</span>{% endif %}
             </td>
             <td class="text-end">
-              <a class="btn btn-sm btn-outline-primary" href="{% url 'ledger:payee_update' p.pk %}">Edit</a>
-              <a class="btn btn-sm btn-outline-danger" href="{% url 'ledger:payee_delete' p.pk %}">Delete</a>
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'ledger:contact_update' p.pk %}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger" href="{% url 'ledger:contact_delete' p.pk %}">Delete</a>
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="3" class="text-center text-muted py-4">No payees yet.</td></tr>
+          <tr><td colspan="3" class="text-center text-muted py-4">No contacts yet.</td></tr>
           {% endfor %}
         </tbody>
       </table>

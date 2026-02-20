@@ -12,7 +12,7 @@
         Invoice {{ invoice.invoice_number|default:"(unassigned)" }}
       </h1>
       <div class="text-muted small">
-        {{ invoice.payee.display_name }}
+        {{ invoice.contact.display_name }}
         • Issue {{ invoice.issue_date|date:"m/d/Y" }}
         {% if invoice.sent_date %} • Sent {{ invoice.sent_date|date:"m/d/Y" }}{% endif %}
         {% if invoice.paid_date %} • Paid {{ invoice.paid_date|date:"m/d/Y" }}{% endif %}
@@ -119,10 +119,10 @@
             </table>
           </div>
         </div>
-        {% if invoice.memo or invoice.footer %}
+        {% if invoice.memo %}
           <div class="card-footer bg-white">
             {% if invoice.memo %}<div><span class="text-muted">Memo:</span> {{ invoice.memo|linebreaksbr }}</div>{% endif %}
-            {% if invoice.footer %}<div class="mt-2 small text-muted">{{ invoice.footer|linebreaksbr }}</div>{% endif %}
+  
           </div>
         {% endif %}
       </div>

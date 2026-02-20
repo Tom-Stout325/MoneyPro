@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import date
-
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
@@ -10,8 +9,13 @@ from ledger.reporting_utils import route_category_for_report, route_subcategory_
 from .queries import aggregate_category_subcategory_totals
 
 
+
+
+
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
     template_name = "reports/home.html"
+
+
 
 
 class ScheduleCSummaryView(LoginRequiredMixin, TemplateView):

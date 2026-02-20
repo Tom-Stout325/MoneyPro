@@ -64,7 +64,7 @@
             </td>
             <td class="text-muted small">
               <span class="me-2">{{ sc.get_deduction_rule_display }}</span>
-              {% if sc.requires_payee %}<span class="badge text-bg-light border me-1">Contact</span>{% endif %}
+              {% if sc.requires_contact %}<span class="badge text-bg-light border me-1">Contact</span>{% endif %}
               {% if sc.requires_transport %}<span class="badge text-bg-light border me-1">Transport</span>{% endif %}
               {% if sc.requires_vehicle %}<span class="badge text-bg-light border me-1">Vehicle</span>{% endif %}
             </td>

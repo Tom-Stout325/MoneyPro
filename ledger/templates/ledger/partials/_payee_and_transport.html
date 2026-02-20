@@ -1,21 +1,21 @@
 <div class="row g-3 mt-0">
-  <div class="col-12 col-md-6" id="payeeWrap">
+  <div class="col-12 col-md-6" id="contactWrap">
     <label class="form-label">Contact</label>
-    <select name="{{ form.payee.name }}" id="id_payee" class="form-select">
+    <select name="{{ form.contact.name }}" id="id_contact" class="form-select">
       <option value="">— Select —</option>
-      {% for p in form.fields.payee.queryset %}
+      {% for p in form.fields.contact.queryset %}
         <option value="{{ p.pk }}"
                 data-is-contractor="{{ p.is_contractor|yesno:'1,0' }}"
                 data-is-vendor="{{ p.is_vendor|yesno:'1,0' }}"
                 data-is-customer="{{ p.is_customer|yesno:'1,0' }}"
-                {% if form.payee.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>
+                {% if form.contact.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>
           {{ p.display_name }}
         </option>
       {% endfor %}
     </select>
 
-    {% if form.payee.errors %}
-      <div class="invalid-feedback d-block">{{ form.payee.errors|striptags }}</div>
+    {% if form.contact.errors %}
+      <div class="invalid-feedback d-block">{{ form.contact.errors|striptags }}</div>
     {% endif %}
     <div class="form-text">Filtered automatically based on Subcategory rules (customer/vendor/contractor).</div>
   </div>
