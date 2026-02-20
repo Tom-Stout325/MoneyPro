@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import date
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, DecimalField, F, Sum, Value, When
@@ -278,3 +277,27 @@ def rebuild_defaults(request):
     messages.success(request, "Defaults rebuilt successfully.")
     return redirect("dashboard:home")
 
+
+
+
+def _period_from_params(*, today: date, mode: str, year: int | None) -> tuple[date, date, str, str]:
+    """Return (start_date, end_date, label, selected_year_value)."""
+
+    mode = (mode or "rolling").strip().lower()
+
+    if mode == "year" and year:
+        start_date = date(year, 1, 1)
+        end_date = date(year, 12, 31)
+        return start_date, end_date, str(year), str(year)
+
+    if mode == "month":
+        # Current month-to-date
+        start_date = date(today.year, today.month, 1)
+        end_date = today
+        # Label can be "Current month" or "Feb 2026" — your call.
+        return start_date, end_date, "Current month", "month"
+
+    # default rolling 12 months inclusive of current month
+    start_date = _first_day_n_months_ago(date(today.year, today.month, 1), 11)
+    end_date = today
+    return start_date, end_date, "Rolling 12 months", "rolling"

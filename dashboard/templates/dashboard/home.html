@@ -84,13 +84,16 @@
 
             <!-- Chart controls live with the chart (mobile-first) -->
             <div class="d-flex gap-2 flex-wrap align-items-center">
-              <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
-                <input type="radio" class="btn-check" name="periodMode" id="modeRolling" autocomplete="off" checked>
-                <label class="btn btn-outline-secondary" for="modeRolling">Rolling 12</label>
+             <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
+              <input type="radio" class="btn-check" name="periodMode" id="modeRolling" autocomplete="off" checked>
+              <label class="btn btn-outline-secondary" for="modeRolling">Rolling 12</label>
 
-                <input type="radio" class="btn-check" name="periodMode" id="modeYear" autocomplete="off">
-                <label class="btn btn-outline-secondary" for="modeYear">Year</label>
-              </div>
+              <input type="radio" class="btn-check" name="periodMode" id="modeMonth" autocomplete="off">
+              <label class="btn btn-outline-secondary" for="modeMonth">Current Month</label>
+
+              <input type="radio" class="btn-check" name="periodMode" id="modeYear" autocomplete="off">
+              <label class="btn btn-outline-secondary" for="modeYear">Year</label>
+            </div>
 
               <label for="yearSelect" class="visually-hidden">Year</label>
               <select id="yearSelect" class="form-select form-select-sm" style="min-width: 120px;" {% if not years %}disabled{% endif %}>
@@ -326,112 +329,126 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {% block extra_js %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<script>
-  (function () {
-    const chartDataUrl = "{% url 'dashboard:chart_data' %}";
+    <script>
+      (function () {
+        const chartDataUrl = "{% url 'dashboard:chart_data' %}";
 
-    const fmtMoney = (n) => {
-      try { return "$" + Number(n || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
-      catch (e) { return "$0.00"; }
-    };
+        const fmtMoney = (n) => {
+          try { return "$" + Number(n || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+          catch (e) { return "$0.00"; }
+        };
 
-    const labels0 = {{ chart_labels_json|safe }};
-    const income0 = {{ chart_income_json|safe }};
-    const expenses0 = {{ chart_expense_json|safe }};
+        const labels0 = {{ chart_labels_json|safe }};
+        const income0 = {{ chart_income_json|safe }};
+        const expenses0 = {{ chart_expense_json|safe }};
 
-    const el = document.getElementById("incomeExpenseChart");
-    if (!el) return;
+        const el = document.getElementById("incomeExpenseChart");
+        if (!el) return;
 
-    const chart = new Chart(el, {
-      type: "line",
-      data: {
-        labels: labels0,
-        datasets: [
-          { label: "Income", data: income0, tension: 0.25 },
-          { label: "Expenses", data: expenses0, tension: 0.25 }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
-        plugins: { legend: { display: true } },
-        scales: {
-          y: { ticks: { callback: (value) => "$" + value.toLocaleString() } }
+        const chart = new Chart(el, {
+          type: "line",
+          data: {
+            labels: labels0,
+            datasets: [
+              { label: "Income", data: income0, tension: 0.25 },
+              { label: "Expenses", data: expenses0, tension: 0.25 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: { legend: { display: true } },
+            scales: {
+              y: { ticks: { callback: (value) => "$" + value.toLocaleString() } }
+            }
+          }
+        });
+
+        const modeRolling = document.getElementById("modeRolling");
+        const modeMonth = document.getElementById("modeMonth");
+        const modeYear = document.getElementById("modeYear");
+        const yearSelect = document.getElementById("yearSelect");
+
+        const periodLabelEls = [
+          document.getElementById("periodLabel"),
+          document.getElementById("periodLabel2"),
+          document.getElementById("periodLabel3"),
+          document.getElementById("chartPeriodLabel"),
+        ];
+
+        const incomeTotalEl = document.getElementById("incomeTotal");
+        const expenseTotalEl = document.getElementById("expenseTotal");
+        const netTotalEl = document.getElementById("netTotal");
+
+        // Restore last selected mode from backend (selected_year_value = "rolling" | "month" | "2026" etc.)
+        const initialSelected = "{{ selected_year_value }}";
+
+        if (initialSelected === "month") {
+          modeMonth.checked = true;
+          modeRolling.checked = false;
+          modeYear.checked = false;
+        } else if (initialSelected && initialSelected !== "rolling" && yearSelect) {
+          yearSelect.value = initialSelected;   // e.g. "2026"
+          modeYear.checked = true;
+          modeRolling.checked = false;
+          modeMonth.checked = false;
+        } else {
+          modeRolling.checked = true;
+          modeMonth.checked = false;
+          modeYear.checked = false;
         }
-      }
-    });
 
-    const modeRolling = document.getElementById("modeRolling");
-    const modeYear = document.getElementById("modeYear");
-    const yearSelect = document.getElementById("yearSelect");
+        const setYearEnabled = () => {
+          if (!yearSelect) return;
+          yearSelect.disabled = modeRolling.checked || modeMonth.checked || yearSelect.options.length === 0;
+        };
 
-    const periodLabelEls = [
-      document.getElementById("periodLabel"),
-      document.getElementById("periodLabel2"),
-      document.getElementById("periodLabel3"),
-      document.getElementById("chartPeriodLabel"),
-    ];
+        function currentMode() {
+          if (modeYear.checked) return "year";
+          if (modeMonth.checked) return "month";
+          return "rolling";
+        }
 
-    const incomeTotalEl = document.getElementById("incomeTotal");
-    const expenseTotalEl = document.getElementById("expenseTotal");
-    const netTotalEl = document.getElementById("netTotal");
+        async function loadData() {
+          const mode = currentMode();
+          const year = (mode === "year" && yearSelect) ? yearSelect.value : "";
 
-    // Default year select to current selected_year_value if it is a year, otherwise first option.
-    const initialSelected = "{{ selected_year_value }}";
-    if (initialSelected && initialSelected !== "rolling" && yearSelect) {
-      yearSelect.value = initialSelected;
-      modeYear.checked = true;
-      modeRolling.checked = false;
-    } else {
-      modeRolling.checked = true;
-      modeYear.checked = false;
-    }
+          const url = new URL(chartDataUrl, window.location.origin);
+          url.searchParams.set("mode", mode);
+          if (mode === "year") url.searchParams.set("year", year);
 
-    const setYearEnabled = () => {
-      if (!yearSelect) return;
-      yearSelect.disabled = modeRolling.checked || yearSelect.options.length === 0;
-    };
+          try {
+            const resp = await fetch(url.toString(), { headers: { "X-Requested-With": "fetch" }});
+            if (!resp.ok) return;
+            const data = await resp.json();
 
-    async function loadData() {
-      const mode = modeRolling.checked ? "rolling" : "year";
-      const year = (mode === "year" && yearSelect) ? yearSelect.value : "";
-      const url = new URL(chartDataUrl, window.location.origin);
-      url.searchParams.set("mode", mode);
-      if (mode === "year") url.searchParams.set("year", year);
+            if (incomeTotalEl) incomeTotalEl.textContent = fmtMoney(data.income_total);
+            if (expenseTotalEl) expenseTotalEl.textContent = fmtMoney(data.expense_total);
+            if (netTotalEl) netTotalEl.textContent = fmtMoney(data.net_total);
 
-      try {
-        const resp = await fetch(url.toString(), { headers: { "X-Requested-With": "fetch" }});
-        if (!resp.ok) return;
-        const data = await resp.json();
+            periodLabelEls.forEach((node) => { if (node) node.textContent = data.period_label || ""; });
 
-        // Update KPI totals
-        if (incomeTotalEl) incomeTotalEl.textContent = fmtMoney(data.income_total);
-        if (expenseTotalEl) expenseTotalEl.textContent = fmtMoney(data.expense_total);
-        if (netTotalEl) netTotalEl.textContent = fmtMoney(data.net_total);
+            chart.data.labels = data.labels || [];
+            chart.data.datasets[0].data = data.income || [];
+            chart.data.datasets[1].data = data.expenses || [];
+            chart.update();
+          } catch (e) {
+            // no-op
+          }
+        }
 
-        // Update labels
-        periodLabelEls.forEach((node) => { if (node) node.textContent = data.period_label || ""; });
+        if (modeRolling) modeRolling.addEventListener("change", () => { setYearEnabled(); loadData(); });
+        if (modeMonth) modeMonth.addEventListener("change", () => { setYearEnabled(); loadData(); });
+        if (modeYear) modeYear.addEventListener("change", () => { setYearEnabled(); loadData(); });
+        if (yearSelect) yearSelect.addEventListener("change", () => { if (modeYear.checked) loadData(); });
 
-        // Update chart
-        chart.data.labels = data.labels || [];
-        chart.data.datasets[0].data = data.income || [];
-        chart.data.datasets[1].data = data.expenses || [];
-        chart.update();
-      } catch (e) {
-        // no-op
-      }
-    }
-
-    // Wire events
-    if (modeRolling) modeRolling.addEventListener("change", () => { setYearEnabled(); loadData(); });
-    if (modeYear) modeYear.addEventListener("change", () => { setYearEnabled(); loadData(); });
-    if (yearSelect) yearSelect.addEventListener("change", () => { if (modeYear.checked) loadData(); });
-
-    setYearEnabled();
-  })();
-</script>
+        setYearEnabled();
+      })();
+    </script>
+  {% endblock %}
 
 {% endblock %}
