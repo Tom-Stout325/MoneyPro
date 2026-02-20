@@ -38,7 +38,6 @@ class Invoice(BusinessOwnedModelMixin):
         VOID = "void", "Voided"
 
     status         = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
-
     issue_date     = models.DateField(default=timezone.localdate)
     due_date       = models.DateField(null=True, blank=True)
     sent_date      = models.DateField(null=True, blank=True)
@@ -47,7 +46,7 @@ class Invoice(BusinessOwnedModelMixin):
     job            = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
     location       = models.CharField(max_length=255, blank=True)
     invoice_number = models.CharField(max_length=12, blank=True)  # YY#### or YY####a
-    revises = models.ForeignKey("self", on_delete=models.PROTECT, related_name="revisions", null=True, blank=True, help_text="If set, this invoice is a revision of another invoice.",)
+    revises        = models.ForeignKey("self", on_delete=models.PROTECT, related_name="revisions", null=True, blank=True, help_text="If set, this invoice is a revision of another invoice.",)
 
     # Snapshot fields (frozen at SEND)
     bill_to_name        = models.CharField(max_length=255, blank=True)
