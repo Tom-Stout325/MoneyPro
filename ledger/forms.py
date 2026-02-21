@@ -28,6 +28,7 @@ class TransactionForm(forms.ModelForm):
             "subcategory",
             "is_refund",
             "invoice_number",
+            "receipt",
             "contact",
             "team",
             "job",
@@ -73,6 +74,13 @@ class TransactionForm(forms.ModelForm):
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
 
+        # Receipt upload
+        self.fields["receipt"].required = False
+        self.fields["receipt"].label = "Receipt"
+        self.fields["receipt"].widget.attrs.setdefault("class", "form-control")
+        # Helpful on mobile (camera / files). Browsers ignore unsupported tokens.
+        self.fields["receipt"].widget.attrs.setdefault("accept", "image/*,application/pdf")
+
         # Invoice number: prefill next number for convenience (still user-editable)
         if not (self.instance and self.instance.pk) and not (self.initial.get("invoice_number") or "").strip():
             nxt = self._next_invoice_number()
@@ -112,16 +120,7 @@ class TransactionForm(forms.ModelForm):
             HTML('<div class="fw-semibold mb-2">Notes</div>'),
             Field("description"),
             Field("notes"),
-            HTML(
-                """
-                <div class="alert alert-light border small mt-3 mb-0">
-                  <div class="fw-semibold mb-1">Receipts</div>
-                  <div class="text-muted">
-                    Next: drag & drop upload + choose file + mobile camera capture.
-                  </div>
-                </div>
-                """
-            ),
+            HTML('{% include "ledger/partials/_receipt_upload.html" %}'),
         )
     def clean(self):
         cleaned = super().clean()

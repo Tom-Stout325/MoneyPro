@@ -78,7 +78,45 @@
             <div class="small">
               {{ invoice.income_transaction.date|date:"m/d/Y" }} •
               ${{ invoice.income_transaction.amount|floatformat:2|intcomma }} •
-              {{ invoice.income_transaction.subcategory.name }}
+              {% if invoice.income_transaction.subcategory %}
+                {{ invoice.income_transaction.subcategory.sub_cat|default:"—" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if has_transactions %}
+            <hr>
+            <div class="small text-muted">Invoice review</div>
+
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Income</div>
+              <div class="fw-semibold">${{ income_total|floatformat:2|intcomma }}</div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Expenses</div>
+              <div class="fw-semibold">${{ expense_total|floatformat:2|intcomma }}</div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Net income</div>
+              <div class="fw-semibold">${{ net_income|floatformat:2|intcomma }}</div>
+            </div>
+
+            <hr class="my-2">
+
+            <div class="small text-muted">Taxable (Schedule C)</div>
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Taxable income</div>
+              <div class="fw-semibold">${{ taxable_income_total|default:income_total|floatformat:2|intcomma }}</div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Taxable expenses</div>
+              <div class="fw-semibold">${{ taxable_expense_total|default:expense_total|floatformat:2|intcomma }}</div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div class="text-muted">Taxable net</div>
+              <div class="fw-semibold">${{ taxable_net_income|default:net_income|floatformat:2|intcomma }}</div>
             </div>
           {% endif %}
         </div>
@@ -106,7 +144,9 @@
                   <tr>
                     <td>
                       {{ it.description }}
-                      {% if it.subcategory %}<div class="small text-muted">{{ it.subcategory.name }}</div>{% endif %}
+                      {% if it.subcategory %}
+                        <div class="small text-muted">{{ it.subcategory.sub_cat|default:"—" }}</div>
+                      {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td class="text-end">{{ it.unit_price }}</td>
@@ -121,13 +161,72 @@
         </div>
         {% if invoice.memo %}
           <div class="card-footer bg-white">
-            {% if invoice.memo %}<div><span class="text-muted">Memo:</span> {{ invoice.memo|linebreaksbr }}</div>{% endif %}
-  
+            <div><span class="text-muted">Memo:</span> {{ invoice.memo|linebreaksbr }}</div>
           </div>
         {% endif %}
       </div>
     </div>
   </div>
+
+  {% if has_transactions %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header bg-white">
+        <div class="fw-semibold">Associated transactions</div>
+        <div class="text-muted small">Linked by invoice number: {{ invoice.invoice_number }}</div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th class="d-none d-md-table-cell">Subcategory</th>
+                <th class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in tx_list %}
+                <tr>
+                  <td>{{ t.date|date:"m/d/Y" }}</td>
+                  <td>
+                    {{ t.description|default:"—" }}
+                    {% if t.notes %}
+                      <div class="small text-muted">{{ t.notes }}</div>
+                    {% endif %}
+                  </td>
+
+                  <td class="d-none d-md-table-cell">
+                    {% if t.subcategory %}
+                      {% with sub=t.subcategory.sub_cat|default_if_none:""|lower %}
+                        {{ t.subcategory.sub_cat|default:"—" }}
+                        {% if "meal" in sub %}
+                          <span class="badge rounded-pill text-bg-warning ms-2">Meals 50%</span>
+                        {% endif %}
+                        {% if "gas" in sub or "fuel" in sub %}
+                          <span class="badge rounded-pill text-bg-info ms-2">Fuel</span>
+                        {% endif %}
+                      {% endwith %}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="text-end">${{ t.amount|floatformat:2|intcomma }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    {% if invoice.invoice_number %}
+      <div class="alert alert-info mt-3">
+        No ledger transactions are linked to this invoice number yet.
+      </div>
+    {% endif %}
+  {% endif %}
 
   {% if invoice.revises %}
     <div class="alert alert-warning mt-3">

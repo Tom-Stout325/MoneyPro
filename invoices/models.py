@@ -45,7 +45,7 @@ class Invoice(BusinessOwnedModelMixin):
     contact        = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
     job            = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
     location       = models.CharField(max_length=255, blank=True)
-    invoice_number = models.CharField(max_length=12, blank=True)  # YY#### or YY####a
+    invoice_number = models.CharField(max_length=12, blank=True) 
     revises        = models.ForeignKey("self", on_delete=models.PROTECT, related_name="revisions", null=True, blank=True, help_text="If set, this invoice is a revision of another invoice.",)
 
     # Snapshot fields (frozen at SEND)

@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from core.models import BusinessMembership
 from ledger.models import Transaction, Category
+from invoices.models import Invoice
 from ledger.services import seed_schedule_c_defaults
 
 
@@ -159,8 +160,14 @@ def dashboard_home(request):
     # Recent transactions (always full business scope; independent of chart period)
     recent_transactions = (
         Transaction.objects.filter(business=business)
-        .select_related("subcategory", "team")
+        .select_related("subcategory")
         .order_by("-date", "-id")[:15]
+    )
+
+    recent_invoices = (
+        Invoice.objects.filter(business=business)
+        .select_related("job")
+        .order_by("-issue_date", "-id")[:10]
     )
 
     context = {
@@ -176,6 +183,7 @@ def dashboard_home(request):
         "chart_income_json": json.dumps(payload["income"]),
         "chart_expense_json": json.dumps(payload["expenses"]),
         "recent_transactions": recent_transactions,
+        "recent_invoices": recent_invoices,
     }
     return render(request, "dashboard/home.html", context)
 

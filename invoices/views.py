@@ -54,6 +54,113 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
             .prefetch_related("items")
         )
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        invoice: Invoice = ctx["invoice"]
+        business = self.get_business()
+
+        # ------------------------------------------------------------------
+        # Related ledger transactions (income + expenses) linked by invoice_number
+        # ------------------------------------------------------------------
+        from decimal import Decimal
+        tx_list = []
+        income_total = Decimal("0.00")
+        expense_total = Decimal("0.00")
+        taxable_income_total = Decimal("0.00")
+        taxable_expense_total = Decimal("0.00")
+
+        if invoice.invoice_number:
+            from ledger.models import Transaction
+
+            qs = (
+                Transaction.objects.filter(business=business, invoice_number=invoice.invoice_number)
+                .select_related("subcategory", "subcategory__category", "contact", "job")
+                .order_by("date", "pk")
+            )
+
+            def _kind(t: Transaction) -> str:
+                """Return 'income' or 'expense' using whatever signals exist."""
+                trans_type = getattr(t, "trans_type", None)
+                if trans_type is not None:
+                    val = str(trans_type).strip().lower()
+                    if "income" in val:
+                        return "income"
+                    if "expense" in val:
+                        return "expense"
+
+                sub = getattr(t, "subcategory", None)
+                cat = getattr(sub, "category", None) if sub else None
+                cat_type = getattr(cat, "category_type", None) if cat else None
+                if cat_type is not None:
+                    val = str(cat_type).strip().lower()
+                    if "income" in val:
+                        return "income"
+                    if "expense" in val:
+                        return "expense"
+
+                # Fallback: positive = income, negative = expense
+                amt = getattr(t, "amount", None)
+                try:
+                    return "income" if (amt or Decimal("0")) >= 0 else "expense"
+                except Exception:
+                    return "expense"
+
+            def _deductible_expense_amount(t: Transaction, amt: Decimal) -> Decimal:
+                """Expense amount to count toward taxable expense totals."""
+                # Prefer a model-level deductible_amount if it exists (common: meals 50%)
+                da = getattr(t, "deductible_amount", None)
+                try:
+                    if callable(da):
+                        val = da()
+                    else:
+                        val = da
+                    if val is not None:
+                        return Decimal(val)
+                except Exception:
+                    pass
+                return amt
+
+            def _mark_pills(t: Transaction) -> None:
+                """Attach UI flags used by the template."""
+                sub = getattr(t, "subcategory", None)
+                sub_label = ""
+                if sub is not None:
+                    sub_label = (getattr(sub, "sub_cat", "") or str(sub)).strip().lower()
+
+                schedule_c_line = ""
+                if sub is not None:
+                    schedule_c_line = (getattr(sub, "schedule_c_line", "") or "").strip().lower()
+
+                label = f"{sub_label} {schedule_c_line}"
+                t._pill_meals = ("meal" in label)  # meals typically 50% deductible
+                t._pill_gas = ("gas" in label) or ("fuel" in label)
+
+            tx_list = list(qs)
+            for t in tx_list:
+                amt = Decimal(getattr(t, "amount", None) or Decimal("0.00"))
+                kind = _kind(t)
+                _mark_pills(t)
+
+                if kind == "income":
+                    income_total += amt
+                    taxable_income_total += amt
+                else:
+                    expense_total += amt
+                    taxable_expense_total += _deductible_expense_amount(t, amt)
+
+        net_income = income_total - expense_total
+        taxable_net_income = taxable_income_total - taxable_expense_total
+
+        ctx["tx_list"] = tx_list
+        ctx["income_total"] = income_total
+        ctx["expense_total"] = expense_total
+        ctx["net_income"] = net_income
+        ctx["taxable_income_total"] = taxable_income_total
+        ctx["taxable_expense_total"] = taxable_expense_total
+        ctx["taxable_net_income"] = taxable_net_income
+        ctx["has_transactions"] = bool(tx_list)
+
+        return ctx
 
 def _get_item_formset(*, business):
     return inlineformset_factory(

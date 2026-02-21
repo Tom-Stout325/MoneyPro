@@ -345,6 +345,7 @@ class Transaction(BusinessOwnedModelMixin):
     team              = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
+    receipt           = models.FileField(upload_to="receipts/transactions/", blank=True, null=True)
     transport_type    = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")
     vehicle           = models.ForeignKey("vehicles.Vehicle", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True,)
     notes             = models.TextField(blank=True)

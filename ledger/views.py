@@ -136,6 +136,18 @@ class TransactionUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class TransactionDetailView(LoginRequiredMixin, DetailView):
+    model = Transaction
+    template_name = "ledger/transactions/transaction_detail.html"
+    context_object_name = "transaction"
+
+    def get_queryset(self):
+        return (
+            Transaction.objects.filter(business=self.request.business)
+            .select_related("category", "subcategory", "team", "contact", "job", "vehicle")
+        )
+
+
 class TransactionDeleteView(LoginRequiredMixin, DeleteView):
     model = Transaction
     template_name = "ledger/transactions/transaction_confirm_delete.html"

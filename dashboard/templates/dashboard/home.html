@@ -9,92 +9,109 @@
   <!-- Header -->
   <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
     <div>
-      <h1 class="h4 mb-0">Dashboard</h1>
+      <h1 class="h2 mb-0 text-secondary-brand">Dashboard</h1>
       <div class="text-muted small">Welcome back, {{ request.user.email|default:request.user.get_username }}</div>
     </div>
 
     <!-- Quick actions (mobile-first) -->
     <div class="d-grid d-sm-flex gap-2">
-      <a class="btn btn-primary" href="{% url 'ledger:transaction_create' %}">
+      <a class="btn btn-outline-primary" href="{% url 'ledger:transaction_create' %}">
         <i class="fa-solid fa-plus me-1"></i> Add transaction
       </a>
 
-      <a class="btn btn-outline-primary" href="{% url 'invoices:invoice_create' %}" title="Create Invoice">
+      <a class="btn btn-outline-secondary" href="{% url 'invoices:invoice_create' %}" title="Create Invoice">
         <i class="fa-solid fa-file-invoice-dollar me-1"></i> Create invoice
       </a>
 
-      <a class="btn btn-outline-secondary" href="{% url 'reports:home' %}" title="Reports">
+      <a class="btn btn-outline-warning" href="{% url 'reports:home' %}" title="Reports">
         <i class="fa-solid fa-chart-line me-1"></i> Reports
       </a>
 
-      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardMore" aria-controls="dashboardMore">
+      <button class="btn btn-outline-success" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardMore" aria-controls="dashboardMore">
         <i class="fa-solid fa-ellipsis me-1"></i> More
       </button>
     </div>
   </div>
 
+
   <!-- KPIs -->
-  <div class="row g-3 mb-3">
-    <div class="col-12 col-md-4">
-      <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="text-muted small">Income (<span id="periodLabel">{{ period_label }}</span>)</div>
-            <div class="fs-4 fw-semibold text-body" id="incomeTotal">${{ income_total|floatformat:2|intcomma }}</div>
+  <div class="kpi-grid mb-3">
+    <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
+      <div class="kpi-card kpi-accent-success h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <div class="kpi-label">Income (<span id="periodLabel">{{ period_label }}</span>)</div>
+            <p class="kpi-value" id="incomeTotal">${{ income_total|floatformat:2|intcomma }}</p>
+          </div>
+          <div class="kpi-icon" aria-hidden="true">
+            <i class="fa-solid fa-arrow-trend-up"></i>
           </div>
         </div>
-      </a>
-    </div>
+      </div>
+    </a>
 
-    <div class="col-12 col-md-4">
-      <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="text-muted small">Expenses (<span id="periodLabel2">{{ period_label }}</span>)</div>
-            <div class="fs-4 fw-semibold text-body" id="expenseTotal">${{ expense_total|floatformat:2|intcomma }}</div>
+    <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
+      <div class="kpi-card kpi-accent-danger h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <div class="kpi-label">Expenses (<span id="periodLabel2">{{ period_label }}</span>)</div>
+            <p class="kpi-value" id="expenseTotal">${{ expense_total|floatformat:2|intcomma }}</p>
+          </div>
+          <div class="kpi-icon" aria-hidden="true">
+            <i class="fa-solid fa-receipt"></i>
           </div>
         </div>
-      </a>
-    </div>
+      </div>
+    </a>
 
-    <div class="col-12 col-md-4">
-      <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="text-muted small">Net (<span id="periodLabel3">{{ period_label }}</span>)</div>
-            <div class="fs-4 fw-semibold text-body" id="netTotal">${{ net_total|floatformat:2|intcomma }}</div>
+    <a class="text-decoration-none" href="{% url 'ledger:transaction_list' %}">
+      <div class="kpi-card kpi-accent-primary h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <div class="kpi-label">Net (<span id="periodLabel3">{{ period_label }}</span>)</div>
+            <p class="kpi-value" id="netTotal">${{ net_total|floatformat:2|intcomma }}</p>
+          </div>
+          <div class="kpi-icon" aria-hidden="true">
+            <i class="fa-solid fa-scale-balanced"></i>
           </div>
         </div>
-      </a>
-    </div>
+      </div>
+    </a>
   </div>
 
+
+  <!-- Chart + Reports -->
   <div class="row g-3">
     <!-- Chart -->
     <div class="col-12 col-lg-7">
-      <div class="card shadow-sm h-100">
+      <div class="card h-100">
         <div class="card-body p-3 p-md-4">
-          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-2">
+
+          <div class="dash-card-head">
             <div>
-              <h2 class="h6 mb-0">Monthly income vs expenses</h2>
-              <div class="text-muted small" id="chartPeriodLabel">{{ period_label }}</div>
+              <h2 class="h6 dash-card-title mb-0">Monthly income vs expenses</h2>
+              <div class="dash-card-subtitle" id="chartPeriodLabel">{{ period_label }}</div>
             </div>
 
-            <!-- Chart controls live with the chart (mobile-first) -->
             <div class="d-flex gap-2 flex-wrap align-items-center">
-              <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
+              <div class="btn-group btn-group-sm btn-segment" role="group" aria-label="Chart period">
                 <input type="radio" class="btn-check" name="periodMode" id="modeRolling" autocomplete="off" checked>
-                <label class="btn btn-outline-secondary" for="modeRolling">Rolling 12</label>
+                <label class="btn btn-ghost" for="modeRolling">Rolling 12</label>
 
                 <input type="radio" class="btn-check" name="periodMode" id="modeMonth" autocomplete="off">
-                <label class="btn btn-outline-secondary" for="modeMonth">Current Month</label>
+                <label class="btn btn-ghost" for="modeMonth">Current Month</label>
 
                 <input type="radio" class="btn-check" name="periodMode" id="modeYear" autocomplete="off">
-                <label class="btn btn-outline-secondary" for="modeYear">Year</label>
+                <label class="btn btn-ghost" for="modeYear">Year</label>
               </div>
 
               <label for="yearSelect" class="visually-hidden">Year</label>
-              <select id="yearSelect" class="form-select form-select-sm" style="min-width: 120px;" {% if not years %}disabled{% endif %}>
+              <select
+                id="yearSelect"
+                class="form-select form-select-sm select-compact"
+                style="min-width: 120px;"
+                {% if not years %}disabled{% endif %}
+              >
                 {% for y in years %}
                   <option value="{{ y }}">{{ y }}</option>
                 {% endfor %}
@@ -102,125 +119,159 @@
             </div>
           </div>
 
-          <div class="border rounded-3 p-2" style="height: 300px;">
-            <canvas id="incomeExpenseChart"></canvas>
+          <div class="chart-frame" style="height: 340px;">
+            <div class="chart-frame-inner h-100">
+              <canvas id="incomeExpenseChart"></canvas>
+            </div>
           </div>
 
           <div class="text-muted small mt-3">
             Tip: expenses are shown as positive values (refunds reduce totals).
           </div>
+
         </div>
       </div>
     </div>
 
     <!-- Reports -->
     <div class="col-12 col-lg-5">
-      <div class="card shadow-sm h-100">
+      <div class="card report-card report-accent-secondary h-100">
         <div class="card-body p-3 p-md-4">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h2 class="h6 mb-0">Reports</h2>
+
+          <div class="dash-card-head">
+            <div>
+              <h2 class="h6 dash-card-title mb-0">Reports</h2>
+              <div class="dash-card-subtitle">Quick access to your most-used reports</div>
+            </div>
+
             <a class="small text-decoration-none" href="{% url 'reports:home' %}">
               All reports <i class="fa-solid fa-arrow-right-long ms-1"></i>
             </a>
           </div>
 
-          <div class="accordion" id="reportsAccordion">
-            <div class="accordion-item">
-              <h2 class="accordion-header" id="reportsHeading">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#reportsCollapse" aria-expanded="false" aria-controls="reportsCollapse">
-                  Report Quick links
-                </button>
-              </h2>
+          <div class="reports-shell">
+            <div class="accordion" id="reportsAccordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="reportsHeading">
+                  <button
+                    class="accordion-button collapsed"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#reportsCollapse"
+                    aria-expanded="false"
+                    aria-controls="reportsCollapse"
+                  >
+                    Report Quick links
+                  </button>
+                </h2>
 
-              <div id="reportsCollapse" class="accordion-collapse collapse" aria-labelledby="reportsHeading" data-bs-parent="#reportsAccordion">
-                <div class="accordion-body p-0">
+                <div
+                  id="reportsCollapse"
+                  class="accordion-collapse collapse"
+                  aria-labelledby="reportsHeading"
+                  data-bs-parent="#reportsAccordion"
+                >
+                  <div class="accordion-body p-0">
+                    <div class="list-group list-group-flush">
 
-                  <div class="list-group list-group-flush">
+                      <!-- Profit & Loss -->
+                      <a
+                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                        href="{% url 'reports:profit_loss' %}"
+                      >
+                        <span><i class="fa-solid fa-receipt me-2"></i> Profit &amp; Loss Reports</span>
+                        <span class="badge text-bg-light">Actual Amounts</span>
+                      </a>
 
-                    <!-- Profit & Loss -->
-                    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                       href="{% url 'reports:profit_loss' %}">
-                      <span><i class="fa-solid fa-receipt me-2"></i> Profit &amp; Loss Reports</span>
-                      <span class="badge text-bg-light">Actual Amounts</span>
-                    </a>
-
-                    <div class="list-group-item">
-                      <div class="d-flex flex-wrap gap-2">
-                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:profit_loss' %}">
-                          <i class="fa-solid fa-money-bill-trend-up"></i> P & L</a>
-                        <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"
-                           href="{% url 'reports:profit_loss_yoy' %}">
-                          <i class="fa-regular fa-calendar-days"></i> YoY
-                        </a>
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="{% url 'reports:profit_loss_pdf_download' %}">
-                          <i class="fa-solid fa-download me-1"></i> Download
-                        </a>
+                      <div class="list-group-item">
+                        <div class="d-flex flex-wrap gap-2">
+                          <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:profit_loss' %}">
+                            <i class="fa-solid fa-money-bill-trend-up"></i> P &amp; L
+                          </a>
+                          <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener" href="{% url 'reports:profit_loss_yoy' %}">
+                            <i class="fa-regular fa-calendar-days"></i> YoY
+                          </a>
+                          <a class="btn btn-sm btn-outline-primary" href="{% url 'reports:profit_loss_pdf_download' %}">
+                            <i class="fa-solid fa-download me-1"></i> Download
+                          </a>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Operating Expenses / Schedule C -->
-                    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                       href="{% url 'reports:schedule_c' %}">
-                      <span><i class="fa-solid fa-file-invoice me-2"></i>Operating Expenses</span>
-                      <span class="badge text-bg-light">Tax / Actual</span>
-                    </a>
+                      <!-- Operating Expenses / Schedule C -->
+                      <a
+                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                        href="{% url 'reports:schedule_c' %}"
+                      >
+                        <span><i class="fa-solid fa-file-invoice me-2"></i> Operating Expenses</span>
+                        <span class="badge text-bg-light">Tax / Actual</span>
+                      </a>
 
-                    <div class="list-group-item">
-                      <div class="d-flex flex-wrap gap-2">
-                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:schedule_c' %}">
-                          <i class="fa-solid fa-money-bill-trend-up"></i> Expenses</a>
-                        <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"
-                           href="{% url 'reports:schedule_c_yoy' %}">
-                           <i class="fa-regular fa-calendar-days"></i> YoY
-                        </a>
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="{% url 'reports:schedule_c_pdf_download' %}">
-                          <i class="fa-solid fa-download me-1"></i> Download
-                        </a>
+                      <div class="list-group-item">
+                        <div class="d-flex flex-wrap gap-2">
+                          <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:schedule_c' %}">
+                            <i class="fa-solid fa-money-bill-trend-up"></i> Expenses
+                          </a>
+                          <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener" href="{% url 'reports:schedule_c_yoy' %}">
+                            <i class="fa-regular fa-calendar-days"></i> YoY
+                          </a>
+                          <a class="btn btn-sm btn-outline-primary" href="{% url 'reports:schedule_c_pdf_download' %}">
+                            <i class="fa-solid fa-download me-1"></i> Download
+                          </a>
+                        </div>
                       </div>
-                    </div>
 
-                  </div>
+                    </div><!-- /.list-group -->
+                  </div><!-- /.accordion-body -->
+                </div><!-- /.accordion-collapse -->
+              </div><!-- /.accordion-item -->
+            </div><!-- /.accordion -->
+          </div><!-- /.reports-shell -->
 
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="alert alert-light border mt-3 mb-0 small">
+          <div class="tip-card mt-3 small">
             Tip: “Operating Expenses” supports Tax (Deductible) and Books (Actual) modes, plus YoY and PDF.
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
+
+        </div><!-- /.card-body -->
+      </div><!-- /.card -->
+    </div><!-- /.col -->
+
+  </div><!-- /.row -->
+
 
   <!-- Recent transactions -->
-  <div class="card shadow-sm mt-3">
+  <div class="card mt-3 table-head-accent table-head-accent-secondary">
     <div class="card-body p-3 p-md-4">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="h6 mb-0">Recent transactions</h2>
+
+      <div class="dash-card-head">
+        <div>
+          <h2 class="h3 dash-card-title mb-0 text-secondary-brand">Recent transactions</h2>
+          <div class="dash-card-subtitle">Latest activity across income and expenses</div>
+        </div>
         <a class="small text-decoration-none" href="{% url 'ledger:transaction_list' %}">View all</a>
       </div>
 
       <!-- Mobile list -->
       <div class="d-md-none">
-        <div class="list-group">
+        <div class="list-group list-group-soft">
           {% for t in recent_transactions %}
-            <a class="list-group-item list-group-item-action" href="{% url 'ledger:transaction_update' t.pk %}">
+            <a class="list-group-item list-group-item-action" href="{% url 'ledger:transaction_detail' t.pk %}">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="me-2">
                   <div class="fw-semibold">{{ t.description }}</div>
-                  <div class="text-muted small">
-                    {{ t.date }}{% if t.team %} · {{ t.team.name }}{% endif %} · {{ t.subcategory.name }}
+                  <div class="list-meta">
+                    {{ t.date }}
+                    {% if t.invoice_number %} · Invoice {{ t.invoice_number }}{% endif %}
+                    · {{ t.subcategory.name }}
                   </div>
                 </div>
+
                 <div class="text-end text-nowrap">
-                  <div class="{% if t.trans_type == 'income' %}text-success{% else %}text-body{% endif %} fw-semibold">
+                  <div class="amount {% if t.trans_type == 'income' %}text-success{% else %}text-body{% endif %}">
                     {% if t.is_refund %}-{% endif %}${{ t.amount|floatformat:2|intcomma }}
                   </div>
-                  {% if t.trans_type == "income" %}<span class="badge rounded-pill text-bg-success">Income</span>{% endif %}
+                  {% if t.trans_type == "income" %}
+                    <span class="badge badge-income">Income</span>
+                  {% endif %}
                 </div>
               </div>
             </a>
@@ -232,12 +283,12 @@
 
       <!-- Desktop table -->
       <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm align-middle mb-0">
+        <table class="table table-sm align-middle mb-0 table-soft table-zebra">
           <thead>
             <tr>
               <th>Date</th>
               <th>Description</th>
-              <th>Team</th>
+              <th>Invoice #</th>
               <th>Subcategory</th>
               <th class="text-end">Amount</th>
               <th class="text-end">Actions</th>
@@ -250,19 +301,28 @@
                 <td>
                   <div class="d-flex align-items-center gap-2">
                     <div class="fw-semibold">{{ t.description }}</div>
-                    {% if t.trans_type == "income" %}<span class="badge rounded-pill text-bg-success">Income</span>{% endif %}
+                    {% if t.trans_type == "income" %}
+                      <span class="badge badge-income">Income</span>
+                    {% endif %}
                   </div>
                   <div class="text-muted small">
-                    {% if t.team %}{{ t.team.name }} · {% endif %}{{ t.subcategory.name }}
+                    {% if t.invoice_number %}Invoice {{ t.invoice_number }} · {% endif %}
+                    {{ t.subcategory.name }}
                   </div>
                 </td>
-                <td>{% if t.team %}{{ t.team.name }}{% else %}—{% endif %}</td>
+                <td>{% if t.invoice_number %}{{ t.invoice_number }}{% else %}—{% endif %}</td>
                 <td>{{ t.subcategory.name }}</td>
-                <td class="text-end {% if t.trans_type == 'income' %}text-success{% else %}text-body{% endif %}">
-                  {% if t.is_refund %}-{% endif %}${{ t.amount|floatformat:2|intcomma }}
-                </td>
                 <td class="text-end">
-                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'ledger:transaction_update' t.pk %}">
+                  <span class="amount {% if t.trans_type == 'income' %}amount-income{% endif %}">
+                    {% if t.is_refund %}-{% endif %}${{ t.amount|floatformat:2|intcomma }}
+                  </span>
+                </td>
+                <td class="text-end table-actions">
+                  <a class="btn btn-sm btn-ghost" href="{% url 'ledger:transaction_detail' t.pk %}" title="View">
+                    <i class="fa-regular fa-eye"></i>
+                    <span class="visually-hidden">View</span>
+                  </a>
+                  <a class="btn btn-sm btn-ghost" href="{% url 'ledger:transaction_update' t.pk %}" title="Edit">
                     <i class="fa-regular fa-pen-to-square"></i>
                     <span class="visually-hidden">Edit</span>
                   </a>
@@ -276,10 +336,79 @@
           </tbody>
         </table>
       </div>
+
     </div>
   </div>
 
-</div>
+    <!-- Recent invoices -->
+  <div class="card mt-3 table-head-accent table-head-accent-success">
+    <div class="card-body p-3 p-md-4">
+
+      <div class="dash-card-head">
+        <div>
+          <h2 class="h4 dash-card-title mb-0 text-success-brand">Recent Invoices</h2>
+          <div class="dash-card-subtitle">Newest invoices and current statuses</div>
+        </div>
+        <a class="small text-decoration-none" href="{% url 'invoices:invoice_list' %}">View all</a>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 table-soft table-zebra">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Invoice #</th>
+              <th>Job</th>
+              <th class="text-end">Amount</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in recent_invoices %}
+              <tr>
+                <td class="text-nowrap">{{ inv.issue_date }}</td>
+                <td class="text-nowrap">{{ inv.invoice_number|default:"—" }}</td>
+                <td>
+                  {% if inv.job %}
+                    <div class="fw-semibold">{{ inv.job.title }}</div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                  <span class="amount">${{ inv.total|floatformat:2|intcomma }}</span>
+                </td>
+                <td class="text-nowrap">
+                  {% with status=inv.status %}
+                    <span class="badge badge-status
+                      {% if status == 'paid' %}badge-paid
+                      {% elif status == 'sent' %}badge-sent
+                      {% elif status == 'draft' %}badge-draft
+                      {% elif status == 'void' %}badge-void
+                      {% else %}badge-draft{% endif %}">
+                      {{ inv.get_status_display }}
+                    </span>
+                  {% endwith %}
+                </td>
+                <td class="text-end table-actions">
+                  <a class="btn btn-sm btn-ghost" href="{% url 'invoices:invoice_detail' inv.pk %}" title="View">
+                    <i class="fa-regular fa-eye"></i>
+                    <span class="visually-hidden">View</span>
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-muted">No invoices yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
 
 <!-- Offcanvas: More -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="dashboardMore" aria-labelledby="dashboardMoreLabel">
