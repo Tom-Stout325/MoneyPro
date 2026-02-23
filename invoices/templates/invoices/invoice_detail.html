@@ -18,7 +18,7 @@
         {% if invoice.paid_date %} • Paid {{ invoice.paid_date|date:"m/d/Y" }}{% endif %}
       </div>
       {% if invoice.job %}
-        <div class="text-muted small">Job: {{ invoice.job.title }}</div>
+        <div class="text-muted small">Job: {{ invoice.job.label }}</div>
       {% endif %}
       {% if invoice.location %}
         <div class="text-muted small">Location: {{ invoice.location }}</div>

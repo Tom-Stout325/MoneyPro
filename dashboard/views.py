@@ -39,6 +39,13 @@ def _first_day_n_months_ago(anchor: date, months_back: int) -> date:
 
 def _period_from_params(*, today: date, mode: str, year: int | None) -> tuple[date, date, str, str]:
     """Return (start_date, end_date, label, selected_year_value)."""
+    mode = (mode or "rolling").strip().lower()
+
+    if mode == "month":
+        start_date = date(today.year, today.month, 1)
+        end_date = today
+        return start_date, end_date, today.strftime("%b %Y"), "month"
+
     if mode == "year" and year:
         start_date = date(year, 1, 1)
         end_date = date(year, 12, 31)
@@ -101,6 +108,37 @@ def _dashboard_payload(*, business, start_date: date, end_date: date) -> dict:
         income_series.append(float(row["income"] or 0))
         expense_series.append(float(row["expenses"] or 0))
 
+    
+    # Breakdown (top subcategories + Other) for the selected period
+    def _breakdown(trans_type: str, top_n: int = 6) -> tuple[list[str], list[float]]:
+        qs = (
+            base_qs.filter(trans_type=trans_type)
+            .values("subcategory__name")
+            .annotate(total=Sum(signed_amount))
+            .order_by("-total")
+        )
+        labels_b: list[str] = []
+        values_b: list[float] = []
+        other_total = 0.0
+
+        for i, row in enumerate(qs):
+            name = row.get("subcategory__name") or "Uncategorized"
+            val = float(row.get("total") or 0)
+            if i < top_n:
+                labels_b.append(name)
+                values_b.append(val)
+            else:
+                other_total += val
+
+        if other_total > 0:
+            labels_b.append("Other")
+            values_b.append(other_total)
+
+        return labels_b, values_b
+
+    income_breakdown_labels, income_breakdown_values = _breakdown(Transaction.TransactionType.INCOME)
+    expense_breakdown_labels, expense_breakdown_values = _breakdown(Transaction.TransactionType.EXPENSE)
+
     return {
         "income_total": float(income_total),
         "expense_total": float(expense_total),
@@ -108,6 +146,10 @@ def _dashboard_payload(*, business, start_date: date, end_date: date) -> dict:
         "labels": labels,
         "income": income_series,
         "expenses": expense_series,
+        "income_breakdown_labels": income_breakdown_labels,
+        "income_breakdown_values": income_breakdown_values,
+        "expense_breakdown_labels": expense_breakdown_labels,
+        "expense_breakdown_values": expense_breakdown_values,
     }
 
 
@@ -182,6 +224,10 @@ def dashboard_home(request):
         "chart_labels_json": json.dumps(payload["labels"]),
         "chart_income_json": json.dumps(payload["income"]),
         "chart_expense_json": json.dumps(payload["expenses"]),
+        "income_breakdown_labels_json": json.dumps(payload.get("income_breakdown_labels", [])),
+        "income_breakdown_values_json": json.dumps(payload.get("income_breakdown_values", [])),
+        "expense_breakdown_labels_json": json.dumps(payload.get("expense_breakdown_labels", [])),
+        "expense_breakdown_values_json": json.dumps(payload.get("expense_breakdown_values", [])),
         "recent_transactions": recent_transactions,
         "recent_invoices": recent_invoices,
     }

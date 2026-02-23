@@ -320,6 +320,15 @@ a:hover {
   letter-spacing: 0.02em;
 }
 
+/* App navbar color (keeps Bootstrap's navbar-dark contrast) */
+.mp-navbar {
+  background-color: var(--color-secondary);
+}
+
+.mp-navbar .nav-link.active {
+  font-weight: 700;
+}
+
 /* ==========================================================================
    5) UTILITIES
    ========================================================================== */

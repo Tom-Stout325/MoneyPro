@@ -38,7 +38,7 @@ class InvoiceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self.fields["contact"].queryset = Contact.objects.filter(business=business, is_customer=True).order_by("display_name")
-        self.fields["job"].queryset = Job.objects.filter(business=business).order_by("title")
+        self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-job_year", "job_number", "label")
         self.fields["status"].disabled = True
         self.fields["paid_date"].disabled = True  # controlled by Mark Paid
 

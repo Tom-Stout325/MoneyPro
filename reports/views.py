@@ -16,6 +16,30 @@ from .profit_loss import build_profit_loss_single, build_profit_loss_yoy
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
     template_name = "reports/home.html"
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = date.today()
+
+        try:
+            selected_year = int(self.request.GET.get("year") or today.year)
+        except (TypeError, ValueError):
+            selected_year = today.year
+
+        year_choices = list(range(2023, today.year + 1))
+
+        mode = (self.request.GET.get("mode") or "tax").strip().lower()
+        if mode not in {"tax", "books"}:
+            mode = "tax"
+
+        ctx.update(
+            {
+                "selected_year": selected_year,
+                "year_choices": year_choices,
+                "mode": mode,
+            }
+        )
+        return ctx
+
 
 @login_required
 def schedule_c(request: HttpRequest) -> HttpResponse:

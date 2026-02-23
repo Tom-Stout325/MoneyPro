@@ -347,7 +347,7 @@ class JobListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        qs = Job.objects.filter(business=self.request.business).order_by("-is_active", "job_number", "title")
+        qs = Job.objects.filter(business=self.request.business).order_by("-is_active", "-job_year", "job_number", "label")
         q = (self.request.GET.get("q") or "").strip()
         jtype = (self.request.GET.get("job_type") or "").strip()
         active = (self.request.GET.get("active") or "").strip()
@@ -355,7 +355,7 @@ class JobListView(LoginRequiredMixin, ListView):
         if q:
             qs = qs.filter(
                 Q(job_number__icontains=q)
-                | Q(title__icontains=q)
+                | Q(label__icontains=q)
                 | Q(client__display_name__icontains=q)
                 | Q(city__icontains=q)
                 | Q(address__icontains=q)

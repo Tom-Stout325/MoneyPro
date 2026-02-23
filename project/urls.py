@@ -8,6 +8,7 @@ from django.urls import include, path
 
 from project.views import home
 
+
 def healthcheck(_request):
     return JsonResponse({"status": "ok"})
 
@@ -16,19 +17,16 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", healthcheck, name="healthcheck"),
     path("", home, name="home"),
-
+    path("help/", include(("helpcenter.urls", "helpcenter"), namespace="helpcenter")),
     path("accounts/", include("accounts.urls")),
     path("accounts/", include("allauth.urls")),
-
-
     path("dashboard/", include("dashboard.urls")),
-    path("business/", include("core.urls", namespace="core")),
-    path("", include("ledger.urls")),
-    path("reports/", include("reports.urls", namespace="reports")),
-    path("vehicles/", include("vehicles.urls", namespace="vehicles")),
-    path("invoices/", include("invoices.urls", namespace="invoices")),
+    path("business/", include(("core.urls", "core"), namespace="core")),
+    path("", include("ledger.urls")),  # ledger is mounted at root in your project
+    path("reports/", include(("reports.urls", "reports"), namespace="reports")),
+    path("vehicles/", include(("vehicles.urls", "vehicles"), namespace="vehicles")),
+    path("invoices/", include(("invoices.urls", "invoices"), namespace="invoices")),
 ]
-
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,0 +1,19 @@
+{% extends "index.html" %}
+{% block title %}Delete Mileage Entry | MoneyPro{% endblock %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h1 class="h4">Delete Mileage Entry</h1>
+      <p class="text-muted">Are you sure you want to delete this mileage entry for <strong>{{ object.vehicle }}</strong> on {{ object.date }}?</p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="d-grid d-md-flex gap-2">
+          <button class="btn btn-danger" type="submit">Delete</button>
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

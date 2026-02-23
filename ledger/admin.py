@@ -49,9 +49,15 @@ class SubCategoryAdmin(BusinessAdminMixin):
 
 @admin.register(Contact)
 class ContactAdmin(BusinessAdminMixin):
-    list_display = ("display_name", "is_vendor", "is_customer", "is_contractor", "business")
+    list_display = ("display_name", "client_code", "is_vendor", "is_customer", "is_contractor", "business")
     list_filter = ("is_vendor", "is_customer", "is_contractor", "business")
-    search_fields = ("display_name", "legal_name", "business_name")
+    search_fields = ("display_name", "client_code", "legal_name", "business_name")
+
+    def get_readonly_fields(self, request, obj=None):
+        ro = list(super().get_readonly_fields(request, obj=obj))
+        if obj and obj.pk:
+            ro.append("client_code")
+        return ro
 
 
 @admin.register(ContactTaxProfile)
@@ -63,9 +69,9 @@ class ContactTaxProfileAdmin(BusinessAdminMixin):
 
 @admin.register(Job)
 class JobAdmin(BusinessAdminMixin):
-    list_display = ("job_number", "title", "job_type", "client", "is_active", "business")
+    list_display = ("job_number", "label", "job_year", "job_type", "client", "is_active", "business")
     list_filter = ("job_type", "is_active", "business")
-    search_fields = ("job_number", "title", "client__display_name")
+    search_fields = ("job_number", "label", "client__display_name")
 
 
 @admin.register(Team)

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from django import forms
+
+from invoices.models import Invoice
+from ledger.models import Job
 from vehicles.models import VehicleMiles, VehicleYear, Vehicle
 
 
@@ -61,13 +64,15 @@ class VehicleYearForm(forms.ModelForm):
 class VehicleMilesForm(forms.ModelForm):
     class Meta:
         model = VehicleMiles
-        fields = ["date", "vehicle", "mileage_type", "begin", "end", "notes"]
+        fields = ["date", "vehicle", "mileage_type", "begin", "end", "job", "invoice", "notes"]
         widgets = {
             "date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "vehicle": forms.Select(attrs={"class": "form-select"}),
             "mileage_type": forms.Select(attrs={"class": "form-select"}),
             "begin": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
             "end": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
+            "job": forms.Select(attrs={"class": "form-select"}),
+            "invoice": forms.Select(attrs={"class": "form-select"}),
             "notes": forms.TextInput(attrs={"class": "form-control"}),
         }
 
@@ -77,3 +82,10 @@ class VehicleMilesForm(forms.ModelForm):
 
         if business:
             self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business, is_active=True).order_by("sort_order", "label")
+            self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-is_active", "job_number", "title")
+            # Invoice list can get long; keep it ordered newest first.
+            self.fields["invoice"].queryset = Invoice.objects.filter(business=business).order_by("-issue_date", "-id")
+
+        # Optional fields: show an em dash choice
+        self.fields["job"].required = False
+        self.fields["invoice"].required = False

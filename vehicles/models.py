@@ -131,6 +131,25 @@ class VehicleMiles(BusinessOwnedModelMixin):
     total = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True, editable=False)
 
     vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="miles_entries")
+
+    # Optional linkage back to billable work.
+    # We store both Job + Invoice to support different workflows:
+    # - Job is ideal for grouping many trips under one engagement
+    # - Invoice is ideal when mileage is billed/attached to a specific invoice
+    job = models.ForeignKey(
+        "ledger.Job",
+        on_delete=models.PROTECT,
+        related_name="mileage_entries",
+        null=True,
+        blank=True,
+    )
+    invoice = models.ForeignKey(
+        "invoices.Invoice",
+        on_delete=models.PROTECT,
+        related_name="mileage_entries",
+        null=True,
+        blank=True,
+    )
     mileage_type = models.CharField(max_length=20, choices=MileageType.choices, default=MileageType.BUSINESS)
     notes = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -148,6 +167,16 @@ class VehicleMiles(BusinessOwnedModelMixin):
 
         if self.vehicle_id and self.business_id and self.vehicle.business_id != self.business_id:
             raise ValidationError({"vehicle": "Vehicle does not belong to this business."})
+
+        if self.job_id and self.business_id and self.job.business_id != self.business_id:
+            raise ValidationError({"job": "Job does not belong to this business."})
+
+        if self.invoice_id and self.business_id and self.invoice.business_id != self.business_id:
+            raise ValidationError({"invoice": "Invoice does not belong to this business."})
+
+        # If both are provided, make sure they match.
+        if self.invoice_id and self.job_id and self.invoice.job_id and self.invoice.job_id != self.job_id:
+            raise ValidationError({"invoice": "Selected invoice does not belong to the selected job."})
 
         if self.begin is not None and self.end is not None:
             if self.end < self.begin:

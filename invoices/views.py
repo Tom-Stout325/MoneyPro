@@ -60,6 +60,31 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
         business = self.get_business()
 
         # ------------------------------------------------------------------
+        # Mileage entries linked to this invoice
+        # ------------------------------------------------------------------
+        try:
+            from vehicles.models import VehicleMiles
+
+            from django.db.models import Sum
+            from django.db.models.functions import Coalesce
+            from django.db.models import Value
+            from decimal import Decimal
+
+            mileage_qs = (
+                VehicleMiles.objects.filter(business=business, invoice=invoice)
+                .select_related("vehicle", "job")
+                .order_by("date", "pk")
+            )
+            ctx["mileage_entries"] = list(mileage_qs)
+            ctx["mileage_total_miles"] = (
+                mileage_qs.aggregate(t=Coalesce(Sum("total"), Value(Decimal("0.0"))))["t"]
+            )
+        except Exception:
+            # If vehicles app isn't installed in some deployments, do not break invoice detail.
+            ctx["mileage_entries"] = []
+            ctx["mileage_total_miles"] = None
+
+        # ------------------------------------------------------------------
         # Related ledger transactions (income + expenses) linked by invoice_number
         # ------------------------------------------------------------------
         from decimal import Decimal

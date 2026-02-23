@@ -19,9 +19,16 @@
       <form method="post" novalidate>
         {% csrf_token %}
 
+        {% if object and object.job_number %}
+          <div class="alert alert-light border mb-3">
+            <div class="small text-muted">Job Number</div>
+            <div class="fw-semibold">{{ object.job_number }}</div>
+          </div>
+        {% endif %}
+
         <div class="row g-3">
-          <div class="col-12 col-md-4">{{ form.job_number|as_crispy_field }}</div>
-          <div class="col-12 col-md-8">{{ form.title|as_crispy_field }}</div>
+          <div class="col-12 col-md-8">{{ form.label|as_crispy_field }}</div>
+          <div class="col-12 col-md-4">{{ form.job_year|as_crispy_field }}</div>
 
           <div class="col-12 col-md-6">{{ form.client|as_crispy_field }}</div>
           <div class="col-12 col-md-6">{{ form.job_type|as_crispy_field }}</div>

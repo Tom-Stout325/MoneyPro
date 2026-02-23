@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Div, Field, HTML, Layout
 from django.db.models.functions import Lower
+from django.utils import timezone
 
 from ledger.models import Category, Job, Contact, SubCategory, Transaction, Team
 from vehicles.models import Vehicle
@@ -55,7 +56,7 @@ class TransactionForm(forms.ModelForm):
         self.fields["contact"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
         self.fields["contact"].label = "Contact"
         self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
-        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "job_number", "title")
+        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "-job_year", "job_number", "label")
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
 
@@ -185,6 +186,7 @@ class ContactForm(forms.ModelForm):
         model = Contact
         fields = [
             "display_name",
+            "client_code",
             "legal_name",
             "business_name",
             "email",
@@ -218,6 +220,11 @@ class ContactForm(forms.ModelForm):
         for cb in ("is_vendor", "is_customer", "is_contractor"):
             self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
 
+        # Lock client_code once created.
+        if self.instance and self.instance.pk:
+            self.fields["client_code"].disabled = True
+            self.fields["client_code"].help_text = "Client Code is locked once set. Create a new client to use a different code."
+
 
 
 
@@ -230,9 +237,9 @@ class JobForm(forms.ModelForm):
     class Meta:
         model = Job
         fields = [
-            "job_number",
-            "title",
+            "label",
             "client",
+            "job_year",
             "job_type",
             "city",
             "address",
@@ -252,6 +259,14 @@ class JobForm(forms.ModelForm):
             Contact.objects.filter(business=self.business, is_customer=True)
             .order_by("display_name")
         )
+
+        # Year defaults to current year; keep it as a simple number input for now.
+        self.fields["job_year"].initial = getattr(self.instance, "job_year", None) or timezone.now().year
+
+        # Show job_number as read-only display when editing.
+        # (Job.job_number is generated; users don't edit it.)
+        if self.instance and self.instance.pk:
+            self.fields["label"].help_text = f"Job Number: {self.instance.job_number}"
 
         # Mobile-friendly defaults
         for name, field in self.fields.items():

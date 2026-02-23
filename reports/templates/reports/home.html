@@ -1,25 +1,151 @@
 {% extends "index.html" %}
+{% load humanize %}
 
-{% block title %}Reports{% endblock %}
+{% block title %}Reports | MoneyPro{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-2 px-md-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid px-2 px-md-3 py-3">
+
+  <!-- Header -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
     <div>
-      <h1 class="h4 mb-0">Reports</h1>
-      <div class="text-muted small">Book & tax-friendly summaries</div>
+      <h1 class="h2 mb-0 text-secondary-brand">Reports</h1>
+      <div class="text-muted small">Quick access to tax + books-friendly summaries</div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <form method="get" class="d-flex gap-2 align-items-center">
+        <input type="hidden" name="mode" value="{{ mode }}">
+        <label for="year" class="visually-hidden">Year</label>
+        <select id="year" name="year" class="form-select form-select-sm select-compact" style="min-width: 120px;" onchange="this.form.submit()">
+          {% for y in year_choices %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <!-- Mode toggle (affects Operating Expenses links) -->
+      <div class="btn-group btn-group-sm btn-segment" role="group" aria-label="Operating expenses mode">
+        <a class="btn btn-ghost {% if mode == 'tax' %}active{% endif %}" href="?year={{ selected_year }}&mode=tax">Tax</a>
+        <a class="btn btn-ghost {% if mode == 'books' %}active{% endif %}" href="?year={{ selected_year }}&mode=books">Books</a>
+      </div>
     </div>
   </div>
 
-  <div class="list-group shadow-sm">
-    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-       href="{% url 'reports:schedule_c' %}">
-      <div>
-        <div class="fw-semibold">Schedule C (Operating)</div>
-        <div class="small text-muted">Tax-deductible operating expenses with expandable breakdown</div>
+  <div class="row g-3">
+
+    <!-- Profit & Loss -->
+    <div class="col-12 col-lg-6">
+      <div class="card h-100 table-head-accent table-head-accent-success">
+        <div class="card-body p-3 p-md-4">
+
+          <div class="dash-card-head">
+            <div>
+              <h2 class="h6 dash-card-title mb-0">Profit &amp; Loss</h2>
+              <div class="dash-card-subtitle">Books view for the selected year</div>
+            </div>
+            <a class="small text-decoration-none" href="{% url 'reports:profit_loss' %}?year={{ selected_year }}">
+              Open <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            </a>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:profit_loss' %}?year={{ selected_year }}">
+              <i class="fa-solid fa-money-bill-trend-up"></i> P &amp; L
+            </a>
+            <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener" href="{% url 'reports:profit_loss_yoy' %}?year={{ selected_year }}">
+              <i class="fa-regular fa-calendar-days"></i> YoY
+            </a>
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="{% url 'reports:profit_loss_pdf_preview' %}?year={{ selected_year }}">
+              <i class="fa-regular fa-file-pdf"></i> Preview
+            </a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'reports:profit_loss_pdf_download' %}?year={{ selected_year }}">
+              <i class="fa-solid fa-download me-1"></i> Download
+            </a>
+          </div>
+
+          <div class="tip-card mt-3 small">
+            Tip: YoY compares the last 3 years ending in {{ selected_year }}.
+          </div>
+
+        </div>
       </div>
-      <span class="text-muted">›</span>
-    </a>
+    </div>
+
+    <!-- Operating Expenses / Schedule C -->
+    <div class="col-12 col-lg-6">
+      <div class="card h-100 report-card report-accent-secondary">
+        <div class="card-body p-3 p-md-4">
+
+          <div class="dash-card-head">
+            <div>
+              <h2 class="h6 dash-card-title mb-0">Operating Expenses</h2>
+              <div class="dash-card-subtitle">Schedule C style (Tax) + Books totals</div>
+            </div>
+            <a class="small text-decoration-none" href="{% url 'reports:schedule_c' %}?year={{ selected_year }}&mode={{ mode }}">
+              Open <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            </a>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:schedule_c' %}?year={{ selected_year }}&mode={{ mode }}">
+              <i class="fa-solid fa-file-invoice"></i> Expenses
+            </a>
+            <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener" href="{% url 'reports:schedule_c_yoy' %}?year={{ selected_year }}&mode={{ mode }}">
+              <i class="fa-regular fa-calendar-days"></i> YoY
+            </a>
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="{% url 'reports:schedule_c_pdf_preview' %}?year={{ selected_year }}&mode={{ mode }}">
+              <i class="fa-regular fa-file-pdf"></i> Preview
+            </a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'reports:schedule_c_pdf_download' %}?year={{ selected_year }}&mode={{ mode }}">
+              <i class="fa-solid fa-download me-1"></i> Download
+            </a>
+          </div>
+
+          <div class="tip-card mt-3 small">
+            Mode: <strong>{{ mode|capfirst }}</strong>. Switch Tax/Books at the top of this page.
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Mileage / Vehicles -->
+    <div class="col-12">
+      <div class="card h-100">
+        <div class="card-body p-3 p-md-4">
+
+          <div class="dash-card-head">
+            <div>
+              <h2 class="h6 dash-card-title mb-0">Vehicle &amp; Mileage</h2>
+              <div class="dash-card-subtitle">Mileage logs and yearly totals</div>
+            </div>
+            <a class="small text-decoration-none" href="{% url 'vehicles:home' %}">
+              Vehicles <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            </a>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}?year={{ selected_year }}">
+              <i class="fa-solid fa-route"></i> Mileage Log
+            </a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_add' %}">
+              <i class="fa-solid fa-plus"></i> Add Mileage
+            </a>
+            <a class="btn btn-sm btn-outline-success" href="{% url 'vehicles:yearly_mileage_report' %}?year={{ selected_year }}">
+              <i class="fa-solid fa-chart-pie"></i> Yearly Mileage
+            </a>
+          </div>
+
+          <div class="text-muted small mt-3">
+            Tip: Link mileage to a Job (and optionally an Invoice) to keep business purpose clear.
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div>
+
 </div>
 {% endblock %}

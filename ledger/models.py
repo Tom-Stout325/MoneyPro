@@ -11,6 +11,10 @@ from django.utils.text import slugify
 from core.models import Business, BusinessOwnedModelMixin
 
 
+def current_year() -> int:
+    return timezone.now().year
+
+
 class Category(BusinessOwnedModelMixin):
     class CategoryType(models.TextChoices):
         INCOME = "income", "Income"
@@ -173,6 +177,13 @@ class SubCategory(BusinessOwnedModelMixin):
 
 class Contact(BusinessOwnedModelMixin):
     display_name = models.CharField(max_length=255)
+    # Locked identifier used for Job numbering (e.g., "NHRA", "ESPN").
+    # Intentionally separate from display_name so renames don't affect historical numbers.
+    client_code = models.CharField(
+        max_length=25,
+        blank=True,
+        help_text='Short code used for Job Numbers (locked once set). Example: "NHRA", "ESPN"',
+    )
     legal_name = models.CharField(max_length=255, blank=True)
     business_name = models.CharField(max_length=255, blank=True)
 
@@ -200,7 +211,28 @@ class Contact(BusinessOwnedModelMixin):
                 fields=["business", "display_name"],
                 name="uniq_contact_display_name_per_business",
             )
+            ,
+            models.UniqueConstraint(
+                fields=["business", "client_code"],
+                condition=Q(client_code__isnull=False) & ~Q(client_code=""),
+                name="uniq_contact_client_code_per_business_nonblank",
+            )
         ]
+
+    def clean(self):
+        super().clean()
+
+        # Normalize client_code.
+        if self.client_code:
+            self.client_code = (self.client_code or "").strip().upper()
+
+        # Lock client_code once created.
+        if self.pk:
+            prev = Contact.objects.filter(pk=self.pk).values_list("client_code", flat=True).first()
+            if prev is not None and (prev or "") != (self.client_code or ""):
+                raise ValidationError({
+                    "client_code": "Client Code is locked once set. Create a new client to use a different code.",
+                })
 
     @classmethod
     def get_unknown(cls, *, business: Business) -> "Contact":
@@ -283,8 +315,15 @@ class Job(BusinessOwnedModelMixin):
         INTERNAL = "internal", "Internal"
         OTHER = "other", "Other"
 
-    job_number       = models.CharField(max_length=30)
-    title            = models.CharField(max_length=255)
+    # Stable job label shown throughout the UI (invoice lists, etc.).
+    label            = models.CharField(max_length=255)
+
+    # Year + sequence support for sorting/reporting.
+    job_year         = models.PositiveIntegerField(default=current_year)
+    job_seq          = models.PositiveIntegerField(default=0, editable=False)
+
+    # Generated identifier using client_code + year + seq.
+    job_number       = models.CharField(max_length=30, blank=True, editable=False)
     client           = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="client_jobs", null=True, blank=True, help_text="Optional. Select a Contact marked as a Customer.",)
     job_type         = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
     city             = models.CharField(max_length=120, blank=True)
@@ -295,13 +334,64 @@ class Job(BusinessOwnedModelMixin):
     updated_at       = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-is_active", "job_number", "title"]
+        ordering = ["-is_active", "-job_year", "job_number", "label"]
         constraints = [
             models.UniqueConstraint(fields=["business", "job_number"], name="uniq_job_business_job_number"),
+            models.UniqueConstraint(fields=["business", "job_year", "job_seq"], name="uniq_job_business_year_seq"),
         ]
 
+    def clean(self):
+        super().clean()
+
+        if self.client_id and self.business_id and self.client.business_id != self.business_id:
+            raise ValidationError({"client": "Client does not belong to this business."})
+
+        if self.job_year:
+            try:
+                self.job_year = int(self.job_year)
+            except (TypeError, ValueError):
+                raise ValidationError({"job_year": "Year must be a valid number."})
+
+    def _allocate_job_number(self) -> None:
+        """Allocate job_seq + job_number.
+
+        Format: <CLIENTCODE>-<YY><NNN>
+        Example: NHRA-26001
+
+        Sequence is global per Business + Year (not per client).
+        """
+        from django.db import transaction
+        from django.db.models import Max
+
+        year = int(self.job_year or timezone.now().year)
+        yy = str(year)[-2:]
+
+        prefix = "JOB"
+        if self.client_id and (self.client.client_code or "").strip():
+            prefix = self.client.client_code.strip().upper()
+
+        with transaction.atomic():
+            max_seq = (
+                Job.objects.filter(business=self.business, job_year=year)
+                .aggregate(m=Max("job_seq"))
+                .get("m")
+            )
+            next_seq = int(max_seq or 0) + 1
+
+            self.job_year = year
+            self.job_seq = next_seq
+            self.job_number = f"{prefix}-{yy}{next_seq:03d}"
+
     def __str__(self) -> str:
-        return f"{self.job_number} • {self.title}"
+        return f"{self.job_number} • {self.label}"
+
+    def save(self, *args, **kwargs):
+        if not self.job_number:
+            if not self.business_id:
+                raise ValidationError({"business": "Business is required before generating a Job Number."})
+            self._allocate_job_number()
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 

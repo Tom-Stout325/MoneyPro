@@ -12,6 +12,7 @@ from .forms import CompanyProfileForm, UserInfoForm
 from .models import CompanyProfile, Invitation
 from .adapters import InviteOnlyAccountAdapter
 from core.models import Business, BusinessMembership
+from ledger.models import Category, Transaction
 
 
 def _get_active_membership(user):
@@ -112,12 +113,16 @@ class SettingsView(LoginRequiredMixin, View):
         if resp:
             return resp
 
+        business = profile.business
+
         return render(
             request,
             self.template_name,
             {
                 "company_form": CompanyProfileForm(instance=profile, prefix="company"),
                 "user_form": UserInfoForm(instance=request.user, prefix="user"),
+                "has_seeded": Category.objects.filter(business=business).exists(),
+                "can_rebuild": not Transaction.objects.filter(business=business).exists(),
             },
         )
 
@@ -125,6 +130,8 @@ class SettingsView(LoginRequiredMixin, View):
         profile, resp = self._get_profile_or_redirect(request)
         if resp:
             return resp
+
+        business = profile.business
 
         form_id = request.POST.get("form_id", "")
 
@@ -157,7 +164,12 @@ class SettingsView(LoginRequiredMixin, View):
         return render(
             request,
             self.template_name,
-            {"company_form": company_form, "user_form": user_form},
+            {
+                "company_form": company_form,
+                "user_form": user_form,
+                "has_seeded": Category.objects.filter(business=business).exists(),
+                "can_rebuild": not Transaction.objects.filter(business=business).exists(),
+            },
         )
 
 

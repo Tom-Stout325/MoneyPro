@@ -51,6 +51,19 @@
             {% if form.end.errors %}<div class="invalid-feedback d-block">{{ form.end.errors|striptags }}</div>{% endif %}
           </div>
 
+          <div class="col-12 col-md-6">
+            <label class="form-label">Job (optional)</label>
+            {{ form.job }}
+            {% if form.job.errors %}<div class="invalid-feedback d-block">{{ form.job.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Invoice (optional)</label>
+            {{ form.invoice }}
+            {% if form.invoice.errors %}<div class="invalid-feedback d-block">{{ form.invoice.errors|striptags }}</div>{% endif %}
+            <div class="form-text">Tip: choose an invoice only if this trip should be tied to a specific invoice.</div>
+          </div>
+
           <div class="col-12">
             <label class="form-label">Notes (optional)</label>
             {{ form.notes }}

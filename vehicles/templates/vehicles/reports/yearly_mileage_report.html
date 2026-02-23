@@ -1,0 +1,179 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+<div class="container-fluid px-2 px-md-3">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">Yearly Mileage Report</h1>
+      <div class="text-muted small">Business miles from logs • Personal miles computed from odometer</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Vehicle Year Setup</a>
+  </div>
+
+  <form method="get" class="card shadow-sm border-0 rounded-4 mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+
+        <div class="col-6 col-md-3">
+          <label class="form-label">Year</label>
+          <select name="year" class="form-select">
+            {% for y in year_options %}
+              <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-7">
+          <label class="form-label">Vehicle</label>
+          <select name="vehicle" class="form-select">
+            <option value="">— Select —</option>
+            {% for v in vehicles %}
+              <option value="{{ v.pk }}" {% if vehicle_id == v.pk %}selected{% endif %}>{{ v.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-2 d-grid">
+          <button class="btn btn-primary">Run</button>
+        </div>
+
+      </div>
+    </div>
+  </form>
+
+  {% if missing_setup %}
+    <div class="alert alert-warning rounded-4">
+      <div class="fw-semibold mb-1">Missing Vehicle Year Setup</div>
+      <div class="small text-muted">
+        Add a Vehicle Year row for this vehicle/year so we know the odometer start/end.
+      </div>
+      <a class="btn btn-sm btn-outline-primary mt-2" href="{% url 'vehicles:vehicle_year_add' %}">
+        Add Vehicle Year
+      </a>
+    </div>
+  {% endif %}
+
+  {% if summary %}
+    {% if summary.warnings %}
+      <div class="alert alert-warning rounded-4">
+        <div class="fw-semibold mb-1">Review needed</div>
+        <ul class="mb-0">
+          {% for w in summary.warnings %}
+            <li>{{ w }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-5">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">{{ summary.vehicle_label }}</div>
+                <div class="text-muted small">{{ summary.year }} • {{ summary.deduction_method }}</div>
+              </div>
+              <span class="badge {% if summary.is_locked %}text-bg-secondary{% else %}text-bg-success{% endif %}">
+                {% if summary.is_locked %}Locked{% else %}Open{% endif %}
+              </span>
+            </div>
+
+            <hr class="my-3">
+
+            <div class="small text-muted">
+              <div class="d-flex justify-content-between">
+                <span>Odometer start</span>
+                <span class="fw-semibold text-body">{{ summary.odometer_start|floatformat:1|intcomma }}</span>
+              </div>
+
+              <div class="d-flex justify-content-between">
+                <span>Odometer end</span>
+                <span class="fw-semibold text-body">
+                  {% if summary.odometer_end %}{{ summary.odometer_end|floatformat:1|intcomma }}{% else %}—{% endif %}
+                </span>
+              </div>
+
+              <div class="d-flex justify-content-between mt-2">
+                <span>Total miles</span>
+                <span class="fw-bold">
+                  {% if summary.total_miles %}{{ summary.total_miles|floatformat:1|intcomma }}{% else %}—{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-footer bg-transparent border-0 d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-primary btn-sm"
+            href="{% url 'vehicles:vehicle_year_edit' summary.vehicle_year_id %}">
+            Edit setup
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-7">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+          <div class="card-body">
+            <div class="fw-semibold mb-1">Mileage breakdown</div>
+            <div class="text-muted small">Business miles come from logged entries</div>
+
+            <hr class="my-3">
+
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <div class="p-3 border rounded-4 bg-light">
+                  <div class="text-muted small">Business miles</div>
+                  <div class="fs-4 fw-bold">{{ summary.business_miles|floatformat:1|intcomma }}</div>
+                </div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="p-3 border rounded-4 bg-light">
+                  <div class="text-muted small">Personal miles</div>
+                  <div class="fs-4 fw-bold">
+                    {% if summary.personal_miles is not None %}
+                      {{ summary.personal_miles|floatformat:1|intcomma }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="p-3 border rounded-4 bg-light">
+                  <div class="text-muted small">Total miles</div>
+                  <div class="fs-4 fw-bold">
+                    {% if summary.total_miles %}{{ summary.total_miles|floatformat:1|intcomma }}{% else %}—{% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="card-footer bg-transparent border-0 d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'vehicles:vehicle_miles_list' %}">
+              View mileage log
+            </a>
+            <a class="btn btn-primary btn-sm" href="{% url 'vehicles:vehicle_miles_add' %}">
+              Add mileage entry
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body">
+        <div class="fw-semibold">Select a year and vehicle</div>
+        <div class="text-muted small">We’ll compute totals once a Vehicle Year row exists and you have mileage logs.</div>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
