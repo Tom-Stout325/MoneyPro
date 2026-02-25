@@ -60,6 +60,14 @@
             <li data-key="description">Description</li>
             <li data-key="amount">Amount</li>
             <li data-key="date">Date</li>
+            <li data-key="contact" style="display:none;">Contact</li>
+            <li data-key="team" style="display:none;">Team</li>
+            <li data-key="job" style="display:none;">Job</li>
+            <li data-key="invoice_number" style="display:none;">Invoice Number</li>
+            <li data-key="receipt" style="display:none;">Receipt</li>
+            <li data-key="asset" style="display:none;">Asset</li>
+            <li data-key="transport" style="display:none;">Transport</li>
+            <li data-key="vehicle" style="display:none;">Vehicle</li>
           </ul>
 
           <div id="requirementsHints" class="small text-muted"></div>
@@ -100,9 +108,9 @@
 
         <!-- Invoice + description -->
         <div class="row g-3 mt-1">
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-6" id="invoiceWrap">
             <div class="d-flex justify-content-between align-items-center">
-              <label for="id_invoice_number" class="form-label mb-1">Invoice Number</label>
+              <label for="id_invoice_number" class="form-label mb-1">Invoice Number <span id="invoiceReq" class="badge bg-danger d-none">Required</span></label>
               <button type="button" id="clearInvoiceBtn" class="btn btn-ghost btn-sm">Clear</button>
             </div>
             {{ form.invoice_number }}
@@ -127,9 +135,34 @@
             <div id="optCollapse" class="accordion-collapse collapse" data-bs-parent="#optionalAccordion">
               <div class="accordion-body">
                 <div class="row g-3">
-                  <div class="col-12 col-md-4">{{ form.team|as_crispy_field }}</div>
-                  <div class="col-12 col-md-4">{{ form.job|as_crispy_field }}</div>
-                  <div class="col-12 col-md-4">{{ form.receipt|as_crispy_field }}</div>
+                  <div class="col-12 col-md-3" id="teamWrap">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="fw-semibold small text-muted">Team</div>
+                      <span id="teamReq" class="badge bg-danger d-none">Required</span>
+                    </div>
+                    {{ form.team|as_crispy_field }}
+                  </div>
+                  <div class="col-12 col-md-3" id="jobWrap">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="fw-semibold small text-muted">Job</div>
+                      <span id="jobReq" class="badge bg-danger d-none">Required</span>
+                    </div>
+                    {{ form.job|as_crispy_field }}
+                  </div>
+                  <div class="col-12 col-md-3" id="receiptWrap">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="fw-semibold small text-muted">Receipt</div>
+                      <span id="receiptReq" class="badge bg-danger d-none">Required</span>
+                    </div>
+                    {{ form.receipt|as_crispy_field }}
+                  </div>
+                  <div class="col-12 col-md-3" id="assetWrap">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="fw-semibold small text-muted">Asset</div>
+                      <span id="assetReq" class="badge bg-danger d-none">Required</span>
+                    </div>
+                    {{ form.asset|as_crispy_field }}
+                  </div>
                   <div class="col-12">{{ form.notes|as_crispy_field }}</div>
                 </div>
               </div>

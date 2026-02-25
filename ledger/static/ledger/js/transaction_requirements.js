@@ -1,4 +1,3 @@
-
 (function () {
   const form = document.getElementById("transaction-form");
   if (!form) return;
@@ -8,6 +7,10 @@
   const transportSel = document.getElementById("id_transport_type");
   const vehicleSel = document.getElementById("id_vehicle");
   const contactSel = document.getElementById("id_contact");
+  const teamSel = document.getElementById("id_team");
+  const jobSel = document.getElementById("id_job");
+  const assetSel = document.getElementById("id_asset");
+  const receiptInput = document.getElementById("id_receipt");
   const invoiceInput = document.getElementById("id_invoice_number");
   const clearInvoiceBtn = document.getElementById("clearInvoiceBtn");
 
@@ -19,18 +22,31 @@
   const vehicleWrap = document.getElementById("vehicleWrap");
   const contactWrap = document.getElementById("contactWrap");
 
+  // Accordion fields
+  const teamWrap = document.getElementById("teamWrap");
+  const jobWrap = document.getElementById("jobWrap");
+  const receiptWrap = document.getElementById("receiptWrap");
+  const assetWrap = document.getElementById("assetWrap");
+
   const transportReq = document.getElementById("transportReq");
   const vehicleReq = document.getElementById("vehicleReq");
   const contactReq = document.getElementById("contactReq");
+  const teamReq = document.getElementById("teamReq");
+  const jobReq = document.getElementById("jobReq");
+  const receiptReq = document.getElementById("receiptReq");
+  const assetReq = document.getElementById("assetReq");
+  const invoiceReq = document.getElementById("invoiceReq");
+
+  const optCollapseEl = document.getElementById("optCollapse");
 
   let currentRules = null;
 
   function buildUrl(pk) {
-    // Replace "/0/" with "/<pk>/"
     return urlTemplate.replace("/0/", `/${pk}/`);
   }
 
   function setBadge(text, tone) {
+    if (!badge) return;
     badge.textContent = text;
     badge.className = "badge";
     if (tone === "ok") badge.classList.add("bg-success");
@@ -50,17 +66,9 @@
 
   function isFilled(el) {
     if (!el) return false;
+    if (el.type === "file") return !!(el.files && el.files.length);
     const v = (el.value || "").trim();
     return !!v;
-  }
-
-  function renderHints(hints) {
-    if (!hintsEl) return;
-    if (!hints || !hints.length) {
-      hintsEl.textContent = "";
-      return;
-    }
-    hintsEl.innerHTML = hints.map(h => `<div>• ${escapeHtml(h)}</div>`).join("");
   }
 
   function escapeHtml(str) {
@@ -72,12 +80,44 @@
       .replaceAll("'", "&#039;");
   }
 
+  function renderHints(hints) {
+    if (!hintsEl) return;
+    if (!hints || !hints.length) {
+      hintsEl.textContent = "";
+      return;
+    }
+    hintsEl.innerHTML = hints.map(h => `<div>• ${escapeHtml(h)}</div>`).join("");
+  }
+
+  function openOptionalAccordionIfNeeded(requires) {
+    if (!optCollapseEl) return;
+
+    const needsAccordion = !!(requires.team || requires.job || requires.receipt || requires.asset);
+    const hasErrors = optCollapseEl.querySelector(".is-invalid, .invalid-feedback.d-block");
+
+    if (!needsAccordion && !hasErrors) return;
+
+    // Bootstrap Collapse (no-jQuery)
+    try {
+      // eslint-disable-next-line no-undef
+      const bs = bootstrap.Collapse.getOrCreateInstance(optCollapseEl, { toggle: false });
+      bs.show();
+    } catch (e) {
+      // If Bootstrap isn't available for some reason, do nothing.
+    }
+  }
+
   function applyVisibility() {
     if (!currentRules) {
-      // Hide conditional wrappers until subcategory selected
       transportWrap && (transportWrap.style.display = "none");
       vehicleWrap && (vehicleWrap.style.display = "none");
       contactWrap && (contactWrap.style.display = "none");
+
+      teamWrap && (teamWrap.style.display = "none");
+      jobWrap && (jobWrap.style.display = "none");
+      receiptWrap && (receiptWrap.style.display = "none");
+      assetWrap && (assetWrap.style.display = "none");
+
       return;
     }
 
@@ -92,6 +132,22 @@
     if (transportWrap) transportWrap.style.display = requires.transport ? "" : "none";
     if (transportReq) transportReq.classList.toggle("d-none", !requires.transport);
 
+    // Team/Job/Receipt/Asset (accordion)
+    if (teamWrap) teamWrap.style.display = requires.team ? "" : "none";
+    if (teamReq) teamReq.classList.toggle("d-none", !requires.team);
+
+    if (jobWrap) jobWrap.style.display = requires.job ? "" : "none";
+    if (jobReq) jobReq.classList.toggle("d-none", !requires.job);
+
+    if (receiptWrap) receiptWrap.style.display = requires.receipt ? "" : "none";
+    if (receiptReq) receiptReq.classList.toggle("d-none", !requires.receipt);
+
+    if (assetWrap) assetWrap.style.display = requires.asset ? "" : "none";
+    if (assetReq) assetReq.classList.toggle("d-none", !requires.asset);
+
+    // Invoice (badge only)
+    if (invoiceReq) invoiceReq.classList.toggle("d-none", !requires.invoice_number);
+
     // Vehicle
     const t = (transportSel?.value || "").trim();
     let showVehicle = false;
@@ -104,8 +160,9 @@
       vehicleReq.classList.toggle("d-none", !req);
     }
 
-    // If we hid vehicle, clear it to prevent invalid combos
     if (!showVehicle && vehicleSel) vehicleSel.value = "";
+
+    openOptionalAccordionIfNeeded(requires);
   }
 
   function updateChecklistAndBadge() {
@@ -115,22 +172,24 @@
     }
 
     const requires = currentRules.requires || {};
-    // Show/hide items
     markRequired("description", true);
     markRequired("amount", true);
     markRequired("date", true);
+
     markRequired("contact", !!requires.contact);
+    markRequired("team", !!requires.team);
+    markRequired("job", !!requires.job);
+    markRequired("invoice_number", !!requires.invoice_number);
+    markRequired("receipt", !!requires.receipt);
+    markRequired("asset", !!requires.asset);
     markRequired("transport", !!requires.transport);
 
-    // Vehicle checklist item should appear if rule is always OR transport is business_vehicle
     const vehicleRule = currentRules.vehicle_rule || "none";
     const t = (transportSel?.value || "").trim();
     const vehicleReqNow = (vehicleRule === "always") || (vehicleRule === "business_vehicle" && t === "business_vehicle");
     markRequired("vehicle", vehicleReqNow);
 
-    // Determine missing count (best-effort UI, server remains source of truth)
     let missing = 0;
-    // description
     const desc = document.getElementById("id_description");
     if (!isFilled(desc)) missing++;
     const amt = document.getElementById("id_amount");
@@ -139,6 +198,11 @@
     if (!isFilled(date)) missing++;
 
     if (requires.contact && !isFilled(contactSel)) missing++;
+    if (requires.team && !isFilled(teamSel)) missing++;
+    if (requires.job && !isFilled(jobSel)) missing++;
+    if (requires.invoice_number && !isFilled(invoiceInput)) missing++;
+    if (requires.receipt && !isFilled(receiptInput)) missing++;
+    if (requires.asset && !isFilled(assetSel)) missing++;
     if (requires.transport && !isFilled(transportSel)) missing++;
     if (vehicleReqNow && !isFilled(vehicleSel)) missing++;
 
@@ -149,84 +213,65 @@
   async function fetchRules(pk) {
     const url = buildUrl(pk);
     const resp = await fetch(url, { headers: { "Accept": "application/json" } });
-    if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
+    if (!resp.ok) throw new Error(`Failed to load requirements (${resp.status})`);
     return await resp.json();
   }
 
   async function onSubcategoryChange() {
-    const pk = (subSel?.value || "").trim();
-    currentRules = null;
-
+    const pk = parseInt(subSel?.value || "0", 10);
     if (!pk) {
+      currentRules = null;
       applyVisibility();
-      updateChecklistAndBadge();
       renderHints([]);
+      setBadge("Select a Sub-Category", "neutral");
       return;
     }
 
     try {
       currentRules = await fetchRules(pk);
-      // extend checklist with keys if needed
-      // add list items dynamically if missing (contact/transport/vehicle)
-      if (list) {
-        ["contact", "transport", "vehicle"].forEach((k) => {
-          if (!liFor(k)) {
-            const li = document.createElement("li");
-            li.dataset.key = k;
-            li.textContent = k.charAt(0).toUpperCase() + k.slice(1);
-            list.appendChild(li);
-          }
-        });
-      }
-
-      renderHints(currentRules.hints || []);
       applyVisibility();
+      renderHints(currentRules.hints || []);
       updateChecklistAndBadge();
     } catch (e) {
-      setBadge("Helper unavailable", "neutral");
-      renderHints(["Could not load requirements. You can still save; server-side validation will guide you."]);
-      // fall back: show transport so user can proceed
-      if (transportWrap) transportWrap.style.display = "";
+      currentRules = null;
+      applyVisibility();
+      renderHints(["Could not load required fields."]);
+      setBadge("Rules unavailable", "warn");
     }
   }
 
   function onTransportChange() {
+    if (!currentRules) return;
     applyVisibility();
     updateChecklistAndBadge();
   }
 
-  function onAnyInputChange() {
-    updateChecklistAndBadge();
-  }
-
-  if (subSel) subSel.addEventListener("change", onSubcategoryChange);
-  if (transportSel) transportSel.addEventListener("change", onTransportChange);
-
-  // update badge as user types
-  ["id_description", "id_amount", "id_date"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", onAnyInputChange);
-  });
-  if (contactSel) contactSel.addEventListener("change", onAnyInputChange);
-  if (vehicleSel) vehicleSel.addEventListener("change", onAnyInputChange);
-
-  // Clear invoice button
+  // Clear invoice button (safe even if invoice isn't required)
   if (clearInvoiceBtn && invoiceInput) {
-    const syncClearState = () => {
-      const has = (invoiceInput.value || "").trim().length > 0;
-      clearInvoiceBtn.disabled = !has;
-    };
     clearInvoiceBtn.addEventListener("click", () => {
       invoiceInput.value = "";
-      invoiceInput.focus();
-      syncClearState();
+      updateChecklistAndBadge();
     });
-    invoiceInput.addEventListener("input", syncClearState);
-    syncClearState();
   }
 
-  // Initial load
+  // Wire events
+  subSel && subSel.addEventListener("change", onSubcategoryChange);
+  transportSel && transportSel.addEventListener("change", onTransportChange);
+
+  // Update badge as user fills fields
+  ["input", "change"].forEach(evt => {
+    form.addEventListener(evt, () => updateChecklistAndBadge(), true);
+  });
+
+  // Initial pass (edit form or if subcategory pre-selected)
   onSubcategoryChange();
-  onTransportChange();
-  onAnyInputChange();
+
+  // If server-side errors are in the accordion, open it on load
+  if (optCollapseEl && optCollapseEl.querySelector(".is-invalid, .invalid-feedback.d-block")) {
+    try {
+      // eslint-disable-next-line no-undef
+      const bs = bootstrap.Collapse.getOrCreateInstance(optCollapseEl, { toggle: false });
+      bs.show();
+    } catch (e) {}
+  }
 })();

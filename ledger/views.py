@@ -520,10 +520,12 @@ class TeamDeleteView(LoginRequiredMixin, DeleteView):
 from django.contrib.auth.decorators import login_required
 
 @login_required
+
 def subcategory_requirements(request, pk: int):
     """Return requirement flags + helper hints for a subcategory (JSON).
 
-    Used by the transaction form to show a live 'Required for this selection' panel.
+    Used by the transaction form to show/hide fields and surface "required" hints.
+    Server-side validation remains the source of truth (Transaction.clean()).
     """
     sc = get_object_or_404(SubCategory, pk=pk, business=request.business)
 
@@ -532,7 +534,13 @@ def subcategory_requirements(request, pk: int):
         "amount": True,
         "date": True,
         "contact": bool(sc.requires_contact),
+        "team": bool(sc.requires_team),
+        "job": bool(sc.requires_job),
+        "invoice_number": bool(sc.requires_invoice_number),
+        "receipt": bool(sc.requires_receipt),
+        "asset": bool(sc.requires_asset),
         "transport": bool(sc.requires_transport),
+        # vehicle is nuanced: see vehicle_rule below
         "vehicle": bool(sc.requires_vehicle) or bool(sc.requires_transport),
     }
 
@@ -546,12 +554,32 @@ def subcategory_requirements(request, pk: int):
     else:
         vehicle_rule = "none"
 
-    hints = []
+    hints: list[str] = []
+    if sc.account_type:
+        hints.append(f"Account type: {sc.get_account_type_display()}.")
+
+    if sc.requires_asset:
+        hints.append("Asset is required for this Sub-Category.")
+
+    if sc.requires_receipt:
+        hints.append("Receipt is required for this Sub-Category.")
+
+    if sc.requires_invoice_number:
+        hints.append("Invoice Number is required for this Sub-Category.")
+
+    if sc.requires_team:
+        hints.append("Team is required for this Sub-Category.")
+
+    if sc.requires_job:
+        hints.append("Job is required for this Sub-Category.")
+
     if sc.requires_transport:
         hints.append("Transport is required for this Sub-Category.")
         hints.append("Choose Business vehicle to select a Vehicle.")
+
     if sc.requires_vehicle and not sc.requires_transport:
         hints.append("Vehicle is required for this Sub-Category.")
+
     if sc.requires_contact:
         role = (sc.contact_role or "any")
         if role and role != "any":
@@ -562,6 +590,7 @@ def subcategory_requirements(request, pk: int):
     payload = {
         "id": sc.pk,
         "name": sc.name,
+        "account_type": sc.account_type,
         "category": {
             "id": sc.category_id,
             "name": sc.category.name,

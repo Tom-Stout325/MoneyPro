@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from ledger.models import Category, Job, Contact, SubCategory, Transaction, Team
 from vehicles.models import Vehicle
-
+from assets.models import Asset
 
 
 class TransactionForm(forms.ModelForm):
@@ -30,6 +30,7 @@ class TransactionForm(forms.ModelForm):
             "is_refund",
             "invoice_number",
             "receipt",
+            "asset",
             "contact",
             "team",
             "job",
@@ -74,6 +75,13 @@ class TransactionForm(forms.ModelForm):
         self.fields["amount"].widget.attrs.setdefault("class", "form-control")
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
+
+
+        # Asset dropdown (used for depreciation / 179 / capitalizable items)
+        self.fields["asset"].required = False
+        self.fields["asset"].label = "Asset"
+        self.fields["asset"].queryset = Asset.objects.filter(business=self.business).order_by("name")
+        self.fields["asset"].widget.attrs.setdefault("class", "form-select")
 
         # Receipt upload
         self.fields["receipt"].required = False
