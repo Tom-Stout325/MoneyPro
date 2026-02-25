@@ -3,6 +3,8 @@ from __future__ import annotations
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.urls import reverse_lazy
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 
 from django.views.generic import (
         CreateView, 
@@ -512,3 +514,62 @@ class TeamDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_queryset(self):
         return Team.objects.filter(business=self.request.business)
+
+
+
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def subcategory_requirements(request, pk: int):
+    """Return requirement flags + helper hints for a subcategory (JSON).
+
+    Used by the transaction form to show a live 'Required for this selection' panel.
+    """
+    sc = get_object_or_404(SubCategory, pk=pk, business=request.business)
+
+    requires = {
+        "description": True,
+        "amount": True,
+        "date": True,
+        "contact": bool(sc.requires_contact),
+        "transport": bool(sc.requires_transport),
+        "vehicle": bool(sc.requires_vehicle) or bool(sc.requires_transport),
+    }
+
+    # Vehicle rule semantics for UI:
+    # - if transport required: vehicle required only when transport_type == business_vehicle
+    # - else if requires_vehicle: vehicle required always
+    if sc.requires_transport:
+        vehicle_rule = "business_vehicle"
+    elif sc.requires_vehicle:
+        vehicle_rule = "always"
+    else:
+        vehicle_rule = "none"
+
+    hints = []
+    if sc.requires_transport:
+        hints.append("Transport is required for this Sub-Category.")
+        hints.append("Choose Business vehicle to select a Vehicle.")
+    if sc.requires_vehicle and not sc.requires_transport:
+        hints.append("Vehicle is required for this Sub-Category.")
+    if sc.requires_contact:
+        role = (sc.contact_role or "any")
+        if role and role != "any":
+            hints.append(f"Contact required (role: {role}).")
+        else:
+            hints.append("Contact is required for this Sub-Category.")
+
+    payload = {
+        "id": sc.pk,
+        "name": sc.name,
+        "category": {
+            "id": sc.category_id,
+            "name": sc.category.name,
+            "type": sc.category.category_type,
+        },
+        "requires": requires,
+        "contact_role": sc.contact_role,
+        "vehicle_rule": vehicle_rule,
+        "hints": hints,
+    }
+    return JsonResponse(payload)

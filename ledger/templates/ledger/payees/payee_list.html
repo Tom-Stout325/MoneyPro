@@ -11,6 +11,7 @@
       <div class="text-muted small">Vendors, contractors, and customers.</div>
     </div>
     <a class="btn btn-primary" href="{% url 'ledger:contact_create' %}">New contact</a>
+    {% include "core/_export_button.html" %}
   </div>
 
   <form method="get" class="row g-2 mb-3">

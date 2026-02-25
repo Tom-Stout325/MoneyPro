@@ -1,33 +1,178 @@
 from __future__ import annotations
 
-import re
-import string
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.models import BusinessOwnedModelMixin
-from ledger.models import Job, Contact, SubCategory, Transaction
-
-
-INVOICE_NO_RE = re.compile(r"^(?P<num>\d{6})(?P<suffix>[a-z])?$")
+from ledger.models import Contact, Job, SubCategory, Transaction
 
 
 class InvoiceCounter(BusinessOwnedModelMixin):
-    """Tracks last numeric invoice sequence per business+year (YY####)."""
+    """Per-business, per-year invoice counter for numeric YY#### sequences."""
 
     year = models.PositiveIntegerField()
-    last_seq = models.PositiveIntegerField(default=0)  # 0 => next is 1
+    last_seq = models.PositiveIntegerField(default=0)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["business", "year"], name="uniq_invoice_counter_business_year"),
+            models.UniqueConstraint(fields=("business", "year"), name="uniq_invoice_counter_business_year"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.business} {self.year}: {self.last_seq}"
+        return f"{self.business_id}:{self.year} -> {self.last_seq}"
+
+
+def _parse_numeric_invoice_number(invoice_number: str) -> tuple[int, int] | None:
+    """Parse YY#### and return (yy, seq)."""
+    s = (invoice_number or "").strip()
+    if len(s) != 6 or not s.isdigit():
+        return None
+    return int(s[:2]), int(s[2:])
+
+
+def allocate_next_invoice_number(*, business, issue_date) -> str:
+    """Allocate the next numeric invoice number for the given business + issue_date.
+
+    Format: YY#### (e.g., 250001).
+    """
+    issue_date = issue_date or timezone.localdate()
+    year = int(issue_date.year)
+    yy = year % 100
+
+    with transaction.atomic():
+        counter, _ = (
+            InvoiceCounter.objects.select_for_update()
+            .get_or_create(business=business, year=year, defaults={"last_seq": 0})
+        )
+        counter.last_seq += 1
+        counter.full_clean()
+        counter.save(update_fields=["last_seq"])
+        return f"{yy:02d}{counter.last_seq:04d}"
+
+
+def bump_counter_if_needed(*, business, issue_date, invoice_number: str) -> None:
+    """Ensure InvoiceCounter.last_seq is >= the numeric portion of invoice_number.
+
+    Useful after manual entry/import so the next allocated number doesn't collide.
+    """
+    issue_date = issue_date or timezone.localdate()
+    year = int(issue_date.year)
+    parsed = _parse_numeric_invoice_number(invoice_number)
+    if not parsed:
+        return
+
+    yy, seq = parsed
+    if yy != (year % 100):
+        return
+
+    with transaction.atomic():
+        counter, _ = InvoiceCounter.objects.select_for_update().get_or_create(
+            business=business, year=year, defaults={"last_seq": 0}
+        )
+        if counter.last_seq < seq:
+            counter.last_seq = seq
+            counter.full_clean()
+            counter.save(update_fields=["last_seq"])
+
+
+def validate_manual_invoice_number(
+    *,
+    business,
+    issue_date,
+    invoice_number: str,
+    exclude_pk: int | None = None,
+) -> str:
+    """Validate a manually entered invoice number.
+
+    Expected format: YY#### (6 digits), e.g. 250001.
+    - YY must match issue_date.year % 100
+    - invoice_number must be unique within the business
+
+    Returns the normalized invoice_number.
+    """
+    num = (invoice_number or "").strip()
+    if not num:
+        raise ValidationError("Invoice number is required.")
+    if not (len(num) == 6 and num.isdigit()):
+        raise ValidationError("Invoice number must be 6 digits in the format YY#### (e.g., 250001).")
+
+    yy = int((issue_date or timezone.localdate()).year) % 100
+    if num[:2] != f"{yy:02d}":
+        raise ValidationError("Invoice number year prefix does not match the issue date.")
+
+    qs = Invoice.objects.filter(business=business, invoice_number=num)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if qs.exists():
+        raise ValidationError("Invoice number already exists for this business.")
+    return num
+
+
+def _increment_alpha_suffix(s: str) -> str:
+    """Increment A..Z, AA..ZZ, etc."""
+    s = (s or "").strip().upper()
+    if not s:
+        return "A"
+
+    letters = [ord(c) - 65 for c in s]
+    i = len(letters) - 1
+    carry = 1
+    while i >= 0 and carry:
+        letters[i] += carry
+        if letters[i] >= 26:
+            letters[i] = 0
+            carry = 1
+        else:
+            carry = 0
+        i -= 1
+    if carry:
+        letters = [0] + letters
+    return "".join(chr(n + 65) for n in letters)
+
+
+def next_revision_suffix(*, business, base_number: str) -> str:
+    """Return next alpha suffix for revisions of a numeric base invoice number.
+
+    Example: base_number="250001" -> returns "A" for first revision, then "B", ... "AA".
+
+    Looks at existing invoice_number values in this business that start with base_number.
+    """
+    base = (base_number or "").strip()
+    if len(base) != 6 or not base.isdigit():
+        raise ValueError("base_number must be a 6-digit YY#### string")
+
+    existing = (
+        Invoice.objects.filter(business=business, invoice_number__startswith=base)
+        .exclude(invoice_number=base)
+        .values_list("invoice_number", flat=True)
+    )
+
+    def _suffix_val(sfx: str) -> int:
+        val = 0
+        for c in sfx:
+            if not ("A" <= c <= "Z"):
+                return -1
+            val = val * 26 + (ord(c) - 65) + 1
+        return val
+
+    max_sfx = ""
+    max_val = 0
+    for full in existing:
+        sfx = (full or "")[6:].strip().upper()
+        if not sfx:
+            continue
+        v = _suffix_val(sfx)
+        if v > max_val:
+            max_val = v
+            max_sfx = sfx
+
+    return _increment_alpha_suffix(max_sfx)
 
 
 class Invoice(BusinessOwnedModelMixin):
@@ -37,41 +182,60 @@ class Invoice(BusinessOwnedModelMixin):
         PAID = "paid", "Invoice paid"
         VOID = "void", "Voided"
 
-    status         = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
-    issue_date     = models.DateField(default=timezone.localdate)
-    due_date       = models.DateField(null=True, blank=True)
-    sent_date      = models.DateField(null=True, blank=True)
-    paid_date      = models.DateField(null=True, blank=True)
-    contact        = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
-    job            = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
-    location       = models.CharField(max_length=255, blank=True)
-    invoice_number = models.CharField(max_length=12, blank=True) 
-    revises        = models.ForeignKey("self", on_delete=models.PROTECT, related_name="revisions", null=True, blank=True, help_text="If set, this invoice is a revision of another invoice.",)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    issue_date = models.DateField(default=timezone.localdate)
+    due_date = models.DateField(null=True, blank=True)
+    sent_date = models.DateField(null=True, blank=True)
+    paid_date = models.DateField(null=True, blank=True)
+    location = models.CharField(max_length=255, blank=True)
 
-    # Snapshot fields (frozen at SEND)
-    bill_to_name        = models.CharField(max_length=255, blank=True)
-    bill_to_email       = models.EmailField(blank=True)
-    bill_to_address1    = models.CharField(max_length=255, blank=True)
-    bill_to_address2    = models.CharField(max_length=255, blank=True)
-    bill_to_city        = models.CharField(max_length=120, blank=True)
-    bill_to_state       = models.CharField(max_length=50, blank=True)
+    # Allow blank in forms, but ensure it is ALWAYS assigned before first save.
+    invoice_number = models.CharField(max_length=12, blank=True)
+
+    bill_to_name = models.CharField(max_length=255, blank=True)
+    bill_to_email = models.EmailField(blank=True)
+    bill_to_address1 = models.CharField(max_length=255, blank=True)
+    bill_to_address2 = models.CharField(max_length=255, blank=True)
+    bill_to_city = models.CharField(max_length=120, blank=True)
+    bill_to_state = models.CharField(max_length=50, blank=True)
     bill_to_postal_code = models.CharField(max_length=20, blank=True)
-    bill_to_country     = models.CharField(max_length=50, blank=True, default="US")
+    bill_to_country = models.CharField(max_length=50, default="US", blank=True)
 
-    memo                = models.TextField(blank=True)
-    subtotal            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    total               = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    pdf_file            = models.FileField(upload_to="invoices/final/", blank=True, null=True)
+    memo = models.TextField(blank=True)
 
-    income_transaction  = models.OneToOneField(Transaction, on_delete=models.SET_NULL, related_name="invoice_income_for", null=True, blank=True,)
+    # Legacy stored totals. With Option A, treat these as cache only.
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
-    created_at          = models.DateTimeField(auto_now_add=True)
-    updated_at          = models.DateTimeField(auto_now=True)
+    pdf_file = models.FileField(upload_to="invoices/final/", null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
+    job = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
+
+    revises = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="revisions",
+        help_text="If set, this invoice is a revision of another invoice.",
+    )
+
+    income_transaction = models.OneToOneField(
+        Transaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_income_for",
+    )
 
     class Meta:
         ordering = ["-issue_date", "-id"]
         constraints = [
-            models.UniqueConstraint(fields=["business", "invoice_number"], name="uniq_invoice_number_per_business"),
+            models.UniqueConstraint(fields=("business", "invoice_number"), name="uniq_invoice_number_per_business"),
         ]
 
     def __str__(self) -> str:
@@ -80,27 +244,60 @@ class Invoice(BusinessOwnedModelMixin):
     def clean(self):
         super().clean()
 
-        if self.contact_id and self.business_id and self.contact.business_id != self.business_id:
+        # Tenant guards
+        if self.contact_id and self.business_id and getattr(self.contact, "business_id", None) != self.business_id:
             raise ValidationError({"contact": "Contact does not belong to this business."})
-        if self.job_id and self.business_id and self.job.business_id != self.business_id:
+        if self.job_id and self.business_id and getattr(self.job, "business_id", None) != self.business_id:
             raise ValidationError({"job": "Job does not belong to this business."})
+        if self.revises_id and self.business_id and getattr(self.revises, "business_id", None) != self.business_id:
+            raise ValidationError({"revises": "Revised invoice does not belong to this business."})
 
+        # Requested tenant guard
+        if self.income_transaction_id and self.business_id and getattr(self.income_transaction, "business_id", None) != self.business_id:
+            raise ValidationError({"income_transaction": "Income transaction does not belong to this business."})
+
+        # Validate manual numeric invoice numbers (revisions like 250001A are allowed)
         if self.invoice_number:
-            m = INVOICE_NO_RE.match(self.invoice_number)
-            if not m:
-                raise ValidationError({"invoice_number": "Invoice number must be YY#### (e.g., 260001) optionally with a suffix (e.g., 260001a)."})
+            num = self.invoice_number.strip()
+            if len(num) == 6 and num.isdigit():
+                validate_manual_invoice_number(
+                    business=self.business,
+                    issue_date=self.issue_date,
+                    invoice_number=num,
+                    exclude_pk=self.pk,
+                )
+
+    def save(self, *args, **kwargs):
+        creating = self._state.adding
+        with transaction.atomic():
+            if creating:
+                # Force assignment at creation: never persist blank/empty invoice_number.
+                if not (self.invoice_number or "").strip():
+                    self.invoice_number = allocate_next_invoice_number(business=self.business, issue_date=self.issue_date)
+
+            # Ensure tenant guards and validators always run.
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    @property
+    def subtotal_amount(self) -> Decimal:
+        """Option A: compute live totals from items."""
+        agg = self.items.aggregate(s=Coalesce(Sum("line_total"), Decimal("0.00")))
+        return agg["s"]
+
+    @property
+    def total_amount(self) -> Decimal:
+        # Taxes/discounts can be represented as line items.
+        return self.subtotal_amount
 
 
 class InvoiceItem(BusinessOwnedModelMixin):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
-
     description = models.CharField(max_length=255)
-    qty = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1.00"))
-    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-
     subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="invoice_items", null=True, blank=True)
-
+    qty = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1.00"), validators=[MinValueValidator(Decimal("0.00"))])
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), validators=[MinValueValidator(Decimal("0.00"))])
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -108,112 +305,29 @@ class InvoiceItem(BusinessOwnedModelMixin):
 
     def clean(self):
         super().clean()
-        if self.invoice_id and self.business_id and self.invoice.business_id != self.business_id:
-            raise ValidationError("InvoiceItem business must match Invoice business.")
-        if self.subcategory_id and self.business_id and self.subcategory.business_id != self.business_id:
-            raise ValidationError({"subcategory": "Subcategory does not belong to this business."})
+        if self.invoice_id and self.business_id and getattr(self.invoice, "business_id", None) != self.business_id:
+            raise ValidationError({"invoice": "Invoice does not belong to this business."})
+        if self.subcategory_id and self.business_id and getattr(self.subcategory, "business_id", None) != self.business_id:
+            raise ValidationError({"subcategory": "Sub Category does not belong to this business."})
 
     def save(self, *args, **kwargs):
-        self.line_total = (self.qty or Decimal("0.00")) * (self.unit_price or Decimal("0.00"))
+        qty = self.qty or Decimal("0.00")
+        price = self.unit_price or Decimal("0.00")
+        self.line_total = (qty * price).quantize(Decimal("0.01"))
         self.full_clean()
         return super().save(*args, **kwargs)
 
 
-
-
 class InvoicePayment(BusinessOwnedModelMixin):
-    invoice     = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
-    date        = models.DateField(default=timezone.localdate)
-    amount      = models.DecimalField(max_digits=12, decimal_places=2)
-    notes       = models.TextField(blank=True)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
+    date = models.DateField(default=timezone.localdate)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    notes = models.TextField(blank=True)
 
     class Meta:
         ordering = ["date", "id"]
 
     def clean(self):
         super().clean()
-        if self.invoice_id and self.business_id and self.invoice.business_id != self.business_id:
-            raise ValidationError("Payment business must match Invoice business.")
-        if self.amount <= 0:
-            raise ValidationError({"amount": "Payment amount must be greater than 0."})
-
-
-# -------------------------
-# Numbering + helpers
-# -------------------------
-
-def _year_prefix(issue_date) -> str:
-    return f"{issue_date.year % 100:02d}"
-
-
-def _format_invoice_number(issue_date, seq: int) -> str:
-    return f"{_year_prefix(issue_date)}{seq:04d}"
-
-
-def _numeric_part(invoice_number: str) -> int:
-    m = INVOICE_NO_RE.match(invoice_number or "")
-    if not m:
-        return 0
-    return int(m.group("num"))
-
-
-def allocate_next_invoice_number(*, business, issue_date) -> str:
-    """Allocate next numeric invoice number (no alpha suffix) safely."""
-    year = issue_date.year
-    with transaction.atomic():
-        counter, _ = (
-            InvoiceCounter.objects.select_for_update()
-            .get_or_create(business=business, year=year, defaults={"last_seq": 0})
-        )
-        counter.last_seq += 1
-        counter.save(update_fields=["last_seq"])
-        return _format_invoice_number(issue_date, counter.last_seq)
-
-
-def validate_manual_invoice_number(*, business, issue_date, invoice_number: str) -> None:
-    """
-    Manual override must be numeric YY#### (no alpha) and strictly higher than current max for that year.
-    """
-    m = INVOICE_NO_RE.match(invoice_number or "")
-    if not m or m.group("suffix"):
-        raise ValidationError({"invoice_number": "Manual invoice number must be numeric YY#### (no alpha)."})
-
-    year_prefix = _year_prefix(issue_date)
-    if not invoice_number.startswith(year_prefix):
-        raise ValidationError({"invoice_number": f"Invoice number must start with {year_prefix} for the invoice year."})
-
-    year = issue_date.year
-    max_used = (
-        Invoice.objects.filter(business=business, issue_date__year=year)
-        .exclude(invoice_number__regex=r"[a-z]$")
-        .aggregate(mx=models.Max("invoice_number"))["mx"]
-    )
-    if max_used and _numeric_part(invoice_number) <= _numeric_part(max_used):
-        raise ValidationError({"invoice_number": f"Manual invoice number must be higher than {max_used}."})
-
-
-def bump_counter_if_needed(*, business, issue_date, invoice_number: str) -> None:
-    """If manual number used, ensure counter follows max."""
-    year = issue_date.year
-    numeric = _numeric_part(invoice_number)
-    seq = numeric % 10000
-    with transaction.atomic():
-        counter, _ = (
-            InvoiceCounter.objects.select_for_update()
-            .get_or_create(business=business, year=year, defaults={"last_seq": 0})
-        )
-        if seq > counter.last_seq:
-            counter.last_seq = seq
-            counter.save(update_fields=["last_seq"])
-
-
-def next_revision_suffix(*, business, base_number: str) -> str:
-    existing = set(
-        Invoice.objects.filter(business=business, invoice_number__startswith=base_number)
-        .values_list("invoice_number", flat=True)
-    )
-    for letter in string.ascii_lowercase:
-        candidate = f"{base_number}{letter}"
-        if candidate not in existing:
-            return letter
-    raise ValidationError("Too many revisions for this invoice number.")
+        if self.invoice_id and self.business_id and getattr(self.invoice, "business_id", None) != self.business_id:
+            raise ValidationError({"invoice": "Invoice does not belong to this business."})

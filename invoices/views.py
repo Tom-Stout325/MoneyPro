@@ -13,7 +13,6 @@ from .models import Invoice, InvoiceItem, allocate_next_invoice_number, bump_cou
 from .services import (
     create_revision,
     mark_paid,
-    recalc_totals,
     render_invoice_pdf_bytes,
     send_invoice,
     void_invoice,
@@ -236,9 +235,6 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
                 it.save()
             for it in formset.deleted_objects:
                 it.delete()
-
-            recalc_totals(invoice=invoice, save=True)
-
             messages.success(request, "Invoice created.")
             return redirect("invoices:invoice_detail", pk=invoice.pk)
 
@@ -295,9 +291,6 @@ def invoice_update(request: HttpRequest, pk: int) -> HttpResponse:
                 it.save()
             for it in formset.deleted_objects:
                 it.delete()
-
-            recalc_totals(invoice=invoice, save=True)
-
             messages.success(request, "Invoice updated.")
             return redirect("invoices:invoice_detail", pk=invoice.pk)
 

@@ -25,7 +25,10 @@ urlpatterns = [
     path("", include("ledger.urls")),  # ledger is mounted at root in your project
     path("reports/", include(("reports.urls", "reports"), namespace="reports")),
     path("vehicles/", include(("vehicles.urls", "vehicles"), namespace="vehicles")),
+    path("assets/", include(("assets.urls", "assets"), namespace="assets")),
     path("invoices/", include(("invoices.urls", "invoices"), namespace="invoices")),
+    
+    path("exports/", include(("core.urls_exports", "exports"), namespace="exports")),
 ]
 
 if settings.DEBUG:

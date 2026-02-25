@@ -13,6 +13,7 @@
     <div class="d-grid d-md-flex gap-2">
       <a class="btn btn-primary" href="{% url 'ledger:contact_create' %}">New contact</a>
     </div>
+    {% include "core/_export_button.html" %}
   </div>
 
   <form method="get" class="row g-2 mb-3">

@@ -11,6 +11,7 @@
       <div class="text-muted small">Track work and link income + expenses for profitability reporting.</div>
     </div>
     <a class="btn btn-primary" href="{% url 'ledger:job_create' %}">New Job</a>
+    {% include "core/_export_button.html" %}
   </div>
 
   <form method="get" class="row g-2 mb-3">

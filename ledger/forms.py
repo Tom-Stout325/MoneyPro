@@ -123,16 +123,22 @@ class TransactionForm(forms.ModelForm):
             Field("notes"),
             HTML('{% include "ledger/partials/_receipt_upload.html" %}'),
         )
+
     def clean(self):
         cleaned = super().clean()
 
+        sc = cleaned.get("subcategory")
         transport = (cleaned.get("transport_type") or "").strip()
         vehicle = cleaned.get("vehicle")
 
+        # No transport selected.
+        # If the subcategory requires a vehicle (without transport), keep vehicle as-is.
         if not transport:
-            # clear transport fields when empty
             self.instance.transport_type = ""
-            self.instance.vehicle = None
+            if sc and getattr(sc, "requires_vehicle", False):
+                self.instance.vehicle = vehicle
+            else:
+                self.instance.vehicle = None
             return cleaned
 
         if transport in ("personal_vehicle", "rental_car"):
@@ -146,7 +152,6 @@ class TransactionForm(forms.ModelForm):
             return cleaned
 
         raise ValidationError({"transport_type": "Invalid transport type."})
-
     def _next_invoice_number(self) -> str:
         """Best-effort next invoice number.
 

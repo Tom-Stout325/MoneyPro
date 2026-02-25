@@ -9,6 +9,7 @@
       <div class="text-muted small">Start/end odometer + deduction method per year</div>
     </div>
     <a class="btn btn-primary" href="{% url 'vehicles:vehicle_year_add' %}">Add Year</a>
+    {% include "core/_export_button.html" %}
   </div>
 
   {% if rows %}

@@ -12,11 +12,14 @@
       <h1 class="h4 mb-0 text-success-brand">Invoices</h1>
       <div class="text-muted small">Browse, filter, and review invoices</div>
     </div>
-    <div class="d-grid d-md-flex gap-2">
-      <a class="btn btn-outline-success" href="{% url 'invoices:invoice_create' %}">
-        <i class="fa-solid fa-plus me-1"></i> New invoice
-      </a>
-    </div>
+      <div class="d-grid d-md-flex gap-2">
+      {% include "core/_export_button.html" %}
+
+        <a href="{% url 'invoices:invoice_create' %}"
+          class="btn btn-primary">
+          New Invoice
+        </a>
+      </div>
   </div>
 
   {# Status pills toolbar (mobile-first) #}

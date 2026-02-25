@@ -22,6 +22,7 @@ from .views import (
     JobCreateView,
     JobUpdateView,
     JobDeleteView,
+    subcategory_requirements,
 )
 
 app_name = "ledger"
@@ -50,6 +51,8 @@ urlpatterns = [
     path("subcategories/new/", SubCategoryCreateView.as_view(), name="subcategory_create"),
     path("subcategories/<int:pk>/edit/", SubCategoryUpdateView.as_view(), name="subcategory_update"),
     path("subcategories/<int:pk>/delete/", SubCategoryDeleteView.as_view(), name="subcategory_delete"),
+
+    path("subcategories/<int:pk>/requirements/", subcategory_requirements, name="subcategory_requirements"),
 
     path("teams/", TeamListView.as_view(), name="team_list"),
     path("teams/new/", TeamCreateView.as_view(), name="team_create"),

@@ -9,7 +9,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from core.models import Business, BusinessOwnedModelMixin
-
+from assets.models import Asset
+from vehicles.models import Vehicle
 
 def current_year() -> int:
     return timezone.now().year
@@ -113,6 +114,14 @@ class SubCategory(BusinessOwnedModelMixin):
         CONTRACTOR = "contractor", "Contractor"
         CUSTOMER = "customer", "Customer"
 
+
+    class AccountType(models.TextChoices):
+        EXPENSE = "expense", "Expense"
+        INCOME = "income", "Income"
+        ASSET = "asset", "Asset"
+        LIABILITY = "liability", "Liability"
+        JOURNAL = "journal", "Journal Only"
+
     category                   = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
     name                       = models.CharField(max_length=80)
     slug                       = models.SlugField(max_length=140, blank=True, null=True)
@@ -124,6 +133,12 @@ class SubCategory(BusinessOwnedModelMixin):
     deduction_rule             = models.CharField(max_length=20, choices=DeductionRule.choices, default=DeductionRule.FULL,)  
     is_1099_reportable_default = models.BooleanField(default=False)
     is_capitalizable           = models.BooleanField(default=False)
+    account_type               = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.EXPENSE)
+    requires_asset             = models.BooleanField(default=False)
+    requires_receipt           = models.BooleanField(default=False)
+    requires_team              = models.BooleanField(default=False)
+    requires_job               = models.BooleanField(default=False)
+    requires_invoice_number    = models.BooleanField(default=False)
     requires_contact             = models.BooleanField(default=False)
     contact_role                 = models.CharField(max_length=15, choices=ContactRole.choices, default=ContactRole.ANY)   
     requires_transport         = models.BooleanField(default=False)
@@ -175,85 +190,6 @@ class SubCategory(BusinessOwnedModelMixin):
 
 
 
-class Contact(BusinessOwnedModelMixin):
-    display_name = models.CharField(max_length=255)
-    # Locked identifier used for Job numbering (e.g., "NHRA", "ESPN").
-    # Intentionally separate from display_name so renames don't affect historical numbers.
-    client_code = models.CharField(
-        max_length=25,
-        blank=True,
-        help_text='Short code used for Job Numbers (locked once set). Example: "NHRA", "ESPN"',
-    )
-    legal_name = models.CharField(max_length=255, blank=True)
-    business_name = models.CharField(max_length=255, blank=True)
-
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=50, blank=True)
-
-    address1 = models.CharField(max_length=255, blank=True)
-    address2 = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=120, blank=True)
-    state = models.CharField(max_length=50, blank=True)
-    zip_code = models.CharField(max_length=20, blank=True)
-    country = models.CharField(max_length=50, blank=True, default="US")
-
-    is_vendor         = models.BooleanField(default=True)
-    is_customer       = models.BooleanField(default=False)
-    is_contractor     = models.BooleanField(default=False)
-
-    class Meta:
-        db_table = "ledger_contact"
-        verbose_name = "Contact"
-        verbose_name_plural = "Contacts"
-        ordering = ["display_name"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["business", "display_name"],
-                name="uniq_contact_display_name_per_business",
-            )
-            ,
-            models.UniqueConstraint(
-                fields=["business", "client_code"],
-                condition=Q(client_code__isnull=False) & ~Q(client_code=""),
-                name="uniq_contact_client_code_per_business_nonblank",
-            )
-        ]
-
-    def clean(self):
-        super().clean()
-
-        # Normalize client_code.
-        if self.client_code:
-            self.client_code = (self.client_code or "").strip().upper()
-
-        # Lock client_code once created.
-        if self.pk:
-            prev = Contact.objects.filter(pk=self.pk).values_list("client_code", flat=True).first()
-            if prev is not None and (prev or "") != (self.client_code or ""):
-                raise ValidationError({
-                    "client_code": "Client Code is locked once set. Create a new client to use a different code.",
-                })
-
-    @classmethod
-    def get_unknown(cls, *, business: Business) -> "Contact":
-        """Return (and create if needed) the default placeholder contact for imports/review."""
-        obj, _created = cls.objects.get_or_create(
-            business=business,
-            display_name="Unknown / Needs Review",
-            defaults={
-                "is_vendor": True,
-                "is_customer": True,
-                "is_contractor": False,
-            },
-        )
-        return obj
-
-    def __str__(self) -> str:
-        return self.display_name
-
-
-
-
 class ContactTaxProfile(BusinessOwnedModelMixin):
     """Tax/compliance information for contacts.
 
@@ -275,7 +211,7 @@ class ContactTaxProfile(BusinessOwnedModelMixin):
         ("verified", "Verified"),
     ]
 
-    contact              = models.OneToOneField(Contact, on_delete=models.CASCADE, related_name="tax_profile", db_column="contact_id")
+    contact              = models.OneToOneField('Contact', on_delete=models.CASCADE, related_name="tax_profile", db_column="contact_id")
     is_1099_eligible     = models.BooleanField(default=False)
     entity_type          = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
     TIN_CHOICES          = [("ssn", "SSN"), ("ein", "EIN")]
@@ -324,7 +260,7 @@ class Job(BusinessOwnedModelMixin):
 
     # Generated identifier using client_code + year + seq.
     job_number       = models.CharField(max_length=30, blank=True, editable=False)
-    client           = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="client_jobs", null=True, blank=True, help_text="Optional. Select a Contact marked as a Customer.",)
+    client           = models.ForeignKey('Contact', on_delete=models.PROTECT, related_name="client_jobs", null=True, blank=True, help_text="Optional. Select a Contact marked as a Customer.",)
     job_type         = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
     city             = models.CharField(max_length=120, blank=True)
     address          = models.CharField(max_length=255, blank=True)
@@ -396,7 +332,7 @@ class Job(BusinessOwnedModelMixin):
 
 
 class Team(models.Model):
-    business         = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="teams")
+    business         = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="teams")
     name             = models.CharField(max_length=120)
     is_active        = models.BooleanField(default=True)
     sort_order       = models.PositiveIntegerField(default=0)
@@ -422,6 +358,9 @@ class Transaction(BusinessOwnedModelMixin):
     class TransactionType(models.TextChoices):
         INCOME = "income", "Income"
         EXPENSE = "expense", "Expense"
+        ASSET = "asset", "Asset"
+        LIABILITY = "liability", "Liability"
+        JOURNAL = "journal", "Journal Only"
 
 
     date              = models.DateField(default=timezone.now)
@@ -431,13 +370,14 @@ class Transaction(BusinessOwnedModelMixin):
     category          = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="transactions", editable=False)
     trans_type        = models.CharField(max_length=10, choices=TransactionType.choices, editable=False)
     is_refund         = models.BooleanField(default=False)
-    contact           = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
+    contact           = models.ForeignKey('Contact', on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     team              = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     job               = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     invoice_number    = models.CharField(max_length=25, blank=True)
     receipt           = models.FileField(upload_to="receipts/transactions/", blank=True, null=True)
+    asset             = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True)
     transport_type    = models.CharField(max_length=20, choices=TRANSPORT_CHOICES, blank=True, default="")
-    vehicle           = models.ForeignKey("vehicles.Vehicle", on_delete=models.PROTECT, related_name="transactions", null=True, blank=True,)
+    vehicle           = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="transactions", null=True, blank=True,)
     notes             = models.TextField(blank=True)
     created_at        = models.DateTimeField(auto_now_add=True)
     updated_at        = models.DateTimeField(auto_now=True)
@@ -484,17 +424,37 @@ class Transaction(BusinessOwnedModelMixin):
         if not self.subcategory_id:
             return
         # -------------------------
-        # Auto type consistency
+        # Auto type consistency (driven by SubCategory.account_type)
         # -------------------------
-        expected_type = self.subcategory.category.category_type
+        sc = self.subcategory
+        expected_type = (sc.account_type or "expense").lower()
+        valid_types = {c[0] for c in Transaction.TransactionType.choices}
+        if expected_type not in valid_types:
+            expected_type = Transaction.TransactionType.EXPENSE
+
         if self.trans_type and self.trans_type != expected_type:
             raise ValidationError({"trans_type": "Transaction type must match the selected subcategory."})
-
-        sc = self.subcategory
 
         # contact rules (only required for certain subcategories)
         if sc.requires_contact and not self.contact_id:
             raise ValidationError({"contact": "Select a contact."})
+
+        # receipt / team / job / invoice rules
+        if sc.requires_receipt and not self.receipt:
+            raise ValidationError({"receipt": "Upload a receipt."})
+
+        if sc.requires_team and not self.team_id:
+            raise ValidationError({"team": "Select a team."})
+
+        if sc.requires_job and not self.job_id:
+            raise ValidationError({"job": "Select a job."})
+
+        if sc.requires_invoice_number and not (self.invoice_number or "").strip():
+            raise ValidationError({"invoice_number": "Enter an invoice number."})
+
+        # asset rule (for depreciation / 179 / capitalizable items)
+        if sc.requires_asset and not self.asset_id:
+            raise ValidationError({"asset": "Select an asset."})
 
         role = (sc.contact_role or "any").lower()
         if self.contact_id and role != "any":
@@ -524,7 +484,8 @@ class Transaction(BusinessOwnedModelMixin):
         else:
             if self.transport_type:
                 raise ValidationError({"transport_type": "Remove transport type; it is not needed for this subcategory."})
-            if self.vehicle_id:
+            # Allow vehicle only when this subcategory explicitly requires a vehicle.
+            if self.vehicle_id and not sc.requires_vehicle:
                 raise ValidationError({"vehicle": "Remove vehicle; it is not needed for this subcategory."})
 
         if sc.requires_vehicle and not self.vehicle_id:
@@ -532,8 +493,26 @@ class Transaction(BusinessOwnedModelMixin):
 
     def save(self, *args, **kwargs):
         if self.subcategory_id:
-            self.category = self.subcategory.category
-            self.trans_type = self.subcategory.category.category_type
+            sc = self.subcategory
+            self.category = sc.category
+
+            # Drive posting type from the subcategory's accounting nature
+            self.trans_type = (sc.account_type or Transaction.TransactionType.EXPENSE).lower()
+
+            # Auto-mark returns & allowances as refunds (keeps reporting clean)
+            if sc.effective_schedule_c_line() == Category.ScheduleCLine.RETURNS_ALLOWANCES:
+                self.is_refund = True
+                self.trans_type = Transaction.TransactionType.INCOME
+
+            # Optional: auto-create an Asset record for capitalizable purchases
+            if sc.account_type == SubCategory.AccountType.ASSET and sc.is_capitalizable and not self.asset_id:
+                self.asset = Asset.objects.create(
+                    business=self.business,
+                    name=(self.description or "Asset")[:200],
+                    placed_in_service=self.date,
+                    cost_basis=self.amount or Decimal("0.00"),
+                )
+
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -544,6 +523,83 @@ class Transaction(BusinessOwnedModelMixin):
         if self.amount is None:
             return Decimal("0.00")
         return -self.amount if self.is_refund else self.amount
+
+
+
+
+
+class Contact(BusinessOwnedModelMixin):
+    display_name = models.CharField(max_length=255)
+    # Locked identifier used for Job numbering (e.g., "NHRA", "ESPN").
+    # Intentionally separate from display_name so renames don't affect historical numbers.
+    client_code = models.CharField(
+        max_length=25,
+        blank=True,
+        help_text='Short code used for Job Numbers (locked once set). Example: "NHRA", "ESPN"',
+    )
+    legal_name           = models.CharField(max_length=255, blank=True)
+    business_name        = models.CharField(max_length=255, blank=True)
+    email                = models.EmailField(blank=True)
+    phone                = models.CharField(max_length=50, blank=True)
+    address1             = models.CharField(max_length=255, blank=True)
+    address2             = models.CharField(max_length=255, blank=True)
+    city                 = models.CharField(max_length=120, blank=True)
+    state                = models.CharField(max_length=50, blank=True)
+    zip_code             = models.CharField(max_length=20, blank=True)
+    country              = models.CharField(max_length=50, blank=True, default="US")
+    is_vendor            = models.BooleanField(default=True)
+    is_customer          = models.BooleanField(default=False)
+    is_contractor        = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "ledger_contact"
+        verbose_name = "Contact"
+        verbose_name_plural = "Contacts"
+        ordering = ["display_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "display_name"],
+                name="uniq_contact_display_name_per_business",
+            )
+            ,
+            models.UniqueConstraint(
+                fields=["business", "client_code"],
+                condition=Q(client_code__isnull=False) & ~Q(client_code=""),
+                name="uniq_contact_client_code_per_business_nonblank",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+
+        # Normalize client_code.
+        if self.client_code:
+            self.client_code = (self.client_code or "").strip().upper()
+
+        # Lock client_code once created.
+        if self.pk:
+            prev = Contact.objects.filter(pk=self.pk).values_list("client_code", flat=True).first()
+            if prev is not None and (prev or "") != (self.client_code or ""):
+                raise ValidationError({
+                    "client_code": "Client Code is locked once set. Create a new client to use a different code.",
+                })
+
+    @classmethod
+    def get_unknown(cls, *, business: Business) -> "Contact":
+        """Return (and create if needed) the default placeholder contact for imports/review."""
+        obj, _created = cls.objects.get_or_create(
+            business=business,
+            display_name="Unknown / Needs Review",
+            defaults={
+                "is_vendor": True,
+                "is_customer": True,
+                "is_contractor": False,
+            },
+        )
+        return obj
+
+    def __str__(self) -> str:
+        return self.display_name
 
 
 

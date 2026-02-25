@@ -87,7 +87,8 @@ LOCAL_APPS = [
     'core',
     'vehicles',
     'invoices',
-    'helpcenter',
+        'assets',
+'helpcenter',
 
 ]
 

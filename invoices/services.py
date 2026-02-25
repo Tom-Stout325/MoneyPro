@@ -37,13 +37,21 @@ def get_next_invoice_number_preview(*, business, issue_date=None) -> str:
     return f"{issue_date.year % 100:02d}{last_seq + 1:04d}"
 
 
-def recalc_totals(*, invoice: Invoice, save: bool = True) -> tuple[Decimal, Decimal]:
-    subtotal = invoice.items.aggregate(total=models.Sum("line_total"))["total"] or Decimal("0.00")
-    total = subtotal  # taxes handled as line items
+def recalc_totals(*, invoice: Invoice, save: bool = False) -> tuple[Decimal, Decimal]:
+    """Option A totals: compute live totals from items.
+
+    We still set invoice.subtotal/total in-memory for templates/PDF, but callers
+    can choose to persist these cached fields by passing save=True.
+    """
+    subtotal = invoice.subtotal_amount
+    total = invoice.total_amount
+
     invoice.subtotal = subtotal
     invoice.total = total
+
     if save:
         invoice.save(update_fields=["subtotal", "total", "updated_at"])
+
     return subtotal, total
 
 
@@ -60,6 +68,11 @@ def snapshot_bill_to(*, invoice: Invoice) -> None:
 
 
 def ensure_number(*, invoice: Invoice) -> None:
+    """Ensure invoice has a numeric YY#### number (or existing revision number).
+
+    If the invoice already has a number, we bump the business/year counter if needed.
+    If missing, allocate the next number.
+    """
     if invoice.invoice_number:
         bump_counter_if_needed(
             business=invoice.business,
@@ -67,6 +80,7 @@ def ensure_number(*, invoice: Invoice) -> None:
             invoice_number=invoice.invoice_number,
         )
         return
+
     invoice.invoice_number = allocate_next_invoice_number(business=invoice.business, issue_date=invoice.issue_date)
     invoice.save(update_fields=["invoice_number"])
 
@@ -79,6 +93,10 @@ def render_invoice_pdf_bytes(*, invoice: Invoice, base_url: str | None = None) -
     - For offline rendering, we fall back to BASE_DIR
     """
     company = getattr(invoice.business, "company_profile", None)
+
+    # Ensure totals are current for rendering (Option A)
+    recalc_totals(invoice=invoice, save=False)
+
     html = render_to_string(
         "invoices/pdf/invoice_final.html",
         {
@@ -131,7 +149,6 @@ def create_revision(*, invoice: Invoice) -> Invoice:
         invoice_number=new_number,
         revises=invoice,
         memo=invoice.memo,
-
     )
 
     for it in invoice.items.all():
@@ -146,7 +163,7 @@ def create_revision(*, invoice: Invoice) -> Invoice:
         )
 
     # NOTE: alpha revisions do NOT update numeric counter.
-    recalc_totals(invoice=rev, save=True)
+    recalc_totals(invoice=rev, save=False)
     return rev
 
 
@@ -159,8 +176,8 @@ def mark_paid(*, invoice: Invoice, paid_date=None) -> Transaction:
 
     paid_date = paid_date or timezone.localdate()
 
-    # ensure totals current
-    recalc_totals(invoice=invoice, save=True)
+    # Ensure totals current (Option A)
+    _, total = recalc_totals(invoice=invoice, save=False)
 
     # choose posting subcategory: first line item with subcategory required
     first = invoice.items.exclude(subcategory__isnull=True).select_related("subcategory").first()
@@ -170,7 +187,7 @@ def mark_paid(*, invoice: Invoice, paid_date=None) -> Transaction:
     t = Transaction.objects.create(
         business=invoice.business,
         date=paid_date,
-        amount=invoice.total,
+        amount=total,
         description=f"Invoice payment {invoice.invoice_number} - {invoice.contact.display_name}",
         subcategory=first.subcategory,
         contact=invoice.contact,

@@ -13,9 +13,12 @@ from .views import (
     invoice_void,
 )
 
+from .exports import invoice_export_csv
+
 app_name = "invoices"
 
 urlpatterns = [
+    path("export/csv/", invoice_export_csv, name="invoice_export_csv"),
     path("", InvoiceListView.as_view(), name="invoice_list"),
     path("new/", invoice_create, name="invoice_create"),
     path("<int:pk>/", InvoiceDetailView.as_view(), name="invoice_detail"),

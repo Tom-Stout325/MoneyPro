@@ -17,6 +17,7 @@
           <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}?show_archived=1">Show Archived</a>
         {% endif %}
         <a class="btn btn-primary" href="{% url 'vehicles:vehicle_add' %}">Add Vehicle</a>
+        {% include "core/_export_button.html" %}
       </div>
     </div>
   </div>
