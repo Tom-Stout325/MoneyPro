@@ -44,6 +44,12 @@
             </li>
 
             <li class="nav-item">
+              <a class="nav-link {% if current_ns == 'contractor' %}active{% endif %}" href="{% url 'contractor:list' %}">
+                Contractors
+              </a>
+            </li>
+
+            <li class="nav-item">
               <a class="nav-link {% if current_ns == 'helpcenter' %}active{% endif %}" href="{% url 'helpcenter:home' %}">
                 Help
               </a>

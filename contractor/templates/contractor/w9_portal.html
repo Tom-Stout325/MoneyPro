@@ -1,0 +1,108 @@
+{% extends "index.html" %}
+
+{% block title %}W-9 Portal | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-4" style="max-width: 860px;">
+  <div class="card mp-card p-3 p-md-4">
+    <div class="d-flex flex-column gap-1 mb-3">
+      <div class="text-muted small">W-9 Portal</div>
+      <h1 class="h4 mb-0">{{ business.name }}</h1>
+      <div class="text-muted">Contractor: <span class="fw-semibold">{{ contact.display_name|default:contact.legal_name }}</span></div>
+    </div>
+
+    <div class="alert alert-info mb-3">
+      Please complete this W-9 intake form. We store only the last 4 digits of your TIN.
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label">{{ form.full_name.label }}</label>
+          {{ form.full_name }}
+          {% for e in form.full_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label">{{ form.business_name.label }}</label>
+          {{ form.business_name }}
+          {% for e in form.business_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">{{ form.address1.label }}</label>
+          {{ form.address1 }}
+          {% for e in form.address1.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">{{ form.address2.label }}</label>
+          {{ form.address2 }}
+          {% for e in form.address2.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-5">
+          <label class="form-label">{{ form.city.label }}</label>
+          {{ form.city }}
+          {% for e in form.city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-6 col-md-3">
+          <label class="form-label">{{ form.state.label }}</label>
+          {{ form.state }}
+          {% for e in form.state.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-6 col-md-4">
+          <label class="form-label">{{ form.zip_code.label }}</label>
+          {{ form.zip_code }}
+          {% for e in form.zip_code.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">{{ form.taxpayer_id_type.label }}</label>
+          {{ form.taxpayer_id_type }}
+          {% for e in form.taxpayer_id_type.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-8">
+          <label class="form-label">{{ form.tin.label }}</label>
+          {{ form.tin }}
+          <div class="form-text">{{ form.tin.help_text }}</div>
+          {% for e in form.tin.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label">{{ form.signature_name.label }}</label>
+          {{ form.signature_name }}
+          {% for e in form.signature_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label">{{ form.signature_date.label }}</label>
+          {{ form.signature_date }}
+          {% for e in form.signature_date.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12">
+          <button class="btn btn-primary" type="submit">Submit W-9</button>
+        </div>
+      </div>
+    </form>
+
+    <hr class="my-4">
+    <div class="text-muted small">
+      Prefer the official IRS PDF?
+      <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener">Download Form W-9</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

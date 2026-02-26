@@ -1,0 +1,98 @@
+{% extends "index.html" %}
+{% load humanize %}
+
+{% block title %}{{ contractor.display_name|default:contractor.legal_name }} | Contractors | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+      <div class="text-muted small"><a href="{% url 'contractor:list' %}" class="text-decoration-none">Contractors</a> /</div>
+      <h1 class="h4 mb-0">{{ contractor.display_name|default:contractor.legal_name }}</h1>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'contractor:1099_center' %}?year={{ year }}">1099 Center</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card mp-card p-3">
+        <h2 class="h6 mb-3">Contact</h2>
+
+        <div class="mb-2">
+          <div class="text-muted small">Email</div>
+          <div>{{ contractor.email|default:"" }}</div>
+        </div>
+
+        <div class="mb-2">
+          <div class="text-muted small">Phone</div>
+          <div>{{ contractor.phone|default:"" }}</div>
+        </div>
+
+        <div class="mb-2">
+          <div class="text-muted small">Address</div>
+          <div>
+            {{ contractor.address1|default:"" }}{% if contractor.address2 %}<br>{{ contractor.address2 }}{% endif %}<br>
+            {{ contractor.city|default:"" }}, {{ contractor.state|default:"" }} {{ contractor.zip_code|default:"" }}
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <h2 class="h6 mb-2">W-9 Status</h2>
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            {% if tax_profile and tax_profile.w9_status %}
+              <span class="badge text-bg-light">{{ tax_profile.w9_status|title }}</span>
+            {% else %}
+              <span class="badge text-bg-secondary">Unknown</span>
+            {% endif %}
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'contractor:mark_w9_requested' contractor.pk %}">Mark Requested</a>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="text-muted small mb-1">Secure W-9 Link (14 days)</div>
+          <div class="input-group">
+            <input type="text" class="form-control form-control-sm" value="{{ w9_portal_url }}" readonly>
+            <button class="btn btn-sm btn-outline-secondary" type="button"
+              onclick="navigator.clipboard.writeText('{{ w9_portal_url }}'); this.innerText='Copied'; setTimeout(()=>this.innerText='Copy', 1200);">
+              Copy
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card mp-card p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0">1099-NEC</h2>
+          <form method="get" class="d-flex gap-2 align-items-center">
+            {{ year_form.year }}
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Go</button>
+          </form>
+        </div>
+
+        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-2">
+          <div>
+            <div class="text-muted small">Nonemployee compensation (Box 1)</div>
+            <div class="h4 mb-0">${{ total_1099|floatformat:2|intcomma }}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'contractor:1099_preview' contractor.pk %}?year={{ year }}">Preview</a>
+            <a class="btn btn-sm btn-primary" href="{% url 'contractor:1099_pdf' contractor.pk %}?year={{ year }}">Download PDF</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
