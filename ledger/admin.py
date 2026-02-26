@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.db.models import QuerySet
 
 from core.models import BusinessMembership
-from .models import Category, Job, Contact, ContactTaxProfile, SubCategory, Team, Transaction
+from .models import Category, Job, Contact, SubCategory, Team, Transaction
 
 
 class BusinessAdminMixin(admin.ModelAdmin):
@@ -59,12 +59,6 @@ class ContactAdmin(BusinessAdminMixin):
             ro.append("client_code")
         return ro
 
-
-@admin.register(ContactTaxProfile)
-class ContactTaxProfileAdmin(BusinessAdminMixin):
-    list_display = ("contact", "is_1099_eligible", "w9_status", "business")
-    list_filter = ("is_1099_eligible", "w9_status", "business")
-    search_fields = ("contact__display_name",)
 
 
 @admin.register(Job)

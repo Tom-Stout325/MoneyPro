@@ -4,7 +4,7 @@ import io
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
@@ -25,9 +25,8 @@ class _Pos:
 
 
 # NOTE:
-# These coordinates are starter values for the bundled 1099-NEC.pdf.
-# If you want perfect alignment, we’ll tweak these after you visually review one output.
-_COPY_B_POSITIONS: dict[str, _Pos] = {
+# These coordinates are starter values for the bundled 1099 templates.
+_COPY_POSITIONS: dict[str, _Pos] = {
     "payer_name": _Pos(45, 708),
     "payer_addr": _Pos(45, 692),
     "payer_city_state_zip": _Pos(45, 676),
@@ -39,13 +38,19 @@ _COPY_B_POSITIONS: dict[str, _Pos] = {
 }
 
 
-def _pick_template() -> Path:
-    # Prefer Copy B if present, else fall back to Copy 1 template
+def _pick_template(copy: Literal["b", "1"] = "b") -> Path:
     base = Path(settings.BASE_DIR) / "static" / "images"
-    b = base / "1099-NEC_B.pdf"
-    if b.exists():
-        return b
-    return base / "1099-NEC.pdf"
+    if copy == "b":
+        b = base / "1099-NEC_B.pdf"
+        if b.exists():
+            return b
+    one = base / "1099-NEC_1.pdf"
+    if one.exists():
+        return one
+    # fallbacks for older filenames
+    if (base / "1099-NEC.pdf").exists():
+        return base / "1099-NEC.pdf"
+    return base / "1099-NEC_B.pdf"
 
 
 def _make_overlay(page_w: float, page_h: float, values: dict[str, str]) -> bytes:
@@ -53,7 +58,7 @@ def _make_overlay(page_w: float, page_h: float, values: dict[str, str]) -> bytes
     c = canvas.Canvas(buf, pagesize=(page_w, page_h))
     c.setFont("Helvetica", 9)
 
-    for k, pos in _COPY_B_POSITIONS.items():
+    for k, pos in _COPY_POSITIONS.items():
         v = values.get(k, "")
         if not v:
             continue
@@ -64,19 +69,18 @@ def _make_overlay(page_w: float, page_h: float, values: dict[str, str]) -> bytes
     return buf.getvalue()
 
 
-def render_1099nec_pdf_response(
+def render_1099nec_pdf_bytes(
     *,
-    request: HttpRequest,
     business: Any,
     contractor: Any,
     year: int,
     nonemployee_comp: Decimal,
-) -> HttpResponse:
-    template_path = _pick_template()
+    copy: Literal["b", "1"] = "b",
+) -> bytes:
+    template_path = _pick_template(copy=copy)
     reader = PdfReader(str(template_path))
     writer = PdfWriter()
 
-    # Copy B is typically a single page in the provided file.
     page0 = reader.pages[0]
     w = float(page0.mediabox.width)
     h = float(page0.mediabox.height)
@@ -93,8 +97,7 @@ def render_1099nec_pdf_response(
     rec_zip = getattr(contractor, "zip_code", "")
     rec_csz = " ".join([p for p in [rec_city, rec_state, rec_zip] if p])
 
-    tax_profile = getattr(contractor, "tax_profile", None)
-    tin_last4 = getattr(tax_profile, "tin_last4", "") if tax_profile else ""
+    tin_last4 = getattr(contractor, "tin_last4", "") or ""
 
     values = {
         "payer_name": payer_name,
@@ -110,7 +113,6 @@ def render_1099nec_pdf_response(
     overlay_pdf = _make_overlay(w, h, values)
     overlay_reader = PdfReader(io.BytesIO(overlay_pdf))
 
-    # Merge overlay onto first page only
     base_page = page0
     base_page.merge_page(overlay_reader.pages[0])
     writer.add_page(base_page)
@@ -118,8 +120,25 @@ def render_1099nec_pdf_response(
     out = io.BytesIO()
     writer.write(out)
     out.seek(0)
+    return out.getvalue()
 
+
+def render_1099nec_pdf_response(
+    *,
+    request: HttpRequest,
+    business: Any,
+    contractor: Any,
+    year: int,
+    nonemployee_comp: Decimal,
+) -> HttpResponse:
+    pdf_bytes = render_1099nec_pdf_bytes(
+        business=business,
+        contractor=contractor,
+        year=year,
+        nonemployee_comp=nonemployee_comp,
+        copy="b",
+    )
     filename = f"1099-NEC_{year}_{getattr(contractor, 'id', 'contractor')}.pdf"
-    resp = HttpResponse(out.getvalue(), content_type="application/pdf")
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp

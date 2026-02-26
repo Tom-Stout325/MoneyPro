@@ -1,0 +1,45 @@
+{% extends "index.html" %}
+
+{% block title %}W-9 | {{ contractor.display_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <div class="text-muted small">
+        <a class="text-decoration-none" href="{% url 'contractor:detail' contractor.pk %}">Contractor</a> /
+      </div>
+      <h1 class="h4 mb-0">W-9</h1>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'contractor:detail' contractor.pk %}">&larr; Back</a>
+  </div>
+
+  <div class="card mp-card p-3">
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <div class="text-muted small">Contractor</div>
+        <div class="fw-semibold">{{ contractor.display_name }}</div>
+        {% if contractor.email %}<div class="text-muted small">{{ contractor.email }}</div>{% endif %}
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="text-muted small">Status</div>
+        <div class="fw-semibold">{{ contractor.get_w9_status_display|default:contractor.w9_status|title }}</div>
+        <div class="text-muted small">
+          Sent: {{ contractor.w9_sent_date|default:"—" }} &middot;
+          Received: {{ contractor.w9_received_date|default:"—" }}
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-3">
+
+    <div class="d-flex flex-wrap gap-2">
+      {% if contractor.w9_document %}
+        <a class="btn btn-primary" href="{{ contractor.w9_document.url }}" target="_blank" rel="noopener">View Stored W-9</a>
+      {% else %}
+        <span class="text-muted">No W-9 document uploaded.</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

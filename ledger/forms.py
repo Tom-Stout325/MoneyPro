@@ -213,6 +213,20 @@ class ContactForm(forms.ModelForm):
             "is_vendor",
             "is_customer",
             "is_contractor",
+            # Contractor-only (accordion)
+            "is_active",
+            "contractor_number",
+            "entity_type",
+            "is_1099_eligible",
+            "tin_type",
+            "tin_last4",
+            "w9_status",
+            "w9_sent_date",
+            "w9_received_date",
+            "w9_document",
+            "edelivery_consent",
+            "edelivery_consent_date",
+            "contractor_notes",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -230,8 +244,16 @@ class ContactForm(forms.ModelForm):
                     widget.attrs.setdefault("class", "form-control")
 
         # Checkbox styling
-        for cb in ("is_vendor", "is_customer", "is_contractor"):
-            self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+        for cb in ("is_vendor", "is_customer", "is_contractor", "is_active", "is_1099_eligible", "edelivery_consent"):
+            if cb in self.fields:
+                self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+
+        # Date inputs
+        for d in ("w9_sent_date", "w9_received_date", "edelivery_consent_date"):
+            if d in self.fields:
+                self.fields[d].widget.attrs.setdefault("type", "date")
+                self.fields[d].widget.attrs.setdefault("class", "form-control")
+
 
         # Lock client_code once created.
         if self.instance and self.instance.pk:

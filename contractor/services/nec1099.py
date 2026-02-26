@@ -8,7 +8,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from accounts.models import CompanyProfile
-from ledger.models import Contact, ContactTaxProfile, Transaction
+from ledger.models import Contact, Transaction
 
 
 @dataclass(frozen=True)
@@ -43,14 +43,12 @@ def nec_total_for_contact(*, business_id: int, contact_id: int, year: int) -> De
 def nec_totals_for_year(*, business_id: int, year: int) -> list[NEC1099Totals]:
     contacts = (
         Contact.objects.filter(business_id=business_id, is_contractor=True, is_vendor=True, is_active=True)
-        .select_related("tax_profile")
         .order_by("display_name")
     )
 
     out: list[NEC1099Totals] = []
     for c in contacts:
-        tp: Optional[ContactTaxProfile] = getattr(c, "tax_profile", None)
-        if not tp or not tp.is_1099_eligible:
+        if not c.is_1099_eligible:
             continue
         total = nec_total_for_contact(business_id=business_id, contact_id=c.id, year=year)
         out.append(NEC1099Totals(year=year, contact=c, total=total))
@@ -90,8 +88,7 @@ def recipient_address_lines(contact: Contact) -> tuple[str, str]:
 
 
 def masked_recipient_tin(contact: Contact) -> str:
-    tp: Optional[ContactTaxProfile] = getattr(contact, "tax_profile", None)
-    last4 = (tp.tin_last4 or "").strip() if tp else ""
+    last4 = (contact.tin_last4 or "").strip() if tp else ""
     if not last4:
         return ""
     return f"****{last4}"

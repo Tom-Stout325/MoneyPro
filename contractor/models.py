@@ -29,6 +29,9 @@ class ContractorW9Submission(BusinessOwnedModelMixin):
 
     address_line1 = models.CharField(max_length=255, blank=True)
     address_line2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state = models.CharField(max_length=50, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
 
     signature_name = models.CharField(max_length=255, blank=True)
     signature_data = models.TextField(blank=True)  # base64 png from signature pad (optional)
@@ -46,3 +49,36 @@ class ContractorW9Submission(BusinessOwnedModelMixin):
 
     def __str__(self) -> str:
         return f"W-9 submission for {self.contact} on {self.submitted_at:%Y-%m-%d}"
+
+
+def contractor_1099_upload_path(instance: "Contractor1099", filename: str) -> str:
+    return f"tax/1099/{instance.business_id}/{instance.tax_year}/contact_{instance.contact_id}/{filename}"
+
+
+class Contractor1099(BusinessOwnedModelMixin):
+    """Stored 1099-NEC PDFs per contact/year (Copy B + Copy 1) with email audit."""
+
+    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="forms_1099")
+    tax_year = models.PositiveIntegerField(db_index=True)
+
+    copy_b_pdf = models.FileField(upload_to=contractor_1099_upload_path, blank=True, null=True)
+    copy_1_pdf = models.FileField(upload_to=contractor_1099_upload_path, blank=True, null=True)
+    generated_at = models.DateTimeField(default=timezone.now)
+
+    # Email/audit for Copy B only
+    emailed_at = models.DateTimeField(blank=True, null=True)
+    emailed_to = models.EmailField(blank=True)
+    email_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-tax_year", "-generated_at", "-id"]
+        indexes = [
+            models.Index(fields=["business", "tax_year"], name="ctr_1099_bus_year_idx"),
+            models.Index(fields=["business", "contact", "tax_year"], name="ctr_1099_bus_contact_year_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["business", "contact", "tax_year"], name="uniq_1099_per_contact_year"),
+        ]
+
+    def __str__(self) -> str:
+        return f"1099 {self.tax_year} — {self.contact}"

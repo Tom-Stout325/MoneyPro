@@ -38,8 +38,8 @@
                 <td class="d-none d-md-table-cell">{{ c.email|default:"" }}</td>
                 <td class="d-none d-md-table-cell">{{ c.phone|default:"" }}</td>
                 <td>
-                  {% if c.tax_profile and c.tax_profile.w9_status %}
-                    <span class="badge text-bg-light">{{ c.tax_profile.w9_status|title }}</span>
+                  {% if c.w9_status %}
+                    <span class="badge text-bg-light">{{ c.get_w9_status_display|default:c.w9_status|title }}</span>
                   {% else %}
                     <span class="badge text-bg-secondary">Unknown</span>
                   {% endif %}

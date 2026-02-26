@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -177,6 +178,19 @@ class SubCategory(BusinessOwnedModelMixin):
     def effective_schedule_c_line(self) -> str:
         return self.schedule_c_line or (self.category.schedule_c_line if self.category_id else "")
 
+        # Contractor-only validations
+        if self.is_contractor:
+            if not (self.entity_type or "").strip():
+                raise ValidationError({"entity_type": "Select an Entity Type when this contact is marked as a contractor."})
+
+        if self.tin_last4 and not self.tin_type:
+            raise ValidationError({"tin_type": "Select SSN or EIN when entering last-4 digits."})
+
+        if self.edelivery_consent and not self.edelivery_consent_date:
+            self.edelivery_consent_date = timezone.now()
+
+
+
     def __str__(self) -> str:
         return f"{self.name}"
 
@@ -186,54 +200,6 @@ class SubCategory(BusinessOwnedModelMixin):
     def is_tax_visible(self) -> bool:
         return self.tax_enabled and self.category.tax_reports
 
-
-
-
-
-class ContactTaxProfile(BusinessOwnedModelMixin):
-    """Tax/compliance information for contacts.
-
-    Prefer W-9 PDF + last4, not full TIN storage.
-    """
-
-    ENTITY_CHOICES = [
-        ("individual", "Individual / Sole Proprietor"),
-        ("llc", "LLC"),
-        ("partnership", "Partnership"),
-        ("c_corp", "C Corporation"),
-        ("s_corp", "S Corporation"),
-        ("other", "Other"),
-    ]
-    W9_STATUS = [
-        ("missing", "Missing"),
-        ("requested", "Requested"),
-        ("received", "Received"),
-        ("verified", "Verified"),
-    ]
-
-    contact              = models.OneToOneField('Contact', on_delete=models.CASCADE, related_name="tax_profile", db_column="contact_id")
-    is_1099_eligible     = models.BooleanField(default=False)
-    entity_type          = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
-    TIN_CHOICES          = [("ssn", "SSN"), ("ein", "EIN")]
-    tin_type             = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
-    tin_last4            = models.CharField(max_length=4, blank=True)
-    w9_status            = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
-    w9_document          = models.FileField(upload_to="w9/", blank=True, null=True)
-    notes                = models.TextField(blank=True)
-
-    class Meta:
-        db_table = "ledger_contacttaxprofile"
-        constraints = [
-            models.UniqueConstraint(fields=["business", "contact"], name="uniq_taxprofile_contact_per_business"),
-        ]
-
-    def clean(self):
-        super().clean()
-        if self.contact_id and self.business_id and self.contact.business_id != self.business_id:
-            raise ValidationError({"contact": "Contact does not belong to this business."})
-
-        if self.team_id and self.business_id and self.team.business_id != self.business_id:
-            raise ValidationError({"team": "Team does not belong to this business."})
 
 
 
@@ -551,6 +517,58 @@ class Contact(BusinessOwnedModelMixin):
     is_customer          = models.BooleanField(default=False)
     is_contractor        = models.BooleanField(default=False)
 
+    # ------------------------------------------------------------------
+    # Contractor / Tax classification (only meaningful when is_contractor=True)
+    # ------------------------------------------------------------------
+    contractor_number    = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Optional human-friendly ID, e.g. C-00023",
+    )
+
+    ENTITY_CHOICES = [
+        ("individual", "Individual / Sole Proprietor"),
+        ("llc", "LLC"),
+        ("partnership", "Partnership"),
+        ("c_corp", "C Corporation"),
+        ("s_corp", "S Corporation"),
+        ("other", "Other"),
+    ]
+    entity_type          = models.CharField(max_length=25, choices=ENTITY_CHOICES, blank=True)
+
+    TIN_CHOICES          = [("ssn", "SSN"), ("ein", "EIN")]
+    tin_type             = models.CharField(max_length=10, choices=TIN_CHOICES, blank=True)
+    tin_last4            = models.CharField(
+        max_length=4,
+        blank=True,
+        validators=[RegexValidator(r"^\d{4}$", "Enter last 4 digits.")],
+        help_text="Last 4 digits only. Do not store full TIN.",
+    )
+
+    is_1099_eligible     = models.BooleanField(
+        default=True,
+        help_text="Whether this contractor should receive a 1099 (default True; you can override).",
+    )
+
+    W9_STATUS = [
+        ("missing", "Missing"),
+        ("requested", "Requested"),
+        ("received", "Received"),
+        ("verified", "Verified"),
+    ]
+    w9_status            = models.CharField(max_length=15, choices=W9_STATUS, default="missing")
+    w9_sent_date         = models.DateField(null=True, blank=True)
+    w9_received_date     = models.DateField(null=True, blank=True)
+    w9_document          = models.FileField(upload_to="w9/", blank=True, null=True)
+
+    edelivery_consent      = models.BooleanField(default=False)
+    edelivery_consent_date = models.DateTimeField(null=True, blank=True)
+
+    contractor_notes     = models.TextField(blank=True)
+
+    # Housekeeping
+    is_active            = models.BooleanField(default=True)
+
     class Meta:
         db_table = "ledger_contact"
         verbose_name = "Contact"
@@ -583,6 +601,19 @@ class Contact(BusinessOwnedModelMixin):
                 raise ValidationError({
                     "client_code": "Client Code is locked once set. Create a new client to use a different code.",
                 })
+
+        # Contractor rules (only when is_contractor=True)
+        if self.is_contractor:
+            if not (self.entity_type or "").strip():
+                raise ValidationError({"entity_type": "Tax classification is required for contractors."})
+
+        # TIN last4 requires TIN type
+        if (self.tin_last4 or "").strip() and not (self.tin_type or "").strip():
+            raise ValidationError({"tin_type": "Select SSN or EIN when entering last-4 digits."})
+
+        # Auto-stamp e-delivery consent date
+        if self.edelivery_consent and not self.edelivery_consent_date:
+            self.edelivery_consent_date = timezone.now()
 
     @classmethod
     def get_unknown(cls, *, business: Business) -> "Contact":
