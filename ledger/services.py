@@ -54,6 +54,8 @@ class CategorySpec:
 CATEGORY_SPECS: list[CategorySpec] = [
     CategorySpec("Gross Receipts", "1", "income", True, True, "Part I"),
     CategorySpec("Returns & Allowances", "2", "income", False, True, "Part I"),
+    # Bookkeeping-only category (not Schedule C). Useful for tracking asset sales.
+    CategorySpec("Sale of Property", "", "income", True, False, "Other"),
     CategorySpec("Advertising", "8", "expense", True, True, "Part II"),
     CategorySpec("Car & Truck Expenses", "9", "expense", True, True, "Part II"),
     CategorySpec("Commissions & Fees", "10", "expense", True, True, "Part II"),
@@ -114,6 +116,11 @@ SCHEDULE_C_LINE_TO_CHOICE: dict[str, str] = {
 
 
 def _schedule_c_choice(line_code: str) -> str:
+    # Some categories are useful for bookkeeping but are not part of Schedule C.
+    # Allow a blank schedule_c_line code and store an empty value.
+    if not (line_code or "").strip():
+        return ""
+
     k = (line_code or "").strip().lower()
     try:
         return SCHEDULE_C_LINE_TO_CHOICE[k]
