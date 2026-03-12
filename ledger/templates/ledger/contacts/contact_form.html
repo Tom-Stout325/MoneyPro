@@ -3,26 +3,6 @@
 
 {% block title %}{% if object %}Edit Contact{% else %}New Contact{% endif %} | MoneyPro{% endblock %}
 
-{% block extra_js %}
-<script>
-(function(){
-  const cb = document.getElementById("{{ form.is_contractor.id_for_label }}");
-  const collapseEl = document.getElementById('collapseContractor');
-  if (!cb || !collapseEl) return;
-
-  function openIfNeeded(){
-    const hasErrors = collapseEl.querySelectorAll('.is-invalid').length > 0;
-    if (cb.checked || hasErrors){
-      const c = bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle:false});
-      c.show();
-    }
-  }
-  cb.addEventListener('change', openIfNeeded);
-  openIfNeeded();
-})();
-</script>
-{% endblock %}
-
 {% block content %}
 <div class="container-fluid px-2 px-md-3 py-3">
 
@@ -120,7 +100,7 @@
         </div>
 
 
-        <div class="d-grid d-sm-flex gap-2 justify-content-sm-end mt-4>
+        <div class="d-grid d-sm-flex gap-2 justify-content-sm-end mt-4">
           <a class="btn btn-outline-secondary w-100 w-sm-auto py-2" href="{% url 'ledger:contact_list' %}">Cancel</a>
           <button class="btn btn-primary w-100 w-sm-auto py-2" type="submit">Save</button>
         </div>
@@ -133,21 +113,21 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-(function(){
-  const cb = document.getElementById("{{ form.is_contractor.id_for_label }}");
-  const collapseEl = document.getElementById('collapseContractor');
-  if (!cb || !collapseEl) return;
+  <script>
+  (function(){
+    const cb = document.getElementById("{{ form.is_contractor.id_for_label }}");
+    const collapseEl = document.getElementById('collapseContractor');
+    if (!cb || !collapseEl) return;
 
-  function openIfNeeded(){
-    const hasErrors = collapseEl.querySelectorAll('.is-invalid').length > 0;
-    if (cb.checked || hasErrors){
-      const c = bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle:false});
-      c.show();
+    function openIfNeeded(){
+      const hasErrors = collapseEl.querySelectorAll('.is-invalid').length > 0;
+      if (cb.checked || hasErrors){
+        const c = bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle:false});
+        c.show();
+      }
     }
-  }
-  cb.addEventListener('change', openIfNeeded);
-  openIfNeeded();
-})();
-</script>
+    cb.addEventListener('change', openIfNeeded);
+    openIfNeeded();
+  })();
+  </script>
 {% endblock %}

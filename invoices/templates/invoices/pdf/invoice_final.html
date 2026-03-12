@@ -29,6 +29,12 @@
     tbody td { border-bottom: 1px solid #f0f0f0; }
     .num { text-align: right; white-space: nowrap; }
 
+    .blank-row {
+        height: 10px;
+        background-color: #FFFFFF; 
+    }
+
+
     .totals { width: 260px; margin-left: auto; }
     .totals td { border: none; padding: 4px 0; }
     .totals .label { color: #666; }
@@ -206,14 +212,15 @@
     </table>
 
     <div class="spacer" style="height:10px"></div>
-
+<br><br>
     <table class="totals">
-      <tr>
-        <td class="label">Subtotal</td>
-        <td class="num">${{ invoice.subtotal|floatformat:2|intcomma }}</td>
+    
+      <tr class="blank-row"></tr>
+        <td>________________________</td>
+        <td>___________________</td>
       </tr>
       <tr>
-        <td class="label grand">Total</td>
+        <td class="label grand">Invoice Total</td>
         <td class="num grand">${{ invoice.total|floatformat:2|intcomma }}</td>
       </tr>
     </table>

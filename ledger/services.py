@@ -205,14 +205,15 @@ SUBCATEGORY_RULES: dict[str, dict[str, object]] = {
     "Wages": {"requires_contact": True, "contact_role": "any"},
 
     # Vehicle required (business_vehicle + vehicle)
-    "Vehicle: Equipment Purchases": {"requires_transport": True, "requires_vehicle": True},
-    "Vehicle: Loan Interest": {"requires_transport": True, "requires_vehicle": True},
-    "Vehicle: Loan Payments": {"requires_transport": True, "requires_vehicle": True},
-    "Vehicle: Maintenance": {"requires_transport": True, "requires_vehicle": True},
-    "Vehicle: Other Expenses": {"requires_transport": True, "requires_vehicle": True},
-    "Vehicle: Repairs": {"requires_transport": True, "requires_vehicle": True},
+    "Vehicle: Equipment Purchases": {"requires_transport": False, "requires_vehicle": True},
+    "Vehicle: Loan Interest": {"requires_transport": False, "requires_vehicle": True},
+    "Vehicle: Loan Payments": {"requires_transport": False, "requires_vehicle": True},
+    "Vehicle: Maintenance": {"requires_transport": False, "requires_vehicle": True},
+    "Vehicle: Other Expenses": {"requires_transport": False, "requires_vehicle": True},
+    "Vehicle: Repairs": {"requires_transport": False, "requires_vehicle": True},
     "Vehicle: Gas": {"requires_transport": True, "requires_vehicle": True},
     "Travel: Car Rental": {"requires_transport": True, "requires_vehicle": False},
+    "Travel: Car Gas": {"requires_transport": True, "requires_vehicle": False},
 }
 
 # ------------------------------------------------------------------------------
@@ -221,16 +222,6 @@ SUBCATEGORY_RULES: dict[str, dict[str, object]] = {
 
 @transaction.atomic
 def seed_schedule_c_defaults(business) -> None:
-    """
-    Seeds a fixed Schedule C category set + default subcategories for a business.
-
-    - Categories are seeded from spreadsheet-friendly specs (line codes like "16a"),
-      but stored as enum keys (e.g. "interest_mortgage") to satisfy choices validation.
-    - Users select SubCategory only; Category is derived from SubCategory.category.
-    - Idempotent: safe to run multiple times.
-    """
-
-    # Slug max lengths from models (falls back safely)
     cat_slug_max = _field_max_length(Category, "slug", 120)
     sub_slug_max = _field_max_length(SubCategory, "slug", 140)
 

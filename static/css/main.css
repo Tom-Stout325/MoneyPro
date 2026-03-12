@@ -377,6 +377,37 @@ a:hover {
   color: var(--mp-muted);
 }
 
+
+.subcat-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.subcat-card:hover {
+  transform: translateY(-1px);
+}
+
+.subcat-section {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.subcat-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 0.65rem;
+}
+
+html[data-theme="dark"] .subcat-section,
+body.dark-mode .subcat-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 /* --------------------------------------------------------------------------
    Chart polish
    -------------------------------------------------------------------------- */

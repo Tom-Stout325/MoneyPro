@@ -182,55 +182,31 @@ class Invoice(BusinessOwnedModelMixin):
         PAID = "paid", "Invoice paid"
         VOID = "void", "Voided"
 
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
-    issue_date = models.DateField(default=timezone.localdate)
-    due_date = models.DateField(null=True, blank=True)
-    sent_date = models.DateField(null=True, blank=True)
-    paid_date = models.DateField(null=True, blank=True)
-    location = models.CharField(max_length=255, blank=True)
-
-    # Allow blank in forms, but ensure it is ALWAYS assigned before first save.
-    invoice_number = models.CharField(max_length=12, blank=True)
-
-    bill_to_name = models.CharField(max_length=255, blank=True)
-    bill_to_email = models.EmailField(blank=True)
-    bill_to_address1 = models.CharField(max_length=255, blank=True)
-    bill_to_address2 = models.CharField(max_length=255, blank=True)
-    bill_to_city = models.CharField(max_length=120, blank=True)
-    bill_to_state = models.CharField(max_length=50, blank=True)
+    status              = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    issue_date          = models.DateField(default=timezone.localdate)
+    due_date            = models.DateField(null=True, blank=True)
+    sent_date           = models.DateField(null=True, blank=True)
+    paid_date           = models.DateField(null=True, blank=True)
+    location            = models.CharField(max_length=255, blank=True)
+    invoice_number      = models.CharField(max_length=12, blank=True)
+    bill_to_name        = models.CharField(max_length=255, blank=True)
+    bill_to_email       = models.EmailField(blank=True)
+    bill_to_address1    = models.CharField(max_length=255, blank=True)
+    bill_to_address2    = models.CharField(max_length=255, blank=True)
+    bill_to_city        = models.CharField(max_length=120, blank=True)
+    bill_to_state       = models.CharField(max_length=50, blank=True)
     bill_to_postal_code = models.CharField(max_length=20, blank=True)
-    bill_to_country = models.CharField(max_length=50, default="US", blank=True)
-
-    memo = models.TextField(blank=True)
-
-    # Legacy stored totals. With Option A, treat these as cache only.
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-
-    pdf_file = models.FileField(upload_to="invoices/final/", null=True, blank=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
-    job = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
-
-    revises = models.ForeignKey(
-        "self",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="revisions",
-        help_text="If set, this invoice is a revision of another invoice.",
-    )
-
-    income_transaction = models.OneToOneField(
-        Transaction,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="invoice_income_for",
-    )
+    bill_to_country     = models.CharField(max_length=50, default="US", blank=True)
+    memo                = models.TextField(blank=True)
+    subtotal            = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total               = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    pdf_file            = models.FileField(upload_to="invoices/final/", null=True, blank=True)
+    created_at          = models.DateTimeField(auto_now_add=True)
+    updated_at          = models.DateTimeField(auto_now=True)
+    contact             = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
+    job                 = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
+    revises             = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="revisions", help_text="If set, this invoice is a revision of another invoice.",)
+    income_transaction  = models.OneToOneField(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_income_for",)
 
     class Meta:
         ordering = ["-issue_date", "-id"]
@@ -292,13 +268,13 @@ class Invoice(BusinessOwnedModelMixin):
 
 
 class InvoiceItem(BusinessOwnedModelMixin):
-    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
-    description = models.CharField(max_length=255)
-    subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="invoice_items", null=True, blank=True)
-    qty = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1.00"), validators=[MinValueValidator(Decimal("0.00"))])
-    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), validators=[MinValueValidator(Decimal("0.00"))])
-    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    sort_order = models.PositiveIntegerField(default=0)
+    invoice         = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
+    description     = models.CharField(max_length=255)
+    subcategory     = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="invoice_items", null=True, blank=True)
+    qty             = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1.00"), validators=[MinValueValidator(Decimal("0.00"))])
+    unit_price      = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), validators=[MinValueValidator(Decimal("0.00"))])
+    line_total      = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    sort_order      = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["sort_order", "id"]

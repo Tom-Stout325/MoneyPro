@@ -1,4 +1,15 @@
 
+Lots of errors from imports:
+See attached screenshot.Travel Gas says: Transport type not needed.
+
+
+
+
+May need to re-import everything
+
+
+
+
 Create a Job Review section
   add a profitability scale to job analsys
 

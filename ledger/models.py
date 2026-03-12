@@ -103,25 +103,31 @@ class Category(BusinessOwnedModelMixin):
 
 
 
+
+
+
+
+
+
 class SubCategory(BusinessOwnedModelMixin):
     class DeductionRule(models.TextChoices):
-        FULL = "full", "100% deductible"
-        MEALS_50 = "meals_50", "Meals (50%)"
+        FULL          = "full", "100% deductible"
+        MEALS_50      = "meals_50", "Meals (50%)"
         NONDEDUCTIBLE = "nondeductible", "Not deductible"
 
     class ContactRole(models.TextChoices):
-        ANY = "any", "Any"
-        VENDOR = "vendor", "Vendor"
-        CONTRACTOR = "contractor", "Contractor"
-        CUSTOMER = "customer", "Customer"
+        ANY           = "any", "Any"
+        VENDOR        = "vendor", "Vendor"
+        CONTRACTOR    = "contractor", "Contractor"
+        CUSTOMER      = "customer", "Customer"
 
 
     class AccountType(models.TextChoices):
-        EXPENSE = "expense", "Expense"
-        INCOME = "income", "Income"
-        ASSET = "asset", "Asset"
-        LIABILITY = "liability", "Liability"
-        JOURNAL = "journal", "Journal Only"
+        EXPENSE       = "expense", "Expense"
+        INCOME        = "income", "Income"
+        ASSET         = "asset", "Asset"
+        LIABILITY     = "liability", "Liability"
+        JOURNAL       = "journal", "Journal Only"
 
     category                   = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="subcategories")
     name                       = models.CharField(max_length=80)
@@ -140,8 +146,8 @@ class SubCategory(BusinessOwnedModelMixin):
     requires_team              = models.BooleanField(default=False)
     requires_job               = models.BooleanField(default=False)
     requires_invoice_number    = models.BooleanField(default=False)
-    requires_contact             = models.BooleanField(default=False)
-    contact_role                 = models.CharField(max_length=15, choices=ContactRole.choices, default=ContactRole.ANY)   
+    requires_contact           = models.BooleanField(default=False)
+    contact_role               = models.CharField(max_length=15, choices=ContactRole.choices, default=ContactRole.ANY)   
     requires_transport         = models.BooleanField(default=False)
     requires_vehicle           = models.BooleanField(default=False)
 
@@ -167,29 +173,17 @@ class SubCategory(BusinessOwnedModelMixin):
 
         if self.slug:
             self.slug = slugify(self.slug)
-
+            
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = f"{self.category.name}-{self.name}" if self.category_id else self.name
-            self.slug = slugify(base)
+            self.slug = slugify(self.name)
         self.full_clean()
         return super().save(*args, **kwargs)
 
     def effective_schedule_c_line(self) -> str:
-        return self.schedule_c_line or (self.category.schedule_c_line if self.category_id else "")
-
-        # Contractor-only validations
-        if self.is_contractor:
-            if not (self.entity_type or "").strip():
-                raise ValidationError({"entity_type": "Select an Entity Type when this contact is marked as a contractor."})
-
-        if self.tin_last4 and not self.tin_type:
-            raise ValidationError({"tin_type": "Select SSN or EIN when entering last-4 digits."})
-
-        if self.edelivery_consent and not self.edelivery_consent_date:
-            self.edelivery_consent_date = timezone.now()
-
-
+        return self.schedule_c_line or (
+            self.category.schedule_c_line if self.category_id else ""
+        )
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -199,9 +193,6 @@ class SubCategory(BusinessOwnedModelMixin):
 
     def is_tax_visible(self) -> bool:
         return self.tax_enabled and self.category.tax_reports
-
-
-
 
 
 

@@ -255,7 +255,13 @@ class SubCategoryListView(LoginRequiredMixin, ListView):
         qs = (
             SubCategory.objects.filter(business=self.request.business)
             .select_related("category")
-            .order_by("name")
+            .order_by(
+                "category__category_type",
+                "category__sort_order",
+                "category__name",
+                "sort_order",
+                "name",
+            )
         )
 
         q = (self.request.GET.get("q") or "").strip()
@@ -283,12 +289,20 @@ class SubCategoryListView(LoginRequiredMixin, ListView):
         ctx["q"] = (self.request.GET.get("q") or "").strip()
         ctx["type"] = (self.request.GET.get("type") or "").strip()
         ctx["category"] = (self.request.GET.get("category") or "").strip()
+
         ctx["categories"] = Category.objects.filter(
             business=self.request.business,
             is_active=True,
-        ).order_by("category_type", "sort_order", "name")
+        ).order_by(
+            "category__category_type",
+            "category__sort_order",
+            "category__name",
+            "sort_order",
+            "name",
+        )
 
         return ctx
+
 
 
 class SubCategoryCreateView(LoginRequiredMixin, CreateView):
@@ -333,10 +347,6 @@ class SubCategoryDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_queryset(self):
         return SubCategory.objects.filter(business=self.request.business)
-
-
-
-
 
 
 # <----------------------------------    J O B   V I E W S          ------------------------------>

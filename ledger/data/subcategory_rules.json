@@ -77,21 +77,6 @@
       "requires_vehicle": false,
       "slug": "cellular-service"
     },
-    "cloud-services": {
-      "account_type": "expense",
-      "contact_role": "any",
-      "is_capitalizable": false,
-      "name": "Cloud Services",
-      "requires_asset": false,
-      "requires_contact": false,
-      "requires_invoice_number": false,
-      "requires_job": false,
-      "requires_receipt": false,
-      "requires_team": false,
-      "requires_transport": false,
-      "requires_vehicle": false,
-      "slug": "cloud-services"
-    },
     "commissions-fees": {
       "account_type": "expense",
       "contact_role": "any",
@@ -626,7 +611,7 @@
       "account_type": "expense",
       "contact_role": "any",
       "is_capitalizable": false,
-      "name": "Software",
+      "name": "Other Expenses",
       "requires_asset": false,
       "requires_contact": false,
       "requires_invoice_number": false,

@@ -357,16 +357,25 @@ class SubCategoryForm(forms.ModelForm):
             "slug",
             "is_active",
             "sort_order",
+
             "book_enabled",
             "tax_enabled",
             "schedule_c_line",
             "deduction_rule",
+            "account_type",
+
             "is_1099_reportable_default",
             "is_capitalizable",
+
             "requires_contact",
             "contact_role",
+            "requires_receipt",
+            "requires_team",
+            "requires_job",
+            "requires_invoice_number",
             "requires_transport",
             "requires_vehicle",
+            "requires_asset",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -378,39 +387,48 @@ class SubCategoryForm(forms.ModelForm):
 
         self.fields["category"].queryset = (
             Category.objects.filter(business=self.business, is_active=True)
-            .order_by("name")
+            .order_by("category_type", "sort_order", "name")
         )
 
-        # Mobile-friendly defaults
+        # Default styling
         for name, field in self.fields.items():
             widget = field.widget
-            if hasattr(widget, "attrs"):
-                if getattr(widget, "input_type", "") != "checkbox":
-                    widget.attrs.setdefault("class", "form-control")
+            if hasattr(widget, "attrs") and getattr(widget, "input_type", "") != "checkbox":
+                widget.attrs.setdefault("class", "form-control")
 
-        for cb in (
+        checkbox_fields = (
             "is_active",
             "book_enabled",
             "tax_enabled",
             "is_1099_reportable_default",
             "is_capitalizable",
             "requires_contact",
+            "requires_receipt",
+            "requires_team",
+            "requires_job",
+            "requires_invoice_number",
             "requires_transport",
             "requires_vehicle",
-        ):
-            self.fields[cb].widget.attrs.setdefault("class", "form-check-input")
+            "requires_asset",
+        )
+        for cb in checkbox_fields:
+            self.fields[cb].widget.attrs["class"] = "form-check-input"
 
-        # Better select styling
-        self.fields["category"].widget.attrs.setdefault("class", "form-select")
-        self.fields["schedule_c_line"].widget.attrs.setdefault("class", "form-select")
-        self.fields["deduction_rule"].widget.attrs.setdefault("class", "form-select")
-        self.fields["contact_role"].widget.attrs.setdefault("class", "form-select")
+        select_fields = (
+            "category",
+            "schedule_c_line",
+            "deduction_rule",
+            "account_type",
+            "contact_role",
+        )
+        for sf in select_fields:
+            self.fields[sf].widget.attrs["class"] = "form-select"
 
-        # Optional: keep slug small and unobtrusive
         self.fields["slug"].required = False
-        self.fields["slug"].help_text = "Optional. Leave blank to auto-generate." 
+        self.fields["slug"].help_text = "Optional. Leave blank to auto-generate."
+        self.fields["schedule_c_line"].help_text = "Leave blank to inherit from the parent Category."
+        self.fields["contact_role"].help_text = "Only applies when Contact is required."
 
-        # Crispy layout (no <form> tag; templates own the form tag)
         self.helper = FormHelper()
         self.helper.form_tag = False
         self.helper.disable_csrf = True
@@ -427,6 +445,7 @@ class SubCategoryForm(forms.ModelForm):
                 Div(Field("is_active"), css_class="col-12 col-md-3 pt-md-4"),
                 css_class="row g-3 mt-0",
             ),
+
             HTML("<hr class='my-4'>"),
             HTML('<div class="fw-semibold mb-2">Reporting</div>'),
             Div(
@@ -436,18 +455,31 @@ class SubCategoryForm(forms.ModelForm):
                 Div(Field("deduction_rule"), css_class="col-12 col-md-3"),
                 css_class="row g-3",
             ),
-            HTML("<hr class='my-4'>"),
-            HTML('<div class="fw-semibold mb-2">Rules</div>'),
             Div(
-                Div(Field("is_1099_reportable_default"), css_class="col-12 col-md-3"),
-                Div(Field("is_capitalizable"), css_class="col-12 col-md-3"),
+                Div(Field("account_type"), css_class="col-12 col-md-4"),
+                Div(Field("is_1099_reportable_default"), css_class="col-12 col-md-4 pt-md-4"),
+                Div(Field("is_capitalizable"), css_class="col-12 col-md-4 pt-md-4"),
+                css_class="row g-3 mt-0",
+            ),
+
+            HTML("<hr class='my-4'>"),
+            HTML('<div class="fw-semibold mb-2">Requirements</div>'),
+            Div(
                 Div(Field("requires_contact"), css_class="col-12 col-md-3"),
                 Div(Field("contact_role"), css_class="col-12 col-md-3"),
+                Div(Field("requires_receipt"), css_class="col-12 col-md-3"),
+                Div(Field("requires_team"), css_class="col-12 col-md-3"),
                 css_class="row g-3",
             ),
             Div(
+                Div(Field("requires_job"), css_class="col-12 col-md-3"),
+                Div(Field("requires_invoice_number"), css_class="col-12 col-md-3"),
                 Div(Field("requires_transport"), css_class="col-12 col-md-3"),
                 Div(Field("requires_vehicle"), css_class="col-12 col-md-3"),
+                css_class="row g-3 mt-0",
+            ),
+            Div(
+                Div(Field("requires_asset"), css_class="col-12 col-md-3"),
                 css_class="row g-3 mt-0",
             ),
         )

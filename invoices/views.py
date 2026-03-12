@@ -7,6 +7,7 @@ from django.forms import inlineformset_factory
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import DetailView, ListView
+from decimal import Decimal
 
 from .forms import InvoiceForm, InvoiceItemForm
 from .models import Invoice, InvoiceItem, allocate_next_invoice_number, bump_counter_if_needed
@@ -41,6 +42,8 @@ class InvoiceListView(LoginRequiredMixin, BusinessScopedMixin, ListView):
         )
 
 
+
+
 class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
     model = Invoice
     template_name = "invoices/invoice_detail.html"
@@ -59,15 +62,12 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
         business = self.get_business()
 
         # ------------------------------------------------------------------
-        # Mileage entries linked to this invoice
+        # Mileage entries linked to this invoice (UNCHANGED from your version)
         # ------------------------------------------------------------------
         try:
             from vehicles.models import VehicleMiles
-
-            from django.db.models import Sum
+            from django.db.models import Sum, Value
             from django.db.models.functions import Coalesce
-            from django.db.models import Value
-            from decimal import Decimal
 
             mileage_qs = (
                 VehicleMiles.objects.filter(business=business, invoice=invoice)
@@ -75,37 +75,36 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 .order_by("date", "pk")
             )
             ctx["mileage_entries"] = list(mileage_qs)
-            ctx["mileage_total_miles"] = (
-                mileage_qs.aggregate(t=Coalesce(Sum("total"), Value(Decimal("0.0"))))["t"]
-            )
+            ctx["mileage_total_miles"] = mileage_qs.aggregate(
+                t=Coalesce(Sum("total"), Value(Decimal("0.0")))
+            )["t"]
         except Exception:
-            # If vehicles app isn't installed in some deployments, do not break invoice detail.
             ctx["mileage_entries"] = []
             ctx["mileage_total_miles"] = None
 
         # ------------------------------------------------------------------
         # Related ledger transactions (income + expenses) linked by invoice_number
         # ------------------------------------------------------------------
-        from decimal import Decimal
-        tx_list = []
+        tx_list: list = []
         income_total = Decimal("0.00")
         expense_total = Decimal("0.00")
         taxable_income_total = Decimal("0.00")
         taxable_expense_total = Decimal("0.00")
 
-        if invoice.invoice_number:
+        inv_num = (invoice.invoice_number or "").strip()
+
+        if inv_num:
             from ledger.models import Transaction
 
             qs = (
-                Transaction.objects.filter(business=business, invoice_number=invoice.invoice_number)
+                Transaction.objects.filter(business=business, invoice_number__iexact=inv_num)
                 .select_related("subcategory", "subcategory__category", "contact", "job")
                 .order_by("date", "pk")
             )
 
             def _kind(t: Transaction) -> str:
-                """Return 'income' or 'expense' using whatever signals exist."""
                 trans_type = getattr(t, "trans_type", None)
-                if trans_type is not None:
+                if trans_type:
                     val = str(trans_type).strip().lower()
                     if "income" in val:
                         return "income"
@@ -115,14 +114,13 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 sub = getattr(t, "subcategory", None)
                 cat = getattr(sub, "category", None) if sub else None
                 cat_type = getattr(cat, "category_type", None) if cat else None
-                if cat_type is not None:
+                if cat_type:
                     val = str(cat_type).strip().lower()
                     if "income" in val:
                         return "income"
                     if "expense" in val:
                         return "expense"
 
-                # Fallback: positive = income, negative = expense
                 amt = getattr(t, "amount", None)
                 try:
                     return "income" if (amt or Decimal("0")) >= 0 else "expense"
@@ -130,14 +128,9 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                     return "expense"
 
             def _deductible_expense_amount(t: Transaction, amt: Decimal) -> Decimal:
-                """Expense amount to count toward taxable expense totals."""
-                # Prefer a model-level deductible_amount if it exists (common: meals 50%)
                 da = getattr(t, "deductible_amount", None)
                 try:
-                    if callable(da):
-                        val = da()
-                    else:
-                        val = da
+                    val = da() if callable(da) else da
                     if val is not None:
                         return Decimal(val)
                 except Exception:
@@ -145,18 +138,23 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 return amt
 
             def _mark_pills(t: Transaction) -> None:
-                """Attach UI flags used by the template."""
                 sub = getattr(t, "subcategory", None)
-                sub_label = ""
-                if sub is not None:
-                    sub_label = (getattr(sub, "sub_cat", "") or str(sub)).strip().lower()
 
+                name = ""
+                deduction_rule = ""
                 schedule_c_line = ""
+
                 if sub is not None:
+                    name = (getattr(sub, "name", "") or "").strip().lower()
+                    deduction_rule = (getattr(sub, "deduction_rule", "") or "").strip().lower()
                     schedule_c_line = (getattr(sub, "schedule_c_line", "") or "").strip().lower()
 
-                label = f"{sub_label} {schedule_c_line}"
-                t._pill_meals = ("meal" in label)  # meals typically 50% deductible
+                label = f"{name} {schedule_c_line}"
+
+                # Meals should be driven by rule when available
+                t._pill_meals = (deduction_rule == "meals_50") or ("meal" in label)
+
+                # Gas/fuel is label-match for now
                 t._pill_gas = ("gas" in label) or ("fuel" in label)
 
             tx_list = list(qs)
@@ -175,16 +173,23 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
         net_income = income_total - expense_total
         taxable_net_income = taxable_income_total - taxable_expense_total
 
-        ctx["tx_list"] = tx_list
-        ctx["income_total"] = income_total
-        ctx["expense_total"] = expense_total
-        ctx["net_income"] = net_income
-        ctx["taxable_income_total"] = taxable_income_total
-        ctx["taxable_expense_total"] = taxable_expense_total
-        ctx["taxable_net_income"] = taxable_net_income
-        ctx["has_transactions"] = bool(tx_list)
-
+        ctx.update(
+            {
+                "tx_list": tx_list,
+                "income_total": income_total,
+                "expense_total": expense_total,
+                "net_income": net_income,
+                "taxable_income_total": taxable_income_total,
+                "taxable_expense_total": taxable_expense_total,
+                "taxable_net_income": taxable_net_income,
+                "has_transactions": bool(tx_list),
+            }
+        )
         return ctx
+
+
+
+
 
 def _get_item_formset(*, business):
     return inlineformset_factory(
