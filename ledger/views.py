@@ -294,9 +294,7 @@ class SubCategoryListView(LoginRequiredMixin, ListView):
             business=self.request.business,
             is_active=True,
         ).order_by(
-            "category__category_type",
-            "category__sort_order",
-            "category__name",
+            "category_type",
             "sort_order",
             "name",
         )

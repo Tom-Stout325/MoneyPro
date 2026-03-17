@@ -1,11 +1,26 @@
 
-Lots of errors from imports:
-See attached screenshot.Travel Gas says: Transport type not needed.
+Next Steps: Test new seeding
+Create SuperUser
+Create Invite
+Setup Up Airborne Images User/business
+
+Test Seeding:
+python manage.py shell
+python manage.py import_subcategories_csv --business-id 1 --csv "/docs/SubCategories.csv" --dry-run
+python manage.py import_subcategories_csv --business-id 1 --csv "/path/to/SubCategories.csv"
 
 
 
 
-May need to re-import everything
+Files you can delete if you are fully moving to CSV as the source of truth:
+ledger/management/commands/apply_subcategory_rules.py
+ledger/management/commands/build_subcategory_rules_json.py
+ledger/data/subcategory_rules.json
+
+
+
+
+
 
 
 

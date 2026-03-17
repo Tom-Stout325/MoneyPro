@@ -21,13 +21,17 @@ def _unique_slug(base: str, used: set[str], max_len: int) -> str:
     """
     Return a unique slug within the 'used' set.
     """
-    base = slugify(base)[:max_len] or "item"
+    base = slugify(base) or "item"
+    base = base[:max_len]
+
     slug = base
     i = 2
     while slug in used:
         suffix = f"-{i}"
-        slug = (base[: (max_len - len(suffix))] + suffix)
+        available = max(1, max_len - len(suffix))
+        slug = base[:available] + suffix
         i += 1
+
     used.add(slug)
     return slug
 
@@ -234,8 +238,7 @@ def seed_schedule_c_defaults(business) -> None:
     )
     used_sub_slugs = set(
         SubCategory.objects.filter(business=business)
-        .exclude(slug__isnull=True)
-        .exclude(slug="")
+        .exclude(slug__in=[None, ""])
         .values_list("slug", flat=True)
     )
 
@@ -373,7 +376,7 @@ def seed_schedule_c_defaults(business) -> None:
             "business": business,
             "category": parent,
             "name": sub_name,
-            "slug": _unique_slug(f"{parent.name}-{sub_name}", used_sub_slugs, sub_slug_max),
+            "slug": _unique_slug(f"{sub_name}", used_sub_slugs, sub_slug_max),
             "is_active": True,
         }
 
