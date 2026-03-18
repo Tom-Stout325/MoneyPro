@@ -8,7 +8,11 @@ Auth CSS:           static/css/auth.css
 
 
 
-
+heroku config:set USE_S3=True -a moneypro
+heroku config:set AWS_ACCESS_KEY_ID=AKIAZFJGRP44UFCZ3UTQ -a moneypro
+heroku config:set AWS_SECRET_ACCESS_KEY=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-a moneypro
+heroku config:set AWS_STORAGE_BUCKET_NAME=moneypro-prod-media -a moneypro
+heroku config:set AWS_S3_REGION_NAME=us-east-2 -a moneypro
 
 
 
