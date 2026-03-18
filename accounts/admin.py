@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from django.contrib import admin, messages
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.urls import path, reverse
 from django.shortcuts import get_object_or_404, redirect
 
 from .models import CompanyProfile, Invitation
-from .services.invitations import send_invitation_email
+from .services import send_invitation_email
+from .services.invitations import PostmarkEmailError
 
 
 class OwnedOneToOneAdminMixin:
@@ -124,20 +126,23 @@ class InvitationAdmin(admin.ModelAdmin):
 
     change_form_template = "admin/accounts/invitation/change_form.html"
 
-
     @admin.action(description="Send invite email")
     def send_invite_email(self, request, queryset):
         sent = 0
         renewed = 0
 
-        for inv in queryset:
-            inv_to_send = inv
-            if inv.is_expired or inv.is_used:
-                inv_to_send = Invitation.objects.create(email=inv.email, invited_by=inv.invited_by)
-                renewed += 1
+        try:
+            for inv in queryset:
+                inv_to_send = inv
+                if inv.is_expired or inv.is_used:
+                    inv_to_send = Invitation.objects.create(email=inv.email, invited_by=inv.invited_by)
+                    renewed += 1
 
-            self._send_invite(request, inv_to_send)
-            sent += 1
+                self._send_invite(request, inv_to_send)
+                sent += 1
+        except (ImproperlyConfigured, PostmarkEmailError) as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return
 
         messages.success(
             request,
@@ -175,7 +180,11 @@ class InvitationAdmin(admin.ModelAdmin):
             inv_to_send = Invitation.objects.create(email=inv.email, invited_by=inv.invited_by)
             renewed = True
 
-        self._send_invite(request, inv_to_send)
+        try:
+            self._send_invite(request, inv_to_send)
+        except (ImproperlyConfigured, PostmarkEmailError) as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return redirect(reverse("admin:accounts_invitation_change", args=[inv.pk]))
 
         if renewed:
             messages.success(request, f"Invite was renewed and sent to {inv_to_send.email}.")
@@ -185,19 +194,4 @@ class InvitationAdmin(admin.ModelAdmin):
         return redirect("../")
 
     def _send_invite(self, request, inv: Invitation) -> None:
-        invite_url = request.build_absolute_uri(
-            reverse("accounts:invite_start", args=[inv.token])
-        )
-
-        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or "webmaster@localhost"
-
-        send_mail(
-            subject="You're invited to MoneyPro",
-            message=(
-                "Use this link to create your account:\n\n"
-                f"{invite_url}\n\n"
-                f"This link expires on {inv.expires_at:%b %d, %Y}."
-            ),
-            from_email=from_email,
-            recipient_list=[inv.email],
-        )
+        send_invitation_email(invitation=inv, request_obj=request)

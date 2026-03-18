@@ -2,14 +2,14 @@ chmod +x scripts/zip_project.sh
 ./scripts/zip_project.sh
 
 
-
+Heroku Django Shell:  heroku run -a moneypro -- python manage.py shell
 
 Backup the poject:
 cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/accounts_email_overlay.zip
+unzip ~/Downloads/accounts_postmark_overlay.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
@@ -27,4 +27,5 @@ git add .
 git commit -m "Phase 1: introduce Business tenancy"
 git push
 
-heroku config:set EMAIL_HOST_PASSWORD='jvqgrwknpfvftmwj' -a moneypro
+
+
