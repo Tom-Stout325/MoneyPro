@@ -154,3 +154,7 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (  # noqa: F405
 # ------------------------------------------------------------------------------
 # Example:
 # ADMIN_IP_WHITELIST = env.list("ADMIN_IP_WHITELIST", default=[])
+
+
+ROOT_URLCONF = "project.urls"
+WSGI_APPLICATION = "project.wsgi.application"
