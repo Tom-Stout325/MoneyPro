@@ -1,14 +1,13 @@
 # accounts/admin.py 
 from __future__ import annotations
 
-from django.conf import settings
 from django.contrib import admin, messages
 from django.db.models import QuerySet
-from django.core.mail import send_mail
 from django.urls import path, reverse
 from django.shortcuts import get_object_or_404, redirect
 
 from .models import CompanyProfile, Invitation
+from .services.invitations import send_invitation_email
 
 
 class OwnedOneToOneAdminMixin:

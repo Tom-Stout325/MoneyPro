@@ -1,0 +1,14 @@
+Hello,
+
+You've been invited to join {{ site_name }}.
+
+Use the link below to create your account:
+{{ invite_url }}
+
+This invitation expires on {{ invitation.expires_at|date:"F j, Y \a\t g:i A T" }}.
+
+If you were not expecting this invitation, you can ignore this email.
+
+Thanks,
+{{ site_name }}
+{% if support_email %}{{ support_email }}{% endif %}

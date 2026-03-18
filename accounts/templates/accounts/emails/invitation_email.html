@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <body style="margin:0; padding:0; background:#f5f7fb; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f7fb; margin:0; padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 6px 24px rgba(15, 23, 42, 0.08);">
+            <tr>
+              <td style="background:#0d6efd; padding:20px 28px; color:#ffffff;">
+                <div style="font-size:12px; letter-spacing:.08em; text-transform:uppercase; opacity:.85;">Invitation</div>
+                <div style="font-size:28px; line-height:1.2; font-weight:700; margin-top:6px;">Join {{ site_name }}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
+                  Hello,
+                </p>
+                <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
+                  You've been invited to create your account for <strong>{{ site_name }}</strong>{% if business_name %} by <strong>{{ business_name }}</strong>{% endif %}.
+                </p>
+                <p style="margin:0 0 24px; font-size:16px; line-height:1.6;">
+                  Click the button below to accept your invitation and finish account setup.
+                </p>
+
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
+                  <tr>
+                    <td>
+                      <a href="{{ invite_url }}" style="display:inline-block; background:#0d6efd; color:#ffffff; text-decoration:none; font-weight:700; padding:14px 22px; border-radius:12px; font-size:16px;">
+                        Accept Invitation
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style="margin:0 0 20px; padding:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;">
+                  <div style="font-size:13px; color:#6b7280; margin-bottom:8px;">Or copy and paste this link into your browser:</div>
+                  <div style="font-size:14px; line-height:1.5; word-break:break-all; color:#111827;">{{ invite_url }}</div>
+                </div>
+
+                <p style="margin:0 0 8px; font-size:14px; line-height:1.6; color:#4b5563;">
+                  This invitation expires on <strong>{{ invitation.expires_at|date:"F j, Y \a\t g:i A T" }}</strong>.
+                </p>
+                <p style="margin:0; font-size:14px; line-height:1.6; color:#6b7280;">
+                  If you were not expecting this email, you can safely ignore it.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px; border-top:1px solid #e5e7eb; font-size:12px; line-height:1.6; color:#6b7280; background:#fbfdff;">
+                {{ site_name }}{% if support_email %} &middot; {{ support_email }}{% endif %}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
