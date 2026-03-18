@@ -18,10 +18,11 @@ ledger/management/commands/build_subcategory_rules_json.py
 ledger/data/subcategory_rules.json
 
 
+Heroku commands:
 
-
-
-    SECRET_KEY=(str, "x#7%9A!tR@3vC^$pE2&Jm6W+K=Zs)8H0YwL4F_dqU*QG1B"),
+Restart Server:   heroku ps:restart -a moneypro    
+Logs:             heroku logs --tail -a moneypro                                                 
+          
 
 
 
