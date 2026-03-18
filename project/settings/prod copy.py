@@ -7,14 +7,15 @@ from .base import env
 # ------------------------------------------------------------------------------
 DEBUG = False
 
-# MUST be provided in env vars
+# MUST be provided in Render env vars
 SECRET_KEY = env("SECRET_KEY")
 
-# Hostnames + your custom domains go here (comma-separated list in env)
+# Render hostnames + your custom domains go here (comma-separated list in env)
+# Example env: ALLOWED_HOSTS=moneypro.onrender.com,moneypro.com,www.moneypro.com
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 # ------------------------------------------------------------------------------
-# HTTPS / proxy
+# HTTPS / proxy (Render terminates TLS at the edge; Django sees http unless we trust headers)
 # ------------------------------------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
@@ -34,7 +35,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # ------------------------------------------------------------------------------
-# HSTS
+# HSTS (enable after you confirm HTTPS + domains are correct)
 # ------------------------------------------------------------------------------
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=60 * 60 * 24 * 30)  # 30 days
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
@@ -46,7 +47,7 @@ SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 X_FRAME_OPTIONS = "DENY"
 
 # ------------------------------------------------------------------------------
-# Database
+# Database (Render provides DATABASE_URL)
 # ------------------------------------------------------------------------------
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=120)
@@ -54,14 +55,9 @@ DATABASES["default"]["OPTIONS"] = DATABASES["default"].get("OPTIONS", {})
 DATABASES["default"]["OPTIONS"]["sslmode"] = env("DB_SSLMODE", default="require")
 
 # ------------------------------------------------------------------------------
-# Static files
-# WhiteNoise is configured in base.py via STORAGES.
-# Keep staticfiles on WhiteNoise/STATIC_ROOT for Heroku deploys.
+# Static files (WhiteNoise is configured in base.py via STORAGES)
 # ------------------------------------------------------------------------------
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-# Preserve base.py STORAGES so staticfiles continues to use WhiteNoise.
-STORAGES = STORAGES.copy()  # noqa: F405
 
 # ------------------------------------------------------------------------------
 # Media / Uploads (optional: S3). Leave local filesystem unless you set USE_S3=True.
@@ -88,12 +84,18 @@ if USE_S3:
     AWS_LOCATION_STATIC = env("AWS_LOCATION_STATIC", default="static")
     AWS_LOCATION_MEDIA = env("AWS_LOCATION_MEDIA", default="media")
 
-    # Override only media storage.
-    # Do NOT override staticfiles storage here; let WhiteNoise handle static assets.
-    STORAGES["default"] = {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-        "OPTIONS": {
-            "location": AWS_LOCATION_MEDIA,
+    STORAGES = {  # noqa: F405
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": AWS_LOCATION_MEDIA,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3StaticStorage",
+            "OPTIONS": {
+                "location": AWS_LOCATION_STATIC,
+            },
         },
     }
 
@@ -130,7 +132,7 @@ AXES_RESET_ON_SUCCESS = True
 AXES_ONLY_USER_FAILURES = True
 
 # ------------------------------------------------------------------------------
-# Logging
+# Logging (console; Render captures stdout/stderr)
 # ------------------------------------------------------------------------------
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
 LOGGING = {  # noqa: F405
@@ -148,10 +150,11 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (  # noqa: F405
 )
 
 # ------------------------------------------------------------------------------
-# Optional: protect admin
+# Optional: protect admin (recommended if you know your office IP/VPN ranges)
 # ------------------------------------------------------------------------------
 # Example:
 # ADMIN_IP_WHITELIST = env.list("ADMIN_IP_WHITELIST", default=[])
+
 
 ROOT_URLCONF = "project.urls"
 WSGI_APPLICATION = "project.wsgi.application"
