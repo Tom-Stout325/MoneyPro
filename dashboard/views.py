@@ -12,10 +12,17 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.management import call_command
 from core.models import BusinessMembership
-from ledger.models import Transaction, Category
+from ledger.models import Transaction, Category, SubCategory
 from invoices.models import Invoice
 from ledger.services import seed_schedule_c_defaults
 from django.db import transaction as db_transaction
+from dataclasses import dataclass
+
+from django.db import transaction
+from django.utils.text import slugify
+
+
+
 
 def _signed_amount_expr():
     """ORM expression: refunds become negative amounts."""
@@ -274,15 +281,6 @@ def seed_and_apply_rules(business):
     call_command("apply_subcategory_rules", business_id=business.id)
 
 
-# ledger/services.py
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-from django.db import transaction
-from django.utils.text import slugify
-
-from .models import Category, SubCategory
 
 
 def _field_max_length(model, field_name: str, fallback: int) -> int:
