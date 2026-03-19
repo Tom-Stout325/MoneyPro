@@ -5,20 +5,33 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.db.models import Q
 
 from ledger.models import SubCategory
 
 
 DEFAULT_RULES_PATH = Path(__file__).resolve().parents[2] / "data" / "subcategory_rules.json"
 
+RULE_FIELDS = [
+    "account_type",
+    "requires_asset",
+    "requires_receipt",
+    "requires_team",
+    "requires_job",
+    "requires_invoice_number",
+    "requires_contact",
+    "contact_role",
+    "requires_transport",
+    "requires_vehicle",
+    "is_capitalizable",
+]
 
-def _b(v) -> bool:
-    return bool(v)
+
+def _b(value) -> bool:
+    return bool(value)
 
 
 class Command(BaseCommand):
-    help = "Apply SubCategory rules (account_type + requires_* flags) from a JSON rules file."
+    help = "Apply SubCategory rules from a JSON rules file using slug-only matching."
 
     def add_arguments(self, parser):
         parser.add_argument("--business-id", type=int, required=True)
@@ -28,7 +41,11 @@ class Command(BaseCommand):
             default=str(DEFAULT_RULES_PATH),
             help="Path to subcategory_rules.json (defaults to ledger/data/subcategory_rules.json)",
         )
-        parser.add_argument("--dry-run", action="store_true", help="Show changes without saving.")
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show changes without saving.",
+        )
 
     def handle(self, *args, **options):
         business_id: int = options["business_id"]
@@ -38,117 +55,86 @@ class Command(BaseCommand):
         if not rules_path.exists():
             raise CommandError(f"Rules file not found: {rules_path}")
 
-        data = json.loads(rules_path.read_text(encoding="utf-8"))
-        rules: dict = data.get("rules") or {}
+        try:
+            data = json.loads(rules_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise CommandError(f"Invalid JSON in rules file: {rules_path}") from exc
+
+        rules = data.get("rules")
         if not isinstance(rules, dict) or not rules:
-            raise CommandError("Rules JSON has no 'rules' object (or it is empty).")
+            raise CommandError("Rules JSON must contain a non-empty 'rules' object.")
+
+        business_qs = SubCategory.objects.filter(business_id=business_id)
 
         updated = 0
         unchanged = 0
         missing: list[str] = []
-        multi_match: list[tuple[str, int]] = []
-
-        def find_targets(rule_slug: str, rule_name: str):
-            """Match subcategories for a business.
-
-            Matching order:
-            1) Exact name match (case-insensitive)
-            2) Exact slug match
-            3) Slug suffix match (because many slugs are category-name + '-' + subcat)
-            """
-            qs = SubCategory.objects.filter(business_id=business_id)
-
-            by_name = qs.filter(name__iexact=rule_name)
-            if by_name.exists():
-                return by_name
-
-            by_slug = qs.filter(slug__iexact=rule_slug)
-            if by_slug.exists():
-                return by_slug
-
-            suffix = f"-{rule_slug}"
-            return qs.filter(Q(slug__iendswith=suffix) | Q(slug__iexact=rule_slug))
 
         with transaction.atomic():
-            for rule_slug, rule in rules.items():
-                rule_name = (rule.get("name") or "").strip() or rule_slug
-                targets = find_targets(rule_slug, rule_name)
+            for rule_slug, rule in sorted(rules.items()):
+                if not isinstance(rule, dict):
+                    raise CommandError(f"Rule for slug '{rule_slug}' must be an object.")
 
-                if not targets.exists():
-                    missing.append(rule_name)
+                sc = business_qs.filter(slug=rule_slug).first()
+
+                if not sc:
+                    missing.append(rule_slug)
                     continue
 
-                if targets.count() > 1:
-                    multi_match.append((rule_name, targets.count()))
+                before = {field: getattr(sc, field, None) for field in RULE_FIELDS}
+                update_fields: list[str] = []
 
-                for sc in targets:
-                    before = {
-                        "account_type": sc.account_type,
-                        "requires_contact": sc.requires_contact,
-                        "contact_role": sc.contact_role,
-                        "requires_receipt": getattr(sc, "requires_receipt", False),
-                        "requires_team": getattr(sc, "requires_team", False),
-                        "requires_job": getattr(sc, "requires_job", False),
-                        "requires_invoice_number": getattr(sc, "requires_invoice_number", False),
-                        "requires_transport": sc.requires_transport,
-                        "requires_vehicle": sc.requires_vehicle,
-                        "requires_asset": getattr(sc, "requires_asset", False),
-                        "is_capitalizable": getattr(sc, "is_capitalizable", False),
-                    }
+                # account_type
+                if "account_type" in rule:
+                    new_value = str(rule["account_type"]).lower()
+                    if sc.account_type != new_value:
+                        sc.account_type = new_value
+                        update_fields.append("account_type")
 
-                    # Apply rule values
-                    sc.account_type = (rule.get("account_type") or sc.account_type or "expense").lower()
+                # simple booleans
+                boolean_fields = [
+                    "requires_asset",
+                    "requires_receipt",
+                    "requires_team",
+                    "requires_job",
+                    "requires_invoice_number",
+                    "requires_contact",
+                    "requires_transport",
+                    "requires_vehicle",
+                    "is_capitalizable",
+                ]
+                for field in boolean_fields:
+                    if field in rule and hasattr(sc, field):
+                        new_value = _b(rule[field])
+                        if getattr(sc, field) != new_value:
+                            setattr(sc, field, new_value)
+                            update_fields.append(field)
 
-                    if hasattr(sc, "requires_receipt"):
-                        sc.requires_receipt = _b(rule.get("requires_receipt"))
-                    if hasattr(sc, "requires_team"):
-                        sc.requires_team = _b(rule.get("requires_team"))
-                    if hasattr(sc, "requires_job"):
-                        sc.requires_job = _b(rule.get("requires_job"))
-                    if hasattr(sc, "requires_invoice_number"):
-                        sc.requires_invoice_number = _b(rule.get("requires_invoice_number"))
-                    if hasattr(sc, "requires_asset"):
-                        sc.requires_asset = _b(rule.get("requires_asset"))
+                # contact_role
+                if "contact_role" in rule and hasattr(sc, "contact_role"):
+                    new_value = str(rule["contact_role"]).lower()
+                    if sc.contact_role != new_value:
+                        sc.contact_role = new_value
+                        update_fields.append("contact_role")
 
-                    sc.requires_contact = _b(rule.get("requires_contact"))
-                    if hasattr(sc, "contact_role") and rule.get("contact_role"):
-                        sc.contact_role = str(rule.get("contact_role")).lower()
+                after = {field: getattr(sc, field, None) for field in RULE_FIELDS}
 
-                    sc.requires_transport = _b(rule.get("requires_transport"))
-                    sc.requires_vehicle = _b(rule.get("requires_vehicle"))
+                if not update_fields:
+                    unchanged += 1
+                    continue
 
-                    if hasattr(sc, "is_capitalizable"):
-                        sc.is_capitalizable = _b(rule.get("is_capitalizable"))
+                updated += 1
 
-                    after = {
-                        "account_type": sc.account_type,
-                        "requires_contact": sc.requires_contact,
-                        "contact_role": sc.contact_role,
-                        "requires_receipt": getattr(sc, "requires_receipt", False),
-                        "requires_team": getattr(sc, "requires_team", False),
-                        "requires_job": getattr(sc, "requires_job", False),
-                        "requires_invoice_number": getattr(sc, "requires_invoice_number", False),
-                        "requires_transport": sc.requires_transport,
-                        "requires_vehicle": sc.requires_vehicle,
-                        "requires_asset": getattr(sc, "requires_asset", False),
-                        "is_capitalizable": getattr(sc, "is_capitalizable", False),
-                    }
-
-                    if before == after:
-                        unchanged += 1
-                        continue
-
-                    updated += 1
-
-                    if dry_run:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"[DRY-RUN] Would update: {sc.name} (slug={sc.slug})\n  {before} -> {after}"
-                            )
+                if dry_run:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"[DRY-RUN] Would update: {sc.name} (slug={sc.slug})\n"
+                            f"  {before} -> {after}"
                         )
-                    else:
-                        sc.full_clean()
-                        sc.save()
+                    )
+                else:
+                    sc.full_clean()
+                    sc.save(update_fields=update_fields)
 
             if dry_run:
                 transaction.set_rollback(True)
@@ -158,9 +144,4 @@ class Command(BaseCommand):
         self.stdout.write(f"Unchanged: {unchanged}")
         self.stdout.write(f"Missing in DB: {len(missing)}")
         if missing:
-            show = sorted(set(missing))
-            self.stdout.write("  " + ", ".join(show[:25]) + (" ..." if len(show) > 25 else ""))
-        if multi_match:
-            self.stdout.write(self.style.WARNING(f"Multiple matches (applied to all): {len(multi_match)}"))
-            for name, count in sorted(multi_match, key=lambda x: (-x[1], x[0]))[:15]:
-                self.stdout.write(f"  {name}: {count}")
+            self.stdout.write("  " + ", ".join(missing[:25]) + (" ..." if len(missing) > 25 else ""))
