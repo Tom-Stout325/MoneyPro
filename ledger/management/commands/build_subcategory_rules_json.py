@@ -52,7 +52,7 @@ def _infer_contact_role(name: str, account_type: str, requires_contact: bool) ->
 
 
 class Command(BaseCommand):
-    help = "Build ledger/data/subcategory_rules.json from an Excel rules sheet (subcategory_list.xlsx)."
+    # help = "Build ledger/data/subcategory_rules.json from an Excel rules sheet (subcategory_list.xlsx)."
 
     def add_arguments(self, parser):
         parser.add_argument("--xlsx", type=str, required=True, help="Path to subcategory_list.xlsx")

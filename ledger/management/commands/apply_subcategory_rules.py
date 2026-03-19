@@ -39,7 +39,7 @@ class Command(BaseCommand):
             "--rules",
             type=str,
             default=str(DEFAULT_RULES_PATH),
-            help="Path to subcategory_rules.json (defaults to ledger/data/subcategory_rules.json)",
+         help="Path to subcategory_rules.json (defaults to ledger/data/subcategory_rules.json)",
         )
         parser.add_argument(
             "--dry-run",
