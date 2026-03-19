@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-
+from django.core.management import call_command
 from core.models import BusinessMembership
 from ledger.models import Transaction, Category
 from invoices.models import Invoice
@@ -327,9 +327,12 @@ def rebuild_defaults(request):
         SubCategory.objects.filter(business=business).delete()
         Category.objects.filter(business=business).delete()
         seed_schedule_c_defaults(business)
-
-    messages.success(request, "Defaults rebuilt successfully.")
-    return redirect("dashboard:home")
+        call_command(
+            "apply_subcategory_rules",
+            business_id=business.id
+        )
+        messages.success(request, "Defaults rebuilt successfully.")
+        return redirect("dashboard:home")
 
 
 
