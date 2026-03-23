@@ -281,6 +281,55 @@ def seed_and_apply_rules(business):
     call_command("apply_subcategory_rules", business_id=business.id)
 
 
+@login_required
+@require_POST
+def reseed_defaults(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("accounts:settings")
+
+    try:
+        seed_and_apply_rules(business)
+    except Exception as exc:
+        messages.error(request, f"Unable to seed defaults: {exc}")
+    else:
+        messages.success(request, "Defaults were seeded successfully.")
+
+    return redirect("accounts:settings")
+
+
+@login_required
+@require_POST
+def rebuild_defaults(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("accounts:settings")
+
+    if Transaction.objects.filter(business=business).exists():
+        messages.error(request, "Rebuild defaults is only allowed before any transactions exist.")
+        return redirect("accounts:settings")
+
+    try:
+        with db_transaction.atomic():
+            SubCategory.objects.filter(business=business).delete()
+            Category.objects.filter(business=business).delete()
+            seed_and_apply_rules(business)
+    except Exception as exc:
+        messages.error(request, f"Unable to rebuild defaults: {exc}")
+    else:
+        messages.success(request, "Defaults were rebuilt successfully.")
+
+    return redirect("accounts:settings")
 
 
 def _field_max_length(model, field_name: str, fallback: int) -> int:

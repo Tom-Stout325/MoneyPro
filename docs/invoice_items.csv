@@ -58,3 +58,7 @@ business_id,invoice_number,sort_order,description,quantity,unit_price,line_total
 1,250110,1,2nd Drone Operator,1,750,750,Contractors,Contract Labor
 1,250105,0,Drone Services,1,3250,3250,Drone Services,Gross Receipts
 1,250105,1,2nd Drone Operator,1,750,750,Contractors,Contract Labor
+1,220007,0,Drone Services,1,700,700,Drone Services,Gross Receipts
+1,220012,0,Drone Services,1,700,700,Drone Services,Gross Receipts
+1,220016,0,Drone Services,1,700,700,Drone Services,Gross Receipts
+1,240302,0,Drone Services,1,350,350,Drone Services,Gross Receipts

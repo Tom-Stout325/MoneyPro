@@ -19,10 +19,6 @@ class PostmarkEmailError(RuntimeError):
     """Raised when Postmark rejects or fails to accept an email request."""
 
 
-token = getattr(settings, "POSTMARK_SERVER_TOKEN", None)
-if not token:
-    raise ImproperlyConfigured("Missing required setting: POSTMARK_SERVER_TOKEN")
-
 
 def _get_setting(name: str, default: Any = None) -> Any:
     return getattr(settings, name, default)

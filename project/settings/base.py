@@ -30,6 +30,17 @@ DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 # ------------------------------------------------------------------------------
+# App / invitation email defaults
+# ------------------------------------------------------------------------------
+APP_NAME = env("APP_NAME", default="MoneyPro")
+DEFAULT_COMPANY_NAME = env("DEFAULT_COMPANY_NAME", default="Your Business")
+SITE_URL = env("SITE_URL", default="")
+POSTMARK_SERVER_TOKEN = env("POSTMARK_SERVER_TOKEN", default=None)
+POSTMARK_MESSAGE_STREAM = env("POSTMARK_MESSAGE_STREAM", default="outbound")
+REPLY_TO_EMAIL = env("REPLY_TO_EMAIL", default="")
+
+
+# ------------------------------------------------------------------------------
 # Application Definition
 # ------------------------------------------------------------------------------
 DJANGO_APPS = [
