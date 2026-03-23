@@ -9,23 +9,10 @@ cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/MoneyPro_transaction_date_amount_fix.zip
+unzip ~/Downloads/invoice_pdf_acrobat_fix.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
-
-git status
-
-python manage.py check
-python manage.py makemigrations
-python manage.py migrate
-
-python manage.py runserver
-
-
-git add .
-git commit -m "Phase 1: introduce Business tenancy"
-git push
 
 
 

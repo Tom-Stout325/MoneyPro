@@ -7,188 +7,286 @@
   <meta charset="utf-8" />
   <title>Invoice {{ invoice.invoice_number }}</title>
   <style>
-    @page { size: Letter; margin: 0.6in 0.6in 0.7in 0.6in; }
-    html, body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 11px; color: #111; }
-    .muted { color: #666; }
-    .row { display: flex; justify-content: space-between; gap: 18px; }
-    .col { flex: 1; }
-    .right { text-align: right; }
-    .h1 { font-size: 20px; font-weight: 700; margin: 0; }
-    .h2 { font-size: 12px; font-weight: 700; margin: 0; }
-    .box { border: 1px solid #e6e6e6; border-radius: 10px; padding: 10px; }
-    .spacer { height: 14px; }
-    .small { font-size: 10px; }
+    @page { size: Letter; margin: 0.6in; }
 
-    .header { align-items: flex-start; }
-    .brand { display: flex; gap: 12px; align-items: flex-start; }
-    .logo { width: 120px; height: auto; object-fit: contain; }
-
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px 6px; vertical-align: top; }
-    thead th { border-bottom: 1px solid #ddd; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
-    tbody td { border-bottom: 1px solid #f0f0f0; }
-    .num { text-align: right; white-space: nowrap; }
-
-    .blank-row {
-        height: 10px;
-        background-color: #FFFFFF; 
+    html, body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      color: #111;
     }
 
+    body {
+      margin: 0;
+      padding: 0;
+    }
 
-    .totals { width: 260px; margin-left: auto; }
-    .totals td { border: none; padding: 4px 0; }
-    .totals .label { color: #666; }
-    .totals .grand { font-weight: 800; font-size: 13px; }
+    .muted { color: #666; }
+    .small { font-size: 10px; }
+    .right { text-align: right; }
+    .spacer { height: 14px; }
 
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; font-size: 10px; color: #111; }
-:root{
-  /* Subtle brand accent. Adjust once, used everywhere. */
-  --brand-accent: #2b6cb0; /* a calm blue */
-}
+    .h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+    }
 
-.invoice-thanks{
-  position: fixed;
-  bottom: 62px;  /* sits just above footer */
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 12px;
-  color: #444;
-  letter-spacing: 0.4px;
-}
+    .h2 {
+      font-size: 12px;
+      font-weight: 700;
+      margin: 0;
+    }
 
-.invoice-footer{
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 55px;
-  border-top: 1px solid #e9ecef;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #555;
-}
+    .box {
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      padding: 10px;
+    }
 
-.footer-center{
-  text-align: center;
-  letter-spacing: 0.2px;
-}
+    .header-table,
+    .info-table,
+    .items-table,
+    .totals-table,
+    .footer-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
 
-.footer-strong{
-  font-weight: 600;
-  color: #222;
-}
+    .header-left,
+    .header-right,
+    .info-left,
+    .info-right {
+      vertical-align: top;
+    }
 
-.footer-divider{
-  margin: 0 10px;
-  color: var(--brand-accent);
-  opacity: 0.55; /* subtle */
-  font-weight: 700;
-}
+    .header-right {
+      text-align: right;
+      width: 210px;
+    }
 
+    .logo {
+      width: 120px;
+      height: auto;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .company-block {
+      line-height: 1.45;
+    }
+
+    .info-left,
+    .info-right {
+      width: 50%;
+    }
+
+    .info-split td {
+      vertical-align: top;
+      width: 50%;
+    }
+
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .meta-table td {
+      padding: 4px 0;
+      vertical-align: top;
+    }
+
+    .meta-table td:last-child {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .items-table th,
+    .items-table td {
+      padding: 8px 6px;
+      vertical-align: top;
+    }
+
+    .items-table thead th {
+      border-bottom: 1px solid #ddd;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #555;
+      text-align: left;
+    }
+
+    .items-table tbody td {
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .items-table .num,
+    .totals-table .num {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .totals-wrap {
+      margin-top: 14px;
+    }
+
+    .totals-table {
+      width: 260px;
+      margin-left: auto;
+    }
+
+    .totals-table td {
+      border: none;
+      padding: 4px 0;
+    }
+
+    .totals-table .divider td {
+      padding: 0;
+      height: 8px;
+      border-top: 1px solid #cfcfcf;
+    }
+
+    .totals-table .label {
+      color: #666;
+    }
+
+    .totals-table .grand {
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .footer-space {
+      height: 24px;
+    }
+
+    .thanks {
+      text-align: center;
+      font-size: 12px;
+      color: #444;
+      margin-top: 18px;
+      margin-bottom: 10px;
+      letter-spacing: 0.2px;
+    }
+
+    .footer {
+      border-top: 1px solid #e9ecef;
+      padding-top: 10px;
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .footer-divider {
+      margin: 0 10px;
+      color: #2b6cb0;
+      opacity: 0.55;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="row header">
-    <div class="col">
-      <div class="brand">
+  <table class="header-table">
+    <tr>
+      <td class="header-left">
         {% if company and company.logo %}
           <img class="logo" src="{{ company.logo.url }}" alt="Logo" />
         {% endif %}
-        <div>
-          <br><br><br>
+
+        <div class="company-block">
           <div class="h2">{% if company %}{{ company.company_name }}{% else %}{{ business.name }}{% endif %}</div>
+
           {% if company %}
             <div class="muted small">
-              {% if company.phone %}{{ company.phone_display }}{% endif %}<br>
-              {% if company.billing_email %}{% if company.phone %}{% endif %}{{ company.billing_email }}{% endif %}
-              {% if company.website %}{% if company.phone or company.billing_email %} · {% endif %}{{ company.website }}{% endif %}
+              {% if company.phone %}{{ company.phone_display }}{% endif %}
+              {% if company.billing_email %}<br>{{ company.billing_email }}{% endif %}
+              {% if company.website %}{{ company.website }}{% endif %}
             </div>
+
             {% if company.address_line1 or company.city %}
-              <div class="muted small">
+              <div class="muted small" style="margin-top: 4px;">
                 {{ company.address_line1 }}{% if company.address_line2 %}, {{ company.address_line2 }}{% endif %}<br>
                 {{ company.city }}{% if company.state %}, {{ company.state }}{% endif %} {{ company.postal_code }}
               </div>
             {% endif %}
           {% endif %}
         </div>
-      </div>
-    </div>
+      </td>
 
-    <div class="col right">
-      <div class="h1">Invoice</div>
-      <div class="h2"># {{ invoice.invoice_number|default:"(draft)" }}</div>
-      {% comment %} <div class="small muted">Status: <span class="pill">{{ invoice.get_status_display }}</span></div> {% endcomment %}
-    </div>
-  </div>
-
-  <div class="spacer"></div>
-
-  <!-- Bill to + meta -->
-  <div class="row">
-    <div class="col box">
-      <div class="h2">Bill To</div>
-      <div class="spacer" style="height:6px"></div>
-
-      {% if invoice.bill_to_name %}
-        <div><strong>{{ invoice.bill_to_name }}</strong></div>
-        {% if invoice.bill_to_email %}<div class="muted">{{ invoice.bill_to_email }}</div>{% endif %}
-        {% if invoice.bill_to_address1 %}<div class="muted">{{ invoice.bill_to_address1 }}</div>{% endif %}
-        {% if invoice.bill_to_address2 %}<div class="muted">{{ invoice.bill_to_address2 }}</div>{% endif %}
-        <div class="muted">
-          {{ invoice.bill_to_city }}{% if invoice.bill_to_state %}, {{ invoice.bill_to_state }}{% endif %} {{ invoice.bill_to_postal_code }}
-        </div>
-      {% else %}
-        <div><strong>{{ invoice.contact.display_name }}</strong></div>
-        {% if invoice.contact.email %}<div class="muted">{{ invoice.contact.email }}</div>{% endif %}
-        {% if invoice.contact.address1 %}<div class="muted">{{ invoice.contact.address1 }}</div>{% endif %}
-        {% if invoice.contact.address2 %}<div class="muted">{{ invoice.contact.address2 }}</div>{% endif %}
-        <div class="muted">
-          {{ invoice.contact.city }}{% if invoice.contact.state %}, {{ invoice.contact.state }}{% endif %} {{ invoice.contact.zip_code }}
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="col box">
-      <div class="h2">Details</div>
-      <div class="spacer" style="height:6px"></div>
-      <table>
-        <tr>
-          <td class="muted">Issue date</td>
-          <td class="right">{{ invoice.issue_date|date:"m/d/Y" }}</td>
-        </tr>
-        <tr>
-          <td class="muted">Due date</td>
-          <td class="right">{% if invoice.due_date %}{{ invoice.due_date|date:"m/d/Y" }}{% else %}—{% endif %}</td>
-        </tr>
-        <tr>
-          <td class="muted">Job</td>
-          <td class="right">{% if invoice.job %}{{ invoice.job.label }}{% else %}—{% endif %}</td>
-        </tr>
-        <tr>
-          <td class="muted">Location</td>
-          <td class="right">{% if invoice.location %}{{ invoice.location }}{% else %}—{% endif %}</td>
-        </tr>
-      </table>
-    </div>
-  </div>
+      <td class="header-right">
+        <div class="h1">Invoice</div>
+        <div class="h2"># {{ invoice.invoice_number|default:"(draft)" }}</div>
+      </td>
+    </tr>
+  </table>
 
   <div class="spacer"></div>
 
-  <!-- Line items -->
+  <table class="info-table info-split">
+    <tr>
+      <td class="info-left" style="padding-right: 9px;">
+        <div class="box">
+          <div class="h2">Bill To</div>
+          <div class="spacer" style="height:6px"></div>
+
+          {% if invoice.bill_to_name %}
+            <div><strong>{{ invoice.bill_to_name }}</strong></div>
+            {% if invoice.bill_to_email %}<div class="muted">{{ invoice.bill_to_email }}</div>{% endif %}
+            {% if invoice.bill_to_address1 %}<div class="muted">{{ invoice.bill_to_address1 }}</div>{% endif %}
+            {% if invoice.bill_to_address2 %}<div class="muted">{{ invoice.bill_to_address2 }}</div>{% endif %}
+            <div class="muted">
+              {{ invoice.bill_to_city }}{% if invoice.bill_to_state %}, {{ invoice.bill_to_state }}{% endif %} {{ invoice.bill_to_postal_code }}
+            </div>
+          {% else %}
+            <div><strong>{{ invoice.contact.display_name }}</strong></div>
+            {% if invoice.contact.email %}<div class="muted">{{ invoice.contact.email }}</div>{% endif %}
+            {% if invoice.contact.address1 %}<div class="muted">{{ invoice.contact.address1 }}</div>{% endif %}
+            {% if invoice.contact.address2 %}<div class="muted">{{ invoice.contact.address2 }}</div>{% endif %}
+            <div class="muted">
+              {{ invoice.contact.city }}{% if invoice.contact.state %}, {{ invoice.contact.state }}{% endif %} {{ invoice.contact.zip_code }}
+            </div>
+          {% endif %}
+        </div>
+      </td>
+
+      <td class="info-right" style="padding-left: 9px;">
+        <div class="box">
+          <div class="h2">Details</div>
+          <div class="spacer" style="height:6px"></div>
+
+          <table class="meta-table">
+            <tr>
+              <td class="muted">Issue date</td>
+              <td>{{ invoice.issue_date|date:"m/d/Y" }}</td>
+            </tr>
+            <tr>
+              <td class="muted">Due date</td>
+              <td>{% if invoice.due_date %}{{ invoice.due_date|date:"m/d/Y" }}{% else %}—{% endif %}</td>
+            </tr>
+            <tr>
+              <td class="muted">Job</td>
+              <td>{% if invoice.job %}{{ invoice.job.label }}{% else %}—{% endif %}</td>
+            </tr>
+            <tr>
+              <td class="muted">Location</td>
+              <td>{% if invoice.location %}{{ invoice.location }}{% else %}—{% endif %}</td>
+            </tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="spacer"></div>
+
   <div class="box">
-    <table>
+    <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 48%">Description</th>
-          <th style="width: 18%">Category</th>
-          <th class="num" style="width: 10%">Qty</th>
-          <th class="num" style="width: 12%">Rate</th>
-          <th class="num" style="width: 12%">Amount</th>
+          <th style="width: 48%;">Description</th>
+          <th style="width: 18%;">Category</th>
+          <th class="num" style="width: 10%;">Qty</th>
+          <th class="num" style="width: 12%;">Rate</th>
+          <th class="num" style="width: 12%;">Amount</th>
         </tr>
       </thead>
       <tbody>
@@ -197,7 +295,7 @@
             <td>
               <div><strong>{{ item.description }}</strong></div>
               {% if invoice.memo and forloop.first %}
-                <div class="muted small" style="margin-top:4px">{{ invoice.memo|linebreaksbr }}</div>
+                <div class="muted small" style="margin-top:4px;">{{ invoice.memo|linebreaksbr }}</div>
               {% endif %}
             </td>
             <td class="muted">{% if item.subcategory %}{{ item.subcategory.name }}{% else %}—{% endif %}</td>
@@ -206,31 +304,29 @@
             <td class="num"><strong>${{ item.line_total|floatformat:2|intcomma }}</strong></td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="muted">No line items.</td></tr>
+          <tr>
+            <td colspan="5" class="muted">No line items.</td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
 
-    <div class="spacer" style="height:10px"></div>
-<br><br>
-    <table class="totals">
-    
-      <tr class="blank-row"></tr>
-        <td>________________________</td>
-        <td>___________________</td>
-      </tr>
-      <tr>
-        <td class="label grand">Invoice Total</td>
-        <td class="num grand">${{ invoice.total|floatformat:2|intcomma }}</td>
-      </tr>
-    </table>
+    <div class="totals-wrap">
+      <table class="totals-table">
+        <tr class="divider">
+          <td colspan="2"></td>
+        </tr>
+        <tr>
+          <td class="label grand">Invoice Total</td>
+          <td class="num grand">${{ invoice.total|floatformat:2|intcomma }}</td>
+        </tr>
+      </table>
+    </div>
   </div>
 
-  <div class="invoice-thanks">
-  Thank you for your business!
-</div>
-<footer class="invoice-footer">
-  <div class="footer-center">
+  <div class="thanks">Thank you for your business!</div>
+
+  <div class="footer">
     {% if company %}
       {{ company.company_name }}
     {% else %}
@@ -257,11 +353,6 @@
       {% endif %}
     {% endwith %}
   </div>
-</footer>
-
-
-
-
 
 </body>
 </html>
