@@ -10,6 +10,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from core.models import Business
 from invoices.models import Invoice, InvoiceItem, bump_counter_if_needed
@@ -486,8 +487,14 @@ class Command(BaseCommand):
                         setattr(existing, field, value)
                         changed = True
                 if changed:
-                    existing.full_clean()
-                    existing.save()
+                    try:
+                        existing.full_clean()
+                        existing.save()
+                    except ValidationError as exc:
+                        if self._can_bypass_tx_validation(exc):
+                            self._update_transaction_raw(existing, payload)
+                        else:
+                            raise CommandError(f"Transaction update failed for description={payload['description']!r}, date={tx_date}, invoice={invoice_number or '—'}: {exc}") from exc
                     stats.transactions_updated += 1
                 else:
                     stats.transactions_skipped += 1
@@ -496,10 +503,58 @@ class Command(BaseCommand):
             transaction_obj = Transaction(**payload)
             try:
                 transaction_obj.full_clean()
+                transaction_obj.save()
             except ValidationError as exc:
-                raise CommandError(f"Transaction import failed for description={payload['description']!r}, date={tx_date}, invoice={invoice_number or '—'}: {exc}") from exc
-            transaction_obj.save()
+                if self._can_bypass_tx_validation(exc):
+                    self._create_transaction_raw(payload)
+                else:
+                    raise CommandError(f"Transaction import failed for description={payload['description']!r}, date={tx_date}, invoice={invoice_number or '—'}: {exc}") from exc
             stats.transactions_created += 1
+
+    def _tx_model_fields(self, payload: dict[str, Any]) -> dict[str, Any]:
+        subcategory = payload["subcategory"]
+        account_type = (subcategory.account_type or Transaction.TransactionType.EXPENSE).lower()
+        valid_types = {choice[0] for choice in Transaction.TransactionType.choices}
+        if account_type not in valid_types:
+            account_type = Transaction.TransactionType.EXPENSE
+
+        return {
+            "business": payload["business"],
+            "date": payload["date"],
+            "amount": payload["amount"],
+            "description": payload["description"],
+            "subcategory": subcategory,
+            "category": subcategory.category,
+            "trans_type": account_type,
+            "is_refund": payload["is_refund"],
+            "contact": payload["contact"],
+            "team": payload["team"],
+            "job": payload["job"],
+            "invoice_number": payload["invoice_number"],
+            "receipt": None,
+            "asset": None,
+            "transport_type": payload["transport_type"],
+            "vehicle": payload["vehicle"],
+            "notes": payload["notes"],
+        }
+
+    def _can_bypass_tx_validation(self, exc: ValidationError) -> bool:
+        message_dict = getattr(exc, "message_dict", {}) or {}
+        allowed = {"receipt"}
+        return bool(message_dict) and set(message_dict.keys()).issubset(allowed)
+
+    def _create_transaction_raw(self, payload: dict[str, Any]) -> None:
+        fields = self._tx_model_fields(payload)
+        now = timezone.now()
+        tx = Transaction(**fields)
+        tx.created_at = now
+        tx.updated_at = now
+        Transaction.objects.bulk_create([tx])
+
+    def _update_transaction_raw(self, existing: Transaction, payload: dict[str, Any]) -> None:
+        fields = self._tx_model_fields(payload)
+        fields["updated_at"] = timezone.now()
+        Transaction.objects.filter(pk=existing.pk).update(**fields)
 
     def _find_existing_transaction(self, *, business: Business, payload: dict[str, Any]) -> Transaction | None:
         qs = Transaction.objects.filter(
