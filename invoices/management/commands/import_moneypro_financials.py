@@ -460,6 +460,15 @@ class Command(BaseCommand):
                         client=invoice.contact if invoice else (contact if contact != refs["unknown_contact"] else None),
                         stats=stats,
                     )
+                else:
+                    job = self._get_or_create_job(
+                        business=business,
+                        refs=refs,
+                        label=f"General-{tx_date.year}",
+                        year=tx_date.year,
+                        client=invoice.contact if invoice else (contact if contact != refs["unknown_contact"] else None),
+                        stats=stats,
+                    )
 
             payload = {
                 "business": business,
