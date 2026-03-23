@@ -57,12 +57,7 @@ class TransactionForm(forms.ModelForm):
         self.fields["contact"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
         self.fields["contact"].label = "Contact"
         self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
-        recent_jobs_qs = Job.objects.filter(business=self.business).order_by("-is_active", "-job_year", "-job_seq", "-created_at", "label")
-        recent_job_ids = list(recent_jobs_qs.values_list("pk", flat=True)[:12])
-        if self.instance and self.instance.pk and self.instance.job_id:
-            recent_job_ids.append(self.instance.job_id)
-        self.fields["job"].queryset = Job.objects.filter(pk__in=set(recent_job_ids)).order_by("-is_active", "-job_year", "-job_seq", "-created_at", "label")
-        self.fields["job"].help_text = "Showing the 12 most recent jobs. Edit older transactions will still include their saved job."
+        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "-job_year", "job_number", "label")
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
 
@@ -77,10 +72,20 @@ class TransactionForm(forms.ModelForm):
         self.fields["vehicle"].required = False
         self.fields["vehicle"].widget.attrs.setdefault("class", "form-select")
 
+        self.fields["date"].widget = forms.DateInput(
+            attrs={"type": "date", "class": "form-control"},
+            format="%Y-%m-%d",
+        )
+        self.fields["date"].input_formats = ["%Y-%m-%d", "%m-%d-%Y", "%m/%d/%Y"]
+        if not (self.instance and self.instance.pk) and not self.is_bound and not self.initial.get("date"):
+            self.initial["date"] = timezone.localdate()
+
         self.fields["amount"].widget.attrs.setdefault("class", "form-control")
         self.fields["amount"].widget.attrs.setdefault("inputmode", "decimal")
         self.fields["amount"].widget.attrs.setdefault("step", "0.01")
-
+        self.fields["amount"].widget.attrs.setdefault("placeholder", "")
+        if not (self.instance and self.instance.pk) and not self.is_bound:
+            self.initial["amount"] = ""
 
         # Asset dropdown (used for depreciation / 179 / capitalizable items)
         self.fields["asset"].required = False
