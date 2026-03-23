@@ -57,7 +57,12 @@ class TransactionForm(forms.ModelForm):
         self.fields["contact"].queryset = Contact.objects.filter(business=self.business).order_by("display_name")
         self.fields["contact"].label = "Contact"
         self.fields["team"].queryset = Team.objects.filter(business=self.business, is_active=True).order_by("sort_order", "name")
-        self.fields["job"].queryset = Job.objects.filter(business=self.business).order_by("-is_active", "-job_year", "job_number", "label")
+        recent_jobs_qs = Job.objects.filter(business=self.business).order_by("-is_active", "-job_year", "-job_seq", "-created_at", "label")
+        recent_job_ids = list(recent_jobs_qs.values_list("pk", flat=True)[:12])
+        if self.instance and self.instance.pk and self.instance.job_id:
+            recent_job_ids.append(self.instance.job_id)
+        self.fields["job"].queryset = Job.objects.filter(pk__in=set(recent_job_ids)).order_by("-is_active", "-job_year", "-job_seq", "-created_at", "label")
+        self.fields["job"].help_text = "Showing the 12 most recent jobs. Edit older transactions will still include their saved job."
 
         self.fields["is_refund"].widget.attrs.setdefault("class", "form-check-input")
 

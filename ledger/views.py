@@ -566,34 +566,13 @@ def subcategory_requirements(request, pk: int):
     if sc.account_type:
         hints.append(f"Account type: {sc.get_account_type_display()}.")
 
-    if sc.requires_asset:
-        hints.append("Asset is required for this Sub-Category.")
-
-    if sc.requires_receipt:
-        hints.append("Receipt is required for this Sub-Category.")
-
-    if sc.requires_invoice_number:
-        hints.append("Invoice Number is required for this Sub-Category.")
-
-    if sc.requires_team:
-        hints.append("Team is required for this Sub-Category.")
-
-    if sc.requires_job:
-        hints.append("Job is required for this Sub-Category.")
-
     if sc.requires_transport:
-        hints.append("Transport is required for this Sub-Category.")
         hints.append("Choose Business vehicle to select a Vehicle.")
-
-    if sc.requires_vehicle and not sc.requires_transport:
-        hints.append("Vehicle is required for this Sub-Category.")
 
     if sc.requires_contact:
         role = (sc.contact_role or "any")
         if role and role != "any":
-            hints.append(f"Contact required (role: {role}).")
-        else:
-            hints.append("Contact is required for this Sub-Category.")
+            hints.append(f"Contact role needed: {role}.")
 
     payload = {
         "id": sc.pk,

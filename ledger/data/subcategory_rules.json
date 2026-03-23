@@ -644,8 +644,8 @@
       "name": "Travel: Airfare",
       "requires_asset": false,
       "requires_contact": false,
-      "requires_invoice_number": false,
-      "requires_job": false,
+      "requires_invoice_number": true,
+      "requires_job": true,
       "requires_receipt": true,
       "requires_team": true,
       "requires_transport": false,
@@ -708,7 +708,7 @@
       "requires_job": true,
       "requires_receipt": true,
       "requires_team": true,
-      "requires_transport": true,
+      "requires_transport": false,
       "requires_vehicle": false,
       "slug": "travel-meals"
     },
@@ -723,7 +723,7 @@
       "requires_job": true,
       "requires_receipt": true,
       "requires_team": true,
-      "requires_transport": true,
+      "requires_transport": false,
       "requires_vehicle": false,
       "slug": "travel-other"
     },
