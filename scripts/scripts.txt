@@ -27,8 +27,9 @@ git add .
 git commit -m "Phase 1: introduce Business tenancy"
 git push
 
-
-
-from business.models import Business
-
-Business.objects.all().values("id", "name")
+python manage.py import_moneypro_financials \
+  --business-id 1 \
+  --invoices-csv invoices/management/commands/invoices.final.csv \
+  --items-csv invoices/management/commands/invoice_items.csv \
+  --transactions-csv invoices/management/commands/transactions-all.cleaned.csv \
+  --dry-run

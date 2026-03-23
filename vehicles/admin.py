@@ -33,5 +33,5 @@ class BusinessAdminMixin(admin.ModelAdmin):
 @admin.register(Vehicle)
 class VehicleAdmin(BusinessAdminMixin):
     list_display = ("label", "is_active")
-    list_filter = ("label")
-    search_fields = ("label",)
+    list_filter = ("label", "is_active")
+    search_fields = ("label", "is_active")
