@@ -478,7 +478,17 @@ class Transaction(BusinessOwnedModelMixin):
         sc = getattr(self, "subcategory", None)
         if not sc:
             return False
-        return (sc.deduction_rule or "").strip().lower() == SubCategory.DeductionRule.MEALS_50
+
+        rule = (sc.deduction_rule or "").strip().lower()
+        if rule == SubCategory.DeductionRule.MEALS_50:
+            return True
+
+        line = (sc.effective_schedule_c_line() or "").strip().lower()
+        if line == Category.ScheduleCLine.MEALS:
+            return True
+
+        name = (sc.name or "").strip().lower()
+        return "meal" in name
 
     def is_travel_gas(self) -> bool:
         sc = getattr(self, "subcategory", None)

@@ -198,17 +198,15 @@
 
                   <td class="d-none d-md-table-cell">
                     {% if t.subcategory %}
-                      {% with subname=t.subcategory.name|default_if_none:""|lower rule=t.subcategory.deduction_rule %}
-                        {{ t.subcategory.name|default:"—" }}
+                      {{ t.subcategory.name|default:"—" }}
 
-                        {% if rule == "meals_50" or "meal" in subname %}
-                          <span class="badge rounded-pill text-bg-warning ms-2">Meals 50%</span>
-                        {% endif %}
+                      {% if t._pill_meals %}
+                        <span class="badge rounded-pill text-bg-warning ms-2">Meals 50%</span>
+                      {% endif %}
 
-                        {% if "gas" in subname or "fuel" in subname %}
-                          <span class="badge rounded-pill text-bg-info ms-2">Fuel</span>
-                        {% endif %}
-                      {% endwith %}
+                      {% if t._pill_gas %}
+                        <span class="badge rounded-pill text-bg-info ms-2">Fuel</span>
+                      {% endif %}
                     {% else %}
                       <span class="text-muted">—</span>
                     {% endif %}
