@@ -474,6 +474,60 @@ class Transaction(BusinessOwnedModelMixin):
         return super().save(*args, **kwargs)
 
 
+    def is_meals_50(self) -> bool:
+        sc = getattr(self, "subcategory", None)
+        if not sc:
+            return False
+        return (sc.deduction_rule or "").strip().lower() == SubCategory.DeductionRule.MEALS_50
+
+    def is_travel_gas(self) -> bool:
+        sc = getattr(self, "subcategory", None)
+        if not sc:
+            return False
+
+        name = (sc.name or "").strip().lower()
+        if name == "travel: gas":
+            return True
+
+        line = (sc.effective_schedule_c_line() or "").strip().lower()
+        return "gas" in name or "fuel" in name or line == Category.ScheduleCLine.CAR_TRUCK
+
+    def deductible_amount(self) -> Decimal:
+        """
+        Return the tax-deductible portion of this transaction.
+
+        Books/invoice-review totals should continue to use ``amount``.
+        Taxable / Schedule C totals should use this method.
+        """
+        amt = Decimal(self.amount or Decimal("0.00"))
+        sc = getattr(self, "subcategory", None)
+
+        if not sc:
+            return amt
+
+        rule = (sc.deduction_rule or "").strip().lower()
+
+        if rule == SubCategory.DeductionRule.NONDEDUCTIBLE:
+            return Decimal("0.00")
+
+        if self.is_meals_50():
+            return (amt * Decimal("0.50")).quantize(Decimal("0.01"))
+
+        if self.is_travel_gas():
+            transport = (self.transport_type or "").strip().lower()
+
+            if transport == "personal_vehicle":
+                return Decimal("0.00")
+
+            if transport == "rental_car":
+                return amt
+
+            # For business vehicles or any future valid transport type,
+            # keep the actual amount unless business rules say otherwise.
+            return amt
+
+        return amt
+
     @property
     def effective_amount(self) -> Decimal:
         """Amount with refund/reversal applied (refunds reduce totals)."""

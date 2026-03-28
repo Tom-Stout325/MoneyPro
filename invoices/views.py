@@ -138,24 +138,18 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 return amt
 
             def _mark_pills(t: Transaction) -> None:
-                sub = getattr(t, "subcategory", None)
+                is_meals_50 = getattr(t, "is_meals_50", None)
+                is_travel_gas = getattr(t, "is_travel_gas", None)
 
-                name = ""
-                deduction_rule = ""
-                schedule_c_line = ""
+                try:
+                    t._pill_meals = bool(is_meals_50()) if callable(is_meals_50) else False
+                except Exception:
+                    t._pill_meals = False
 
-                if sub is not None:
-                    name = (getattr(sub, "name", "") or "").strip().lower()
-                    deduction_rule = (getattr(sub, "deduction_rule", "") or "").strip().lower()
-                    schedule_c_line = (getattr(sub, "schedule_c_line", "") or "").strip().lower()
-
-                label = f"{name} {schedule_c_line}"
-
-                # Meals should be driven by rule when available
-                t._pill_meals = (deduction_rule == "meals_50") or ("meal" in label)
-
-                # Gas/fuel is label-match for now
-                t._pill_gas = ("gas" in label) or ("fuel" in label)
+                try:
+                    t._pill_gas = bool(is_travel_gas()) if callable(is_travel_gas) else False
+                except Exception:
+                    t._pill_gas = False
 
             tx_list = list(qs)
             for t in tx_list:
