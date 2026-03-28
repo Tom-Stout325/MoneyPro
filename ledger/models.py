@@ -474,48 +474,73 @@ class Transaction(BusinessOwnedModelMixin):
         return super().save(*args, **kwargs)
 
 
+    def _normalized_subcategory_slug(self) -> str:
+        sc = getattr(self, "subcategory", None)
+        if not sc:
+            return ""
+        return (getattr(sc, "slug", "") or "").strip().lower()
+
     def is_meals_50(self) -> bool:
+        """
+        True when this transaction should be treated as a 50% meals expense.
+
+        Preferred source of truth is ``deduction_rule``. We also keep stable
+        FlightPlan-style fallbacks so older seed data still works when meals are
+        clearly identified by slug, Schedule C line, or name.
+        """
         sc = getattr(self, "subcategory", None)
         if not sc:
             return False
 
-        rule = (sc.deduction_rule or "").strip().lower()
+        rule = (getattr(sc, "deduction_rule", "") or "").strip().lower()
         if rule == SubCategory.DeductionRule.MEALS_50:
             return True
 
-        line = (sc.effective_schedule_c_line() or "").strip().lower()
-        if line == Category.ScheduleCLine.MEALS:
+        slug = self._normalized_subcategory_slug()
+        if slug == "meals" or slug.endswith("-meals"):
             return True
 
-        name = (sc.name or "").strip().lower()
+        line = (sc.effective_schedule_c_line() or "").strip().lower()
+        if line in {Category.ScheduleCLine.MEALS, "24b", "meals"}:
+            return True
+
+        name = (getattr(sc, "name", "") or "").strip().lower()
         return "meal" in name
 
     def is_travel_gas(self) -> bool:
+        """
+        Detect travel fuel/gas using stable identifiers first, then safe name
+        fallbacks for existing data.
+        """
         sc = getattr(self, "subcategory", None)
         if not sc:
             return False
 
-        name = (sc.name or "").strip().lower()
-        if name == "travel: gas":
+        slug = self._normalized_subcategory_slug()
+        if slug in {"fuel", "gas", "travel-gas"}:
+            return True
+        if slug.endswith("-fuel") or slug.endswith("-gas"):
             return True
 
-        line = (sc.effective_schedule_c_line() or "").strip().lower()
-        return "gas" in name or "fuel" in name or line == Category.ScheduleCLine.CAR_TRUCK
+        name = (getattr(sc, "name", "") or "").strip().lower()
+        if name in {"travel: gas", "travel gas", "fuel"}:
+            return True
+        return "fuel" in name or "gas" in name
 
     def deductible_amount(self) -> Decimal:
         """
         Return the tax-deductible portion of this transaction.
 
-        Books/invoice-review totals should continue to use ``amount``.
+        Books / invoice-review totals should continue to use ``amount``.
         Taxable / Schedule C totals should use this method.
         """
-        amt = Decimal(self.amount or Decimal("0.00"))
+        amt = Decimal(self.amount or Decimal("0.00")).quantize(Decimal("0.01"))
         sc = getattr(self, "subcategory", None)
 
         if not sc:
             return amt
 
-        rule = (sc.deduction_rule or "").strip().lower()
+        rule = (getattr(sc, "deduction_rule", "") or "").strip().lower()
 
         if rule == SubCategory.DeductionRule.NONDEDUCTIBLE:
             return Decimal("0.00")
@@ -526,14 +551,16 @@ class Transaction(BusinessOwnedModelMixin):
         if self.is_travel_gas():
             transport = (self.transport_type or "").strip().lower()
 
-            if transport == "personal_vehicle":
-                return Decimal("0.00")
-
+            # Rental-car gas is deductible.
             if transport == "rental_car":
                 return amt
 
-            # For business vehicles or any future valid transport type,
-            # keep the actual amount unless business rules say otherwise.
+            # Personal-vehicle gas stays in books, but not in taxable totals.
+            if transport == "personal_vehicle":
+                return Decimal("0.00")
+
+            # For business vehicles or future travel modes, keep the full amount
+            # unless the business rules change later.
             return amt
 
         return amt
