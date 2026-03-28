@@ -17,10 +17,22 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, []),
 )
 
-# Optional: load local .env if present (Render will use real env vars)
+# Optional: load environment files if present.
+#
+# Load order:
+# 1. .env        -> shared project defaults
+# 2. .env.local  -> machine-local overrides (loaded last on purpose)
+#
+# This lets local development switch from SQLite to Postgres without changing
+# production settings or committing workstation-specific secrets.
 ENV_FILE = BASE_DIR / ".env"
+ENV_LOCAL_FILE = BASE_DIR / ".env.local"
+
 if ENV_FILE.exists():
     environ.Env.read_env(str(ENV_FILE))
+
+if ENV_LOCAL_FILE.exists():
+    environ.Env.read_env(str(ENV_LOCAL_FILE), overwrite=True)
 
 # ------------------------------------------------------------------------------
 # Core Security / Debug

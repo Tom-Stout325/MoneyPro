@@ -142,14 +142,14 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 is_travel_gas = getattr(t, "is_travel_gas", None)
 
                 try:
-                    t._pill_meals = bool(is_meals_50()) if callable(is_meals_50) else False
+                    t.pill_meals = bool(is_meals_50()) if callable(is_meals_50) else False
                 except Exception:
-                    t._pill_meals = False
+                    t.pill_meals = False
 
                 try:
-                    t._pill_gas = bool(is_travel_gas()) if callable(is_travel_gas) else False
+                    t.pill_gas = bool(is_travel_gas()) if callable(is_travel_gas) else False
                 except Exception:
-                    t._pill_gas = False
+                    t.pill_gas = False
 
             tx_list = list(qs)
             for t in tx_list:

@@ -200,11 +200,11 @@
                     {% if t.subcategory %}
                       {{ t.subcategory.name|default:"—" }}
 
-                      {% if t._pill_meals %}
+                      {% if t.pill_meals %}
                         <span class="badge rounded-pill text-bg-warning ms-2">Meals 50%</span>
                       {% endif %}
 
-                      {% if t._pill_gas %}
+                      {% if t.pill_gas %}
                         <span class="badge rounded-pill text-bg-info ms-2">Fuel</span>
                       {% endif %}
                     {% else %}
