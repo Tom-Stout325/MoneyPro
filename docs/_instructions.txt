@@ -230,153 +230,26 @@ heroku pg:psql -a moneypro
 Delete local db:                dropdb 12bytes_local
 Download production db/create local db/install production db:  heroku pg:pull postgresql-pointy-53117 12bytes_local -a moneypro
 
+from core.models import Business, BusinessMembership
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
+user = User.objects.get(username="tomstout")
+business = Business.objects.get(pk=2)   # imported Airborne Images business
 
+membership, created = BusinessMembership.objects.get_or_create(
+    user=user,
+    business=business,
+    defaults={
+        "role": BusinessMembership.Role.OWNER,
+        "is_active": True,
+    },
+)
 
-2026-03-28T01:49:16.856308+00:00 heroku[router]: at=info method=GET path="/transactions/" host=moneypro.12bytes.net request_id=321154fc-7f1a-1358-6ae9-79f8f04e6fc5 fwd="38.132.98.214" dyno=web.1 connect=0ms service=873ms status=200 bytes=59579 protocol=http2.0 tls=true tls_version=tls1.3
-2026-03-28T01:49:16.854669+00:00 app[web.1]: 10.1.18.208 - - [27/Mar/2026:21:49:16 -0400] "GET /transactions/ HTTP/1.1" 200 59579 "https://moneypro.12bytes.net/invoices/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
-2026-03-28T01:49:21.524307+00:00 heroku[router]: at=info method=GET path="/invoices/" host=moneypro.12bytes.net request_id=46f86a9e-cb34-7dd7-ca4f-782323273b0c fwd="38.132.98.214" dyno=web.1 connect=0ms service=713ms status=200 bytes=55907 protocol=http2.0 tls=true tls_version=tls1.3
-2026-03-28T01:49:21.522931+00:00 app[web.1]: 10.1.18.208 - - [27/Mar/2026:21:49:21 -0400] "GET /invoices/ HTTP/1.1" 200 55907 "https://moneypro.12bytes.net/transactions/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
-2026-03-28T01:49:30.505016+00:00 heroku[router]: at=info method=GET path="/invoices/" host=moneypro.12bytes.net request_id=b01145f8-18ca-877b-a1f1-5c5186178fbb fwd="38.132.98.214" dyno=web.1 connect=0ms service=40ms status=200 bytes=55907 protocol=http2.0 tls=true tls_version=tls1.3
-2026-03-28T01:49:30.503488+00:00 app[web.1]: 10.1.18.208 - - [27/Mar/2026:21:49:30 -0400] "GET /invoices/ HTTP/1.1" 200 55907 "https://moneypro.12bytes.net/invoices/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
-2026-03-28T01:49:35.449304+00:00 heroku[router]: at=info method=GET path="/invoices/813/" host=moneypro.12bytes.net request_id=9bd92409-1115-c2df-981e-a9294ab0709d fwd="38.132.98.214" dyno=web.1 connect=0ms service=41ms status=500 bytes=145 protocol=http2.0 tls=true tls_version=tls1.3
-2026-03-28T01:49:35.448562+00:00 app[web.1]: Internal Server Error: /invoices/813/
-2026-03-28T01:49:35.448593+00:00 app[web.1]: Traceback (most recent call last):
-2026-03-28T01:49:35.448593+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/smartif.py", line 180, in translate_token
-2026-03-28T01:49:35.448594+00:00 app[web.1]: op = OPERATORS[token]
-2026-03-28T01:49:35.448594+00:00 app[web.1]: ~~~~~~~~~^^^^^^^
-2026-03-28T01:49:35.448594+00:00 app[web.1]: KeyError: 't._pill_meals'
-2026-03-28T01:49:35.448595+00:00 app[web.1]: 
-2026-03-28T01:49:35.448596+00:00 app[web.1]: During handling of the above exception, another exception occurred:
-2026-03-28T01:49:35.448596+00:00 app[web.1]: 
-2026-03-28T01:49:35.448596+00:00 app[web.1]: Traceback (most recent call last):
-2026-03-28T01:49:35.448597+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 825, in __init__
-2026-03-28T01:49:35.448597+00:00 app[web.1]: self.literal = float(var)
-2026-03-28T01:49:35.448597+00:00 app[web.1]: ^^^^^^^^^^
-2026-03-28T01:49:35.448598+00:00 app[web.1]: ValueError: could not convert string to float: 't._pill_meals'
-2026-03-28T01:49:35.448598+00:00 app[web.1]: 
-2026-03-28T01:49:35.448599+00:00 app[web.1]: During handling of the above exception, another exception occurred:
-2026-03-28T01:49:35.448599+00:00 app[web.1]: 
-2026-03-28T01:49:35.448599+00:00 app[web.1]: Traceback (most recent call last):
-2026-03-28T01:49:35.448599+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 841, in __init__
-2026-03-28T01:49:35.448600+00:00 app[web.1]: self.literal = mark_safe(unescape_string_literal(var))
-2026-03-28T01:49:35.448600+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448600+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/utils/functional.py", line 231, in wrapper
-2026-03-28T01:49:35.448601+00:00 app[web.1]: return func(*args, **kwargs)
-2026-03-28T01:49:35.448601+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448602+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/utils/text.py", line 448, in unescape_string_literal
-2026-03-28T01:49:35.448602+00:00 app[web.1]: raise ValueError("Not a string literal: %r" % s)
-2026-03-28T01:49:35.448602+00:00 app[web.1]: ValueError: Not a string literal: 't._pill_meals'
-2026-03-28T01:49:35.448602+00:00 app[web.1]: 
-2026-03-28T01:49:35.448603+00:00 app[web.1]: During handling of the above exception, another exception occurred:
-2026-03-28T01:49:35.448603+00:00 app[web.1]: 
-2026-03-28T01:49:35.448603+00:00 app[web.1]: Traceback (most recent call last):
-2026-03-28T01:49:35.448603+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
-2026-03-28T01:49:35.448603+00:00 app[web.1]: response = get_response(request)
-2026-03-28T01:49:35.448604+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448604+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/core/handlers/base.py", line 220, in _get_response
-2026-03-28T01:49:35.448604+00:00 app[web.1]: response = response.render()
-2026-03-28T01:49:35.448604+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448611+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/response.py", line 114, in render
-2026-03-28T01:49:35.448611+00:00 app[web.1]: self.content = self.rendered_content
-2026-03-28T01:49:35.448611+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448611+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/response.py", line 90, in rendered_content
-2026-03-28T01:49:35.448612+00:00 app[web.1]: template = self.resolve_template(self.template_name)
-2026-03-28T01:49:35.448612+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448612+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/response.py", line 72, in resolve_template
-2026-03-28T01:49:35.448612+00:00 app[web.1]: return select_template(template, using=self.using)
-2026-03-28T01:49:35.448612+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448613+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/loader.py", line 42, in select_template
-2026-03-28T01:49:35.448613+00:00 app[web.1]: return engine.get_template(template_name)
-2026-03-28T01:49:35.448613+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448614+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/backends/django.py", line 79, in get_template
-2026-03-28T01:49:35.448614+00:00 app[web.1]: return Template(self.engine.get_template(template_name), self)
-2026-03-28T01:49:35.448614+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448615+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/engine.py", line 177, in get_template
-2026-03-28T01:49:35.448615+00:00 app[web.1]: template, origin = self.find_template(template_name)
-2026-03-28T01:49:35.448615+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448615+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/engine.py", line 159, in find_template
-2026-03-28T01:49:35.448616+00:00 app[web.1]: template = loader.get_template(name, skip=skip)
-2026-03-28T01:49:35.448616+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448616+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/loaders/cached.py", line 57, in get_template
-2026-03-28T01:49:35.448617+00:00 app[web.1]: template = super().get_template(template_name, skip)
-2026-03-28T01:49:35.448617+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448617+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/loaders/base.py", line 28, in get_template
-2026-03-28T01:49:35.448618+00:00 app[web.1]: return Template(
-2026-03-28T01:49:35.448618+00:00 app[web.1]: ^^^^^^^^^
-2026-03-28T01:49:35.448618+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 155, in __init__
-2026-03-28T01:49:35.448619+00:00 app[web.1]: self.nodelist = self.compile_nodelist()
-2026-03-28T01:49:35.448619+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448619+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 197, in compile_nodelist
-2026-03-28T01:49:35.448619+00:00 app[web.1]: nodelist = parser.parse()
-2026-03-28T01:49:35.448619+00:00 app[web.1]: ^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448623+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448623+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448624+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448624+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448624+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448629+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/loader_tags.py", line 299, in do_extends
-2026-03-28T01:49:35.448629+00:00 app[web.1]: nodelist = parser.parse()
-2026-03-28T01:49:35.448630+00:00 app[web.1]: ^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448630+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448630+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448630+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448630+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448631+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448631+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/loader_tags.py", line 234, in do_block
-2026-03-28T01:49:35.448631+00:00 app[web.1]: nodelist = parser.parse(("endblock",))
-2026-03-28T01:49:35.448631+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448632+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448632+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448632+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448633+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448633+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448633+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 962, in do_if
-2026-03-28T01:49:35.448634+00:00 app[web.1]: nodelist = parser.parse(("elif", "else", "endif"))
-2026-03-28T01:49:35.448634+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448634+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448634+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448634+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448635+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448635+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448635+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 862, in do_for
-2026-03-28T01:49:35.448635+00:00 app[web.1]: nodelist_loop = parser.parse(
-2026-03-28T01:49:35.448635+00:00 app[web.1]: ^^^^^^^^^^^^^
-2026-03-28T01:49:35.448636+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448636+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448636+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448636+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448636+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448637+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 962, in do_if
-2026-03-28T01:49:35.448637+00:00 app[web.1]: nodelist = parser.parse(("elif", "else", "endif"))
-2026-03-28T01:49:35.448637+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448637+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 519, in parse
-2026-03-28T01:49:35.448637+00:00 app[web.1]: raise self.error(token, e)
-2026-03-28T01:49:35.448637+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 517, in parse
-2026-03-28T01:49:35.448638+00:00 app[web.1]: compiled_result = compile_func(self, token)
-2026-03-28T01:49:35.448638+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448638+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 961, in do_if
-2026-03-28T01:49:35.448638+00:00 app[web.1]: condition = TemplateIfParser(parser, bits).parse()
-2026-03-28T01:49:35.448638+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448638+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 894, in __init__
-2026-03-28T01:49:35.448639+00:00 app[web.1]: super().__init__(*args, **kwargs)
-2026-03-28T01:49:35.448639+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/smartif.py", line 171, in __init__
-2026-03-28T01:49:35.448639+00:00 app[web.1]: mapped_tokens.append(self.translate_token(token))
-2026-03-28T01:49:35.448639+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448639+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/smartif.py", line 182, in translate_token
-2026-03-28T01:49:35.448640+00:00 app[web.1]: return self.create_var(token)
-2026-03-28T01:49:35.448640+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448640+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/defaulttags.py", line 897, in create_var
-2026-03-28T01:49:35.448641+00:00 app[web.1]: return TemplateLiteral(self.template_parser.compile_filter(value), value)
-2026-03-28T01:49:35.448641+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448644+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 610, in compile_filter
-2026-03-28T01:49:35.448644+00:00 app[web.1]: return FilterExpression(token, self)
-2026-03-28T01:49:35.448644+00:00 app[web.1]: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2026-03-28T01:49:35.448645+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 698, in __init__
-2026-03-28T01:49:35.448645+00:00 app[web.1]: var_obj = Variable(var)
-2026-03-28T01:49:35.448645+00:00 app[web.1]: ^^^^^^^^^^^^^
-2026-03-28T01:49:35.448645+00:00 app[web.1]: File "/app/.heroku/python/lib/python3.12/site-packages/django/template/base.py", line 846, in __init__
-2026-03-28T01:49:35.448646+00:00 app[web.1]: raise TemplateSyntaxError(
-2026-03-28T01:49:35.448646+00:00 app[web.1]: django.template.exceptions.TemplateSyntaxError: Variables and attributes may not begin with underscores: 't._pill_meals'
-2026-03-28T01:49:35.449067+00:00 app[web.1]: 10.1.18.208 - - [27/Mar/2026:21:49:35 -0400] "GET /invoices/813/ HTTP/1.1" 500 145 "https://moneypro.12bytes.net/invoices/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
+if not created:
+    membership.role = BusinessMembership.Role.OWNER
+    membership.is_active = True
+    membership.save()
+
+print(user.username, business.id, business.name, membership.role, membership.is_active)
