@@ -496,7 +496,7 @@
             </div>
 
             <div class="invoice-detail-pill">
-              <span class="invoice-detail-label">Location</span>
+              <span class="invoice-detail-label"><i class="fa-solid fa-location-dot text-danger fs-2"></i> Location</span>
               <span class="invoice-detail-value">{{ invoice.location|default:"—" }}</span>
             </div>
 
@@ -613,17 +613,17 @@
               <article class="invoice-kpi-card kpi-income">
                 <div class="invoice-kpi-label">Income</div>
                 <div class="invoice-kpi-value money-counter" data-money-value="{{ income_total|default:0 }}">${{ income_total|floatformat:2|intcomma }}</div>
-                <div class="invoice-kpi-note">Revenue tied to this invoice number.</div>
+                <div class="invoice-kpi-note">Invoice Revenue.</div>
               </article>
               <article class="invoice-kpi-card kpi-expense">
                 <div class="invoice-kpi-label">Expenses</div>
                 <div class="invoice-kpi-value money-counter" data-money-value="{{ expense_total|default:0 }}">${{ expense_total|floatformat:2|intcomma }}</div>
-                <div class="invoice-kpi-note">Related costs and supporting expenses.</div>
+                <div class="invoice-kpi-note">Invoice Actual Expenses.</div>
               </article>
               <article class="invoice-kpi-card kpi-net">
                 <div class="invoice-kpi-label">Net income</div>
                 <div class="invoice-kpi-value money-counter" data-money-value="{{ net_income|default:0 }}">${{ net_income|floatformat:2|intcomma }}</div>
-                <div class="invoice-kpi-note">Before Schedule C adjustments.</div>
+                <div class="invoice-kpi-note">Actual Income.</div>
               </article>
             </div>
 
@@ -631,8 +631,8 @@
               <div class="section-title-wrap">
                 <span class="section-icon"><i class="fa-solid fa-receipt"></i></span>
                 <div>
-                  <h3>Taxable (Schedule C)</h3>
-                  <div class="section-subtitle">Deductible totals after meals and fuel rules.</div>
+                  <h3>Taxable Amounts</h3>
+                  <div class="section-subtitle">Includes Tax Deductible Expneses.</div>
                 </div>
               </div>
             </div>

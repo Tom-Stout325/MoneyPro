@@ -1,0 +1,10 @@
+{#
+Usage examples:
+  {% include "partials/icon.html" with name="drone" size="lg" class="mp-icon-pop" %}
+  {% include "partials/icon.html" with name="drone" wrapper="soft" size="md" class="me-2" %}
+Accepted values:
+  name: drone|airborne|brand|logo
+  size: xs|sm|md|lg|xl|2xl|3xl|4xl
+  wrapper: soft|circle|tile (optional)
+#}
+<span class="{% if wrapper %}mp-icon-{{ wrapper }} {% endif %}{% if class %}{{ class }} {% endif %}"><i class="mp-icon mp-icon-{{ name|default:'drone' }} mp-icon-{{ size|default:'sm' }}"{% if label %} role="img" aria-label="{{ label }}"{% else %} aria-hidden="true"{% endif %}></i></span>

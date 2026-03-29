@@ -9,7 +9,7 @@ cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/moneypro_invoice_detail_ui_polish_round2.zip
+unzip ~/Downloads/moneypro_custom_icon_system.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
