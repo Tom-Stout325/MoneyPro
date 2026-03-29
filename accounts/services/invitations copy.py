@@ -7,7 +7,6 @@ from urllib import error, request
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.urls import reverse
 
@@ -49,7 +48,9 @@ def _build_invite_url(invitation: Invitation, request_obj=None) -> str:
     return f"{site_url}{path}"
 
 
-def _email_context(*, invitation: Invitation, request_obj=None) -> tuple[dict[str, Any], str, str, str, str, str]:
+def send_invitation_email(*, invitation: Invitation, request_obj=None) -> None:
+    """Send an invitation email using the Postmark API only."""
+    server_token = _required_setting("POSTMARK_SERVER_TOKEN")
     from_email = _required_setting("DEFAULT_FROM_EMAIL")
     reply_to = (_get_setting("REPLY_TO_EMAIL", "") or "").strip()
     app_name = (_get_setting("APP_NAME", "MoneyPro") or "MoneyPro").strip()
@@ -69,42 +70,6 @@ def _email_context(*, invitation: Invitation, request_obj=None) -> tuple[dict[st
     )
     text_body = render_to_string("accounts/emails/invitation_email.txt", context)
     html_body = render_to_string("accounts/emails/invitation_email.html", context)
-    return context, from_email, reply_to, app_name, subject, text_body, html_body
-
-
-def _uses_local_dev_backend() -> bool:
-    backend = (_get_setting("EMAIL_BACKEND", "") or "").strip().lower()
-    return backend in {
-        "django.core.mail.backends.console.emailbackend",
-        "django.core.mail.backends.filebased.emailbackend",
-        "django.core.mail.backends.locmem.emailbackend",
-        "django.core.mail.backends.dummy.emailbackend",
-    }
-
-
-def _send_via_django_backend(*, invitation: Invitation, request_obj=None) -> None:
-    _context, from_email, reply_to, app_name, subject, text_body, html_body = _email_context(
-        invitation=invitation,
-        request_obj=request_obj,
-    )
-
-    message = EmailMultiAlternatives(
-        subject=subject,
-        body=text_body,
-        from_email=formataddr((app_name, from_email)),
-        to=[invitation.email],
-        reply_to=[reply_to] if reply_to else None,
-    )
-    message.attach_alternative(html_body, "text/html")
-    message.send()
-
-
-def _send_via_postmark(*, invitation: Invitation, request_obj=None) -> None:
-    _context, from_email, reply_to, app_name, subject, text_body, html_body = _email_context(
-        invitation=invitation,
-        request_obj=request_obj,
-    )
-    server_token = _required_setting("POSTMARK_SERVER_TOKEN")
 
     payload = {
         "From": formataddr((app_name, from_email)),
@@ -147,15 +112,3 @@ def _send_via_postmark(*, invitation: Invitation, request_obj=None) -> None:
         raise PostmarkEmailError(
             f"Postmark rejected email: {data.get('Message', 'Unknown error')}"
         )
-
-
-def send_invitation_email(*, invitation: Invitation, request_obj=None) -> None:
-    """
-    Local dev backends (console/file/locmem/dummy) use Django mail so invites can be tested
-    without Postmark credentials. Production keeps the existing direct Postmark behavior.
-    """
-    if _uses_local_dev_backend():
-        _send_via_django_backend(invitation=invitation, request_obj=request_obj)
-        return
-
-    _send_via_postmark(invitation=invitation, request_obj=request_obj)
