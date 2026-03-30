@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from django import forms
-from django.utils import timezone
 
 from invoices.models import Invoice
 from ledger.models import Job
-from vehicles.models import Vehicle, VehicleMiles, VehicleYear
+from vehicles.models import VehicleMiles, VehicleYear, Vehicle
 
 
 class VehicleForm(forms.ModelForm):
+    create_current_year_record = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Create current-year annual record after save",
+        help_text="After saving this vehicle, open the annual record form for the current year.",
+    )
+
     class Meta:
         model = Vehicle
         fields = [
@@ -31,11 +37,16 @@ class VehicleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
+
+        # Mobile-friendly Bootstrap classes
+        for name, field in self.fields.items():
             if isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-check-input")
             else:
                 field.widget.attrs.setdefault("class", "form-control")
+
+        self.fields["create_current_year_record"].widget.attrs.setdefault("class", "form-check-input")
+
 
 
 class VehicleYearForm(forms.ModelForm):
@@ -52,7 +63,7 @@ class VehicleYearForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
-        self.fields["year"].initial = self.initial.get("year") or timezone.localdate().year
+
         if business:
             self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business).order_by("sort_order", "label")
         self.fields["vehicle"].widget.attrs.update({"class": "form-select"})
@@ -77,9 +88,13 @@ class VehicleMilesForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
+
         if business:
             self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business, is_active=True).order_by("sort_order", "label")
             self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-is_active", "-job_year", "job_number", "label")
+            # Invoice list can get long; keep it ordered newest first.
             self.fields["invoice"].queryset = Invoice.objects.filter(business=business).order_by("-issue_date", "-id")
+
+        # Optional fields: show an em dash choice
         self.fields["job"].required = False
         self.fields["invoice"].required = False
