@@ -19,14 +19,11 @@ class MileageYearSummary:
     vehicle_label: str
     deduction_method: str
     is_locked: bool
-
     odometer_start: Decimal
     odometer_end: Decimal | None
-
     total_miles: Decimal | None
     business_miles: Decimal
-    personal_miles: Decimal | None
-
+    other_miles: Decimal | None
     warnings: list[str]
 
 
@@ -55,42 +52,30 @@ def get_yearly_mileage_summary(*, business, vehicle_id: int, year: int) -> Milea
         or ZERO
     )
 
-    # All non-business miles (commuting/other/reimbursed) as 'personal/other' bucket
-    non_business = (
-        VehicleMiles.objects.filter(
-            business=business,
-            vehicle_id=vehicle_id,
-            date__year=year,
-        )
-        .exclude(mileage_type=VehicleMiles.MileageType.BUSINESS)
-        .aggregate(total=Sum("total"))["total"]
-        or ZERO
-    )
-
     total_miles = _q1(vy.total_miles)
     business_miles_q = _q1(business_miles) or ZERO
 
     warnings: list[str] = []
     if vy.odometer_end is None:
-        warnings.append("Odometer end is blank; total miles cannot be computed from odometer.")
+        warnings.append("Odometer end is blank, so annual total miles is not final yet.")
     if total_miles is not None and business_miles_q > total_miles:
-        warnings.append("Business miles exceed odometer total miles; check entries and odometer readings.")
+        warnings.append("Business miles exceed total annual miles. Review mileage logs and odometer readings.")
 
-    personal_miles = None
+    other_miles = None
     if total_miles is not None:
-        personal_miles = _q1(max(total_miles - business_miles_q, ZERO))
+        other_miles = _q1(max(total_miles - business_miles_q, ZERO))
 
     return MileageYearSummary(
         year=year,
         vehicle_id=vy.vehicle_id,
         vehicle_year_id=vy.id,
         vehicle_label=vy.vehicle.label,
-        deduction_method=vy.deduction_method,
+        deduction_method=vy.get_deduction_method_display(),
         is_locked=vy.is_locked,
         odometer_start=vy.odometer_start,
         odometer_end=vy.odometer_end,
         total_miles=total_miles,
         business_miles=business_miles_q,
-        personal_miles=personal_miles,
+        other_miles=other_miles,
         warnings=warnings,
     )

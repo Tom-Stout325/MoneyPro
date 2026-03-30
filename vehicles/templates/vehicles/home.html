@@ -1,194 +1,184 @@
 {% extends "index.html" %}
-{% load humanize %}
+{% load static humanize %}
 
 {% block title %}Vehicles | MoneyPro{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vehicles/vehicles.css' %}">{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-2 px-md-3 py-3">
+<div class="vehicle-shell py-2">
+  <div class="vehicle-hero-card mb-3">
+    <div class="vehicle-hero-body">
+      <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+        <div>
+          <div class="vehicle-kicker"><i class="fa-solid fa-car-side"></i> Vehicles dashboard</div>
+          <div class="vehicle-title-row">
+            <h1>Vehicles</h1>
+            <span class="vehicle-status-badge status-active">{{ year }}</span>
+          </div>
+          <div class="vehicle-meta">
+            <span>Fleet and mileage management</span>
+            <span>{{ active_vehicle_count }} active vehicles</span>
+            <span>{{ vehicle_year_count }} annual records</span>
+          </div>
+        </div>
+        <div class="vehicle-actions-grid" style="max-width: 320px;">
+          <a class="btn btn-primary" href="{% url 'vehicles:vehicle_add' %}"><i class="fa-solid fa-plus me-1"></i>Add vehicle</a>
+          <a class="btn btn-outline-primary" href="{% url 'vehicles:vehicle_year_add' %}?year={{ year }}"><i class="fa-solid fa-calendar-plus me-1"></i>Add annual record</a>
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_add' %}"><i class="fa-solid fa-road me-1"></i>Add mileage entry</a>
+        </div>
+      </div>
 
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-    <div>
-      <h1 class="h2 mb-0">Vehicles</h1>
-      <div class="text-muted small">Fleet & mileage management</div>
-    </div>
-
-    <div class="d-grid d-md-flex gap-2">
-      <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}">
-        <i class="fa-solid fa-list me-1"></i> Vehicles List
-      </a>
-      <a class="btn btn-outline-primary" href="{% url 'vehicles:vehicle_add' %}">
-        <i class="fa-solid fa-plus me-1"></i> Add vehicle
-      </a>
-      <a class="btn btn-primary" href="{% url 'vehicles:vehicle_miles_add' %}">
-        <i class="fa-solid fa-road me-1"></i> Add mileage log
-      </a>
+      <div class="vehicle-detail-grid three-col mt-3">
+        <div class="vehicle-stat-tile">
+          <span class="vehicle-stat-label">Business miles</span>
+          <div class="vehicle-stat-value">{{ ytd_business_miles|floatformat:1|intcomma }}</div>
+          <div class="small text-muted">Logged as business in {{ year }}</div>
+        </div>
+        <div class="vehicle-stat-tile">
+          <span class="vehicle-stat-label">Other miles</span>
+          <div class="vehicle-stat-value">{{ ytd_other_miles|floatformat:1|intcomma }}</div>
+          <div class="small text-muted">Total miles minus business miles</div>
+        </div>
+        <div class="vehicle-stat-tile">
+          <span class="vehicle-stat-label">Total annual miles</span>
+          <div class="vehicle-stat-value">{{ ytd_total_miles|floatformat:1|intcomma }}</div>
+          <div class="small text-muted">From Vehicle Year odometer readings</div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="row g-2 g-md-3 align-items-end mb-3">
-    <div class="col-12 col-md-4">
-      <label class="form-label small text-muted mb-1">Year</label>
-      <form method="get">
-        <select class="form-select" name="year" onchange="this.form.submit()">
-          {% for y in year_choices %}
-            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
-          {% endfor %}
-        </select>
+  <div class="vehicle-card vehicle-filter-card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label">Year</label>
+          <select class="form-select" name="year" onchange="this.form.submit()">
+            {% for y in year_choices %}
+              <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-8 d-grid d-md-flex gap-2 justify-content-md-end">
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}?year={{ year }}"><i class="fa-solid fa-list me-1"></i>Vehicles list</a>
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}?year={{ year }}"><i class="fa-solid fa-calendar-days me-1"></i>Annual records</a>
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}?year={{ year }}"><i class="fa-solid fa-gauge-high me-1"></i>Mileage log</a>
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:yearly_mileage_report' %}?year={{ year }}"><i class="fa-solid fa-chart-column me-1"></i>Yearly report</a>
+        </div>
       </form>
     </div>
   </div>
 
-  <div class="row g-2 g-md-3 mb-3">
-    <div class="col-12 col-md-4">
-      <div class="card shadow-sm h-100">
+  {% if missing_vehicle_year_count %}
+    <div class="alert alert-warning rounded-4 border-0 shadow-sm">
+      <strong>{{ missing_vehicle_year_count }}</strong> active vehicle{{ missing_vehicle_year_count|pluralize }} {{ missing_vehicle_year_count|pluralize:'is,are' }} missing a {{ year }} annual record.
+      <a class="ms-1" href="{% url 'vehicles:vehicle_year_list' %}?year={{ year }}">Review annual records</a>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-xl-7">
+      <div class="vehicle-table-card h-100">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
+          <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <div class="text-muted small">Vehicles</div>
-              <div class="h3 mb-0">{{ vehicle_count }}</div>
-              <div class="small text-muted">{{ active_vehicle_count }} active</div>
+              <h2 class="vehicle-section-title">Annual vehicle records</h2>
+              <div class="vehicle-section-subtitle">Beginning and ending odometer entries for {{ year }}</div>
             </div>
-            <div class="text-muted"><i class="fa-solid fa-car-side fa-lg"></i></div>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_year_add' %}?year={{ year }}">Add annual record</a>
           </div>
-          <div class="mt-3">
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_list' %}">
-              View list
-            </a>
-          </div>
+          {% if home_summaries %}
+            <div class="table-responsive">
+              <table class="table vehicle-card-table align-middle mb-0">
+                <thead>
+                  <tr><th>Vehicle</th><th class="text-end">Start</th><th class="text-end">End</th><th class="text-end">Business</th><th class="text-end">Other</th><th class="text-end">Total</th></tr>
+                </thead>
+                <tbody>
+                  {% for row in home_summaries %}
+                    <tr>
+                      <td><a class="text-decoration-none fw-semibold" href="{% url 'vehicles:vehicle_detail' row.vehicle_id %}?year={{ year }}">{{ row.vehicle_label }}</a></td>
+                      <td class="text-end">{{ row.odometer_start|floatformat:1|intcomma }}</td>
+                      <td class="text-end">{% if row.odometer_end is not None %}{{ row.odometer_end|floatformat:1|intcomma }}{% else %}—{% endif %}</td>
+                      <td class="text-end">{{ row.business_miles|floatformat:1|intcomma }}</td>
+                      <td class="text-end">{% if row.other_miles is not None %}{{ row.other_miles|floatformat:1|intcomma }}{% else %}—{% endif %}</td>
+                      <td class="text-end">{% if row.total_miles is not None %}{{ row.total_miles|floatformat:1|intcomma }}{% else %}—{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="vehicle-empty">No annual records yet for {{ year }}.</div>
+          {% endif %}
         </div>
       </div>
     </div>
 
-    <div class="col-12 col-md-8">
-      <div class="card shadow-sm h-100">
+    <div class="col-12 col-xl-5">
+      <div class="vehicle-table-card h-100">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
+          <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <div class="text-muted small">Mileage ({{ year }})</div>
-              <div class="h5 mb-1">At-a-glance</div>
+              <h2 class="vehicle-section-title">Recent mileage</h2>
+              <div class="vehicle-section-subtitle">Last 5 entries from {{ year }}</div>
             </div>
-            <div class="text-muted"><i class="fa-solid fa-road fa-lg"></i></div>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_miles_add' %}">Add mileage</a>
           </div>
-
-          <div class="row g-2 mt-2">
-            <div class="col-12 col-md-4">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted small">Business miles</div>
-                <div class="h4 mb-0">{{ ytd_business_miles|floatformat:1|intcomma }}</div>
-              </div>
+          {% if recent_miles %}
+            <div class="table-responsive">
+              <table class="table vehicle-card-table align-middle mb-0">
+                <thead>
+                  <tr><th>Date</th><th>Vehicle</th><th>Type</th><th class="text-end">Miles</th></tr>
+                </thead>
+                <tbody>
+                  {% for m in recent_miles %}
+                    <tr>
+                      <td>{{ m.date|date:"m/d/Y" }}</td>
+                      <td><a class="text-decoration-none" href="{% url 'vehicles:vehicle_detail' m.vehicle_id %}?year={{ year }}">{{ m.vehicle.label }}</a></td>
+                      <td>{{ m.get_mileage_type_display }}</td>
+                      <td class="text-end">{{ m.total|default_if_none:"—" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
-            <div class="col-12 col-md-4">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted small">Other / commute (est.)</div>
-                <div class="h4 mb-0">{{ ytd_other_miles|floatformat:1|intcomma }}</div>
-              </div>
-            </div>
-            <div class="col-12 col-md-4">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted small">Total miles to date</div>
-                <div class="h4 mb-0">{{ ytd_total_miles|floatformat:1|intcomma }}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="d-grid d-md-flex gap-2 mt-3">
-            <a class="btn btn-sm btn-primary" href="{% url 'vehicles:vehicle_miles_add' %}">
-              <i class="fa-solid fa-plus me-1"></i> Create mileage log
-            </a>
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}?year={{ year }}">
-              <i class="fa-solid fa-list me-1"></i> Mileage log
-            </a>
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:yearly_mileage_report' %}?year={{ year }}">
-              <i class="fa-solid fa-chart-column me-1"></i> Yearly report
-            </a>
-          </div>
-
-          <hr class="my-3">
-
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="fw-semibold">Recent mileage</div>
-            <div class="text-muted small">Last 5 entries</div>
-          </div>
-
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr class="text-muted small">
-                  <th>Date</th>
-                  <th>Vehicle</th>
-                  <th class="text-end">Miles</th>
-                  <th class="text-end">End</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for m in recent_miles %}
-                  <tr>
-                    <td>{{ m.date }}</td>
-                    <td><a href="{% url 'vehicles:vehicle_detail' m.vehicle_id %}?year={{ year }}">{{ m.vehicle.label }}</a></td>
-                    <td class="text-end">{{ m.total|default_if_none:"—" }}</td>
-                    <td class="text-end">{{ m.end|default_if_none:"—" }}</td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="4" class="text-muted">No mileage entries for {{ year }} yet.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
+          {% else %}
+            <div class="vehicle-empty">No mileage entries for {{ year }} yet.</div>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
 
-  <div class="card shadow-sm">
+  <div class="vehicle-table-card">
     <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="fw-semibold">Your vehicles</div>
-        <a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_add' %}">
-          <i class="fa-solid fa-plus me-1"></i> Add
-        </a>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="vehicle-section-title">Fleet</h2>
+          <div class="vehicle-section-subtitle">Open a vehicle to review expenses and mileage details</div>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_list' %}?year={{ year }}">View full list</a>
       </div>
-
-      <div class="table-responsive mt-2">
-        <table class="table table-sm align-middle mb-0">
-          <thead>
-            <tr class="text-muted small">
-              <th>Vehicle</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for v in vehicles %}
-              <tr>
-                <td>
-                  <a href="{% url 'vehicles:vehicle_detail' v.id %}?year={{ year }}">{{ v.label }}</a>
-                </td>
-                <td>
-                  {% if v.is_active %}
-                    <span class="badge text-bg-success">Active</span>
-                  {% else %}
-                    <span class="badge text-bg-secondary">Sold</span>
-                  {% endif %}
-                </td>
-                <td class="text-end">
-                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_detail' v.id %}?year={{ year }}">
-                    View
-                  </a>
-                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_edit' v.id %}">
-                    Edit
-                  </a>
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="3" class="text-muted">No vehicles yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
+      {% if vehicles %}
+        <div class="table-responsive">
+          <table class="table vehicle-card-table align-middle mb-0">
+            <thead><tr><th>Vehicle</th><th>Status</th><th>Annual record</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+              {% for v in vehicles %}
+                <tr>
+                  <td><a class="text-decoration-none fw-semibold" href="{% url 'vehicles:vehicle_detail' v.id %}?year={{ year }}">{{ v.label }}</a></td>
+                  <td>{% if v.is_active %}<span class="vehicle-status-badge status-active">Active</span>{% else %}<span class="vehicle-status-badge status-inactive">Inactive</span>{% endif %}</td>
+                  <td><span class="text-muted">Use annual records for {{ year }} setup</span></td>
+                  <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_detail' v.id %}?year={{ year }}">Open</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="vehicle-empty">No vehicles have been added yet.</div>
+      {% endif %}
     </div>
   </div>
-
 </div>
 {% endblock %}

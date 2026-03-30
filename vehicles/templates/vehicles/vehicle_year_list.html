@@ -1,59 +1,22 @@
 {% extends "index.html" %}
-{% load humanize %}
+{% load static humanize %}
+{% block title %}Annual Vehicle Records | MoneyPro{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vehicles/vehicles.css' %}">{% endblock %}
 {% block content %}
-<div class="container-fluid px-2 px-md-3">
+<div class="vehicle-shell py-2">
+  <a class="vehicle-back-link" href="{% url 'vehicles:home' %}"><i class="fa-solid fa-arrow-left"></i>Back to Vehicles dashboard</a>
+  <div class="vehicle-hero-card mb-3"><div class="vehicle-hero-body"><div class="d-flex flex-column flex-lg-row justify-content-between gap-3"><div><div class="vehicle-kicker"><i class="fa-solid fa-calendar-days"></i> Annual records</div><div class="vehicle-title-row"><h1>Vehicle Year Setup</h1><span class="vehicle-status-badge status-active">{{ year }}</span></div><div class="vehicle-meta"><span>Beginning and ending odometer readings for each vehicle</span></div></div><div class="vehicle-actions-grid" style="max-width:320px;"><a class="btn btn-primary" href="{% url 'vehicles:vehicle_year_add' %}?year={{ year }}"><i class="fa-solid fa-plus me-1"></i>Add annual record</a><a class="btn btn-outline-secondary" href="{% url 'vehicles:yearly_mileage_report' %}?year={{ year }}"><i class="fa-solid fa-chart-column me-1"></i>Yearly report</a></div></div></div></div>
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h1 class="h4 mb-0">Vehicle Year Setup</h1>
-      <div class="text-muted small">Start/end odometer + deduction method per year</div>
-    </div>
-    <a class="btn btn-primary" href="{% url 'vehicles:vehicle_year_add' %}">Add Year</a>
-    {% include "core/_export_button.html" %}
-  </div>
+  <div class="vehicle-card vehicle-filter-card mb-3"><div class="card-body"><form method="get" class="row g-3 align-items-end"><div class="col-12 col-md-4"><label class="form-label">Year</label><select name="year" class="form-select" onchange="this.form.submit()">{% for y in year_choices %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div></form></div></div>
 
-  {% if rows %}
-    <div class="row g-3">
-      {% for r in rows %}
-        <div class="col-12 col-md-6 col-xl-4">
-          <div class="card shadow-sm border-0 rounded-4 h-100">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <div class="fw-semibold">{{ r.vehicle.label }}</div>
-                  <div class="text-muted small">{{ r.year }} • {{ r.get_deduction_method_display }}</div>
-                </div>
-                <span class="badge {% if r.is_locked %}text-bg-secondary{% else %}text-bg-success{% endif %}">
-                  {% if r.is_locked %}Locked{% else %}Open{% endif %}
-                </span>
-              </div>
-
-              <div class="mt-3 small text-muted">
-                <div>Start: {{ r.odometer_start|floatformat:1|intcomma }}</div>
-                <div>End: {% if r.odometer_end %}{{ r.odometer_end|floatformat:1|intcomma }}{% else %}—{% endif %}</div>
-                <div>Total: {% if r.total_miles %}{{ r.total_miles|floatformat:1|intcomma }}{% else %}—{% endif %}</div>
-              </div>
-            </div>
-
-            <div class="card-footer bg-transparent border-0 d-flex gap-2 justify-content-end">
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'vehicles:vehicle_year_edit' r.pk %}">Edit</a>
-              {% if request.user.is_staff %}
-                <a class="btn btn-outline-danger btn-sm" href="{% url 'vehicles:vehicle_year_delete' r.pk %}">Delete</a>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-  {% else %}
-    <div class="card border-0 shadow-sm rounded-4">
-      <div class="card-body">
-        <div class="fw-semibold">No vehicle-year rows yet</div>
-        <div class="text-muted small">Add a row for each business vehicle at the start of the year.</div>
-        <a class="btn btn-primary mt-3" href="{% url 'vehicles:vehicle_year_add' %}">Add Year</a>
-      </div>
-    </div>
+  {% if missing_setup %}
+    <div class="alert alert-warning rounded-4 border-0 shadow-sm">{{ missing_setup|length }} active vehicle{{ missing_setup|length|pluralize }} {{ missing_setup|length|pluralize:'is,are' }} missing a {{ year }} annual record.</div>
   {% endif %}
 
+  <div class="vehicle-table-card mb-3"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3"><div><h2 class="vehicle-section-title mb-1">Annual mileage rows</h2><div class="vehicle-section-subtitle">Yearly mileage summary per vehicle</div></div></div>{% if rows %}<div class="table-responsive"><table class="table vehicle-card-table align-middle mb-0"><thead><tr><th>Vehicle</th><th class="text-end">Beginning</th><th class="text-end">Ending</th><th class="text-end">Business</th><th class="text-end">Other</th><th class="text-end">Total</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>{% for r in rows %}<tr><td><div class="fw-semibold">{{ r.vehicle_label }}</div><div class="small text-muted">{{ r.deduction_method }}</div></td><td class="text-end">{{ r.odometer_start|floatformat:1|intcomma }}</td><td class="text-end">{% if r.odometer_end is not None %}{{ r.odometer_end|floatformat:1|intcomma }}{% else %}—{% endif %}</td><td class="text-end">{{ r.business_miles|floatformat:1|intcomma }}</td><td class="text-end">{% if r.other_miles is not None %}{{ r.other_miles|floatformat:1|intcomma }}{% else %}—{% endif %}</td><td class="text-end">{% if r.total_miles is not None %}{{ r.total_miles|floatformat:1|intcomma }}{% else %}—{% endif %}</td><td>{% if r.is_locked %}<span class="vehicle-status-badge status-locked">Locked</span>{% else %}<span class="vehicle-status-badge status-open">Open</span>{% endif %}</td><td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_detail' r.vehicle_id %}?year={{ year }}">View</a> <a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_year_edit' r.vehicle_year_id %}">Edit</a></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="vehicle-empty">No annual records yet for {{ year }}.</div>{% endif %}</div></div>
+
+  {% if missing_setup %}
+    <div class="vehicle-card"><div class="card-body"><h2 class="vehicle-section-title mb-3">Vehicles missing annual setup</h2><div class="row g-3">{% for vehicle in missing_setup %}<div class="col-12 col-md-6 col-xl-4"><div class="vehicle-detail-pill h-100"><span class="vehicle-detail-label">Vehicle</span><div class="vehicle-detail-value mb-3">{{ vehicle.label }}</div><a class="btn btn-sm btn-outline-primary" href="{% url 'vehicles:vehicle_year_add' %}?vehicle={{ vehicle.id }}&year={{ year }}">Create {{ year }} record</a></div></div>{% endfor %}</div></div></div>
+  {% endif %}
 </div>
 {% endblock %}
