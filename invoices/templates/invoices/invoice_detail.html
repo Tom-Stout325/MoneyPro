@@ -792,6 +792,40 @@
     {% endif %}
   {% endif %}
 
+
+
+  {% if mileage_entries %}
+    <section class="invoice-section-card mt-3">
+      <div class="section-heading">
+        <div class="section-title-wrap">
+          <span class="section-icon"><i class="fa-solid fa-road"></i></span>
+          <div>
+            <h2>Linked mileage</h2>
+            <div class="section-subtitle">Mileage attached directly to this invoice.</div>
+          </div>
+        </div>
+      </div>
+      <div class="invoice-summary-grid">
+        <article class="invoice-kpi-card kpi-income">
+          <div class="invoice-kpi-label">Miles</div>
+          <div class="invoice-kpi-value">{{ mileage_total_miles|floatformat:1|intcomma }}</div>
+        </article>
+        <article class="invoice-kpi-card kpi-tax">
+          <div class="invoice-kpi-label">Mileage value</div>
+          <div class="invoice-kpi-value">${{ mileage_deduction_total|default:0|floatformat:2|intcomma }}</div>
+        </article>
+      </div>
+      <div class="invoice-table-wrap">
+        <div class="table-responsive">
+          <table class="table invoice-table align-middle">
+            <thead><tr><th>Date</th><th>Vehicle</th><th>Job</th><th class="text-end">Miles</th></tr></thead>
+            <tbody>{% for m in mileage_entries %}<tr><td>{{ m.date|date:"m/d/Y" }}</td><td>{{ m.vehicle.label }}</td><td>{{ m.job|default:"—" }}</td><td class="text-end">{{ m.total|default_if_none:"—" }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
   {% if invoice.revises %}
     <div class="invoice-alert-lite mt-3 p-3">
       Revision of invoice {{ invoice.revises.invoice_number }}

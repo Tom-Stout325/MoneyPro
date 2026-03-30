@@ -78,9 +78,21 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
             ctx["mileage_total_miles"] = mileage_qs.aggregate(
                 t=Coalesce(Sum("total"), Value(Decimal("0.0")))
             )["t"]
+            mileage_deduction_total = Decimal("0.00")
+            for entry in ctx["mileage_entries"]:
+                try:
+                    vy = entry.vehicle.years.filter(business=business, year=entry.date.year).first()
+                    if vy and entry.mileage_type == entry.MileageType.BUSINESS and vy.standard_mileage_deduction is not None and vy.business_miles:
+                        rate = Decimal(str(vy.standard_mileage_rate or 0))
+                        miles = Decimal(str(entry.total or 0))
+                        mileage_deduction_total += (miles * rate)
+                except Exception:
+                    continue
+            ctx["mileage_deduction_total"] = mileage_deduction_total.quantize(Decimal("0.01"))
         except Exception:
             ctx["mileage_entries"] = []
             ctx["mileage_total_miles"] = None
+            ctx["mileage_deduction_total"] = None
 
         # ------------------------------------------------------------------
         # Related ledger transactions (income + expenses) linked by invoice_number

@@ -1,39 +1,40 @@
+
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
+import json
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Max, Sum
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse
-from django.urls import reverse_lazy
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
-from vehicles.forms import VehicleForm, VehicleMilesForm, VehicleYearForm
+from vehicles.forms import QuickMileageForm, VehicleForm, VehicleMilesForm, VehicleYearForm
 from vehicles.models import Vehicle, VehicleMiles, VehicleYear
+from vehicles.queries import get_yearly_mileage_summary
+
+ZERO_TENTH = Decimal("0.0")
+ZERO_CENTS = Decimal("0.00")
 
 
 def _parse_year(value: str | None) -> int:
-    """Parse ?year=YYYY with a safe fallback to current year."""
     current = timezone.localdate().year
     if not value:
         return current
     try:
-        y = int(value)
+        year = int(value)
     except (TypeError, ValueError):
         return current
-    # sanity bounds: keep it reasonable
-    if y < 2000 or y > current + 1:
+    if year < 2000 or year > current + 1:
         return current
-    return y
+    return year
 
 
 def _year_choices(min_year: int = 2023) -> list[int]:
@@ -41,102 +42,105 @@ def _year_choices(min_year: int = 2023) -> list[int]:
     return list(range(current, min_year - 1, -1))
 
 
-def _get_transaction_model():
-    """Return the Transaction model if installed, else None."""
+def _month_series_for_business(*, business, year: int, vehicle: Vehicle | None = None):
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    series = [0.0] * 12
+    qs = VehicleMiles.objects.filter(business=business, date__year=year, mileage_type=VehicleMiles.MileageType.BUSINESS)
+    if vehicle is not None:
+        qs = qs.filter(vehicle=vehicle)
+    rows = qs.values_list("date__month").annotate(total=Sum("total"))
+    for month, total in rows:
+        if month:
+            series[int(month) - 1] = float(total or 0)
+    return labels, series
+
+
+def _expense_transactions_for_vehicle(*, business, vehicle: Vehicle, year: int):
+    Transaction = None
     for app_label in ("ledger", "money"):
         try:
-            return apps.get_model(app_label, "Transaction")
+            Transaction = apps.get_model(app_label, "Transaction")
+            break
         except LookupError:
             continue
-    return None
+    if Transaction is None:
+        return []
+    qs = Transaction.objects.filter(business=business, vehicle=vehicle, date__year=year)
+    if hasattr(Transaction, "TransactionType"):
+        qs = qs.filter(trans_type=Transaction.TransactionType.EXPENSE)
+    return list(qs.select_related("subcategory", "category", "contact", "job").order_by("-date", "-id")[:50])
 
 
-class VehiclesHomeView(TemplateView, LoginRequiredMixin):
-    """Vehicles app dashboard at /vehicles/."""
+def _snapshot_for_vehicle_year(vy: VehicleYear | None):
+    if not vy:
+        return None
+    return {
+        "object": vy,
+        "summary": get_yearly_mileage_summary(business=vy.business, vehicle_id=vy.vehicle_id, year=vy.year),
+        "alerts": vy.missing_data_flags,
+    }
+
+
+def _build_dashboard_cards(*, business, year: int):
+    cards = []
+    alerts: list[dict] = []
+    vehicles = Vehicle.objects.filter(business=business).order_by("-is_active", "sort_order", "label")
+    year_map = {
+        vy.vehicle_id: vy
+        for vy in VehicleYear.objects.filter(business=business, year=year).select_related("vehicle")
+    }
+    for vehicle in vehicles:
+        vy = year_map.get(vehicle.id)
+        if vy:
+            summary = get_yearly_mileage_summary(business=business, vehicle_id=vehicle.id, year=year)
+            cards.append({"vehicle": vehicle, "vehicle_year": vy, "summary": summary})
+            for flag in vy.missing_data_flags:
+                alerts.append({"vehicle": vehicle, "message": flag})
+        else:
+            cards.append({"vehicle": vehicle, "vehicle_year": None, "summary": None})
+            if vehicle.is_active:
+                alerts.append({"vehicle": vehicle, "message": f"Missing {year} annual vehicle record"})
+    return cards, alerts
+
+
+class VehiclesHomeView(LoginRequiredMixin, TemplateView):
     template_name = "vehicles/home.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-
-        year = _parse_year(self.request.GET.get("year"))
-        ctx["year"] = year
-        ctx["year_choices"] = _year_choices()
-
         business = self.request.business
+        year = _parse_year(self.request.GET.get("year"))
+        cards, alerts = _build_dashboard_cards(business=business, year=year)
 
-        vehicles_qs = Vehicle.objects.filter(business=business).order_by("-is_active", "sort_order", "label")
-        ctx["vehicles"] = vehicles_qs
-        ctx["vehicle_count"] = vehicles_qs.count()
-        ctx["active_vehicle_count"] = vehicles_qs.filter(is_active=True).count()
+        total_business = sum((card["summary"].business_miles for card in cards if card["summary"]), ZERO_TENTH)
+        total_other = sum((card["summary"].other_miles or ZERO_TENTH for card in cards if card["summary"]), ZERO_TENTH)
+        total_miles = sum((card["summary"].total_miles or ZERO_TENTH for card in cards if card["summary"]), ZERO_TENTH)
+        total_deduction = sum((card["summary"].deduction_amount or ZERO_CENTS for card in cards if card["summary"]), ZERO_CENTS)
+        total_actual_expenses = sum((card["summary"].actual_expenses_total for card in cards if card["summary"]), ZERO_CENTS)
 
-        # Business miles (entered logs) for the selected year
-        ytd_business_miles = (
-            VehicleMiles.objects.filter(
-                business=business,
-                date__year=year,
-                mileage_type=VehicleMiles.MileageType.BUSINESS,
-            )
-            .aggregate(total=Coalesce(Sum("total"), Value(Decimal("0.0"))))
-            ["total"]
-        )
-        ctx["ytd_business_miles"] = ytd_business_miles
-
-        # Total miles to date (estimated) = latest odometer end in year - VehicleYear.odometer_start
-        # summed across vehicles that have a VehicleYear record.
-        total_miles_to_date = Decimal("0.0")
-        odometer_today = Decimal("0.0")
-
-        years = {
-            vy.vehicle_id: vy
-            for vy in VehicleYear.objects.filter(business=business, year=year).select_related("vehicle")
-        }
-
-        # latest end per vehicle in year
-        latest_ends = (
-            VehicleMiles.objects.filter(business=business, date__year=year)
-            .values("vehicle_id")
-            .annotate(latest_end=Max("end"))
-        )
-        latest_by_vehicle = {row["vehicle_id"]: row["latest_end"] for row in latest_ends}
-
-        for vehicle_id, vy in years.items():
-            latest_end = latest_by_vehicle.get(vehicle_id)
-            if latest_end is None:
-                continue
-            try:
-                delta = (Decimal(str(latest_end)) - Decimal(str(vy.odometer_start))).quantize(Decimal("0.1"))
-            except Exception:
-                continue
-            if delta < 0:
-                delta = Decimal("0.0")
-            total_miles_to_date += delta
-
-        # overall odometer today = max end across all vehicles this year
-        max_end = (
-            VehicleMiles.objects.filter(business=business, date__year=year)
-            .aggregate(v=Max("end"))["v"]
-        )
-        if max_end is not None:
-            try:
-                odometer_today = Decimal(str(max_end)).quantize(Decimal("0.1"))
-            except Exception:
-                odometer_today = Decimal("0.0")
-
-        ctx["ytd_total_miles"] = total_miles_to_date
-        ctx["ytd_other_miles"] = max(Decimal("0.0"), (total_miles_to_date - Decimal(str(ytd_business_miles)))).quantize(Decimal("0.1"))
-        ctx["odometer_today"] = odometer_today
-
-        # Recent mileage entries (last 5)
-        ctx["recent_miles"] = (
-            VehicleMiles.objects.filter(business=business, date__year=year)
-            .select_related("vehicle")
-            .order_by("-date", "-id")[:5]
-        )
-
+        labels, series = _month_series_for_business(business=business, year=year)
+        ctx.update({
+            "year": year,
+            "year_choices": _year_choices(),
+            "vehicles": Vehicle.objects.filter(business=business).order_by("-is_active", "sort_order", "label"),
+            "vehicle_count": Vehicle.objects.filter(business=business).count(),
+            "active_vehicle_count": Vehicle.objects.filter(business=business, is_active=True).count(),
+            "vehicle_cards": cards,
+            "alerts": alerts[:8],
+            "ytd_business_miles": total_business,
+            "ytd_other_miles": total_other,
+            "ytd_total_miles": total_miles,
+            "ytd_deduction_total": total_deduction,
+            "ytd_actual_expenses_total": total_actual_expenses,
+            "recent_miles": VehicleMiles.objects.filter(business=business, date__year=year).select_related("vehicle", "job", "invoice").order_by("-date", "-id")[:8],
+            "quick_mileage_form": QuickMileageForm(business=business),
+            "chart_labels_json": json.dumps(labels),
+            "chart_values_json": json.dumps(series),
+        })
         return ctx
 
 
-class VehicleListView(ListView, LoginRequiredMixin):
+class VehicleListView(LoginRequiredMixin, ListView):
     model = Vehicle
     template_name = "vehicles/vehicle_list.html"
     context_object_name = "vehicles"
@@ -144,8 +148,24 @@ class VehicleListView(ListView, LoginRequiredMixin):
     def get_queryset(self):
         return Vehicle.objects.filter(business=self.request.business).order_by("-is_active", "sort_order", "label")
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        year = _parse_year(self.request.GET.get("year"))
+        ctx["year"] = year
+        ctx["year_choices"] = _year_choices()
+        year_map = {vy.vehicle_id: vy for vy in VehicleYear.objects.filter(business=self.request.business, year=year)}
+        ctx["vehicle_rows"] = [
+            {
+                "vehicle": vehicle,
+                "vehicle_year": year_map.get(vehicle.id),
+                "summary": get_yearly_mileage_summary(business=self.request.business, vehicle_id=vehicle.id, year=year) if year_map.get(vehicle.id) else None,
+            }
+            for vehicle in ctx["vehicles"]
+        ]
+        return ctx
 
-class VehicleDetailView(DetailView, LoginRequiredMixin):
+
+class VehicleDetailView(LoginRequiredMixin, DetailView):
     model = Vehicle
     template_name = "vehicles/vehicle_detail.html"
     context_object_name = "vehicle"
@@ -157,137 +177,52 @@ class VehicleDetailView(DetailView, LoginRequiredMixin):
         ctx = super().get_context_data(**kwargs)
         business = self.request.business
         vehicle = self.object
-
         year = _parse_year(self.request.GET.get("year"))
-        ctx["year"] = year
-        ctx["year_choices"] = _year_choices()
-
-        # VehicleYear record (if present)
         vy = VehicleYear.objects.filter(business=business, vehicle=vehicle, year=year).first()
-        ctx["vehicle_year"] = vy
+        summary = get_yearly_mileage_summary(business=business, vehicle_id=vehicle.id, year=year) if vy else None
+        miles_qs = VehicleMiles.objects.filter(business=business, vehicle=vehicle, date__year=year).select_related("job", "invoice").order_by("-date", "-id")
+        labels, series = _month_series_for_business(business=business, year=year, vehicle=vehicle)
 
-        # Mileage logs for this vehicle/year
-        miles_qs = (
-            VehicleMiles.objects.filter(business=business, vehicle=vehicle, date__year=year)
-            .select_related("job", "invoice")
-            .order_by("-date", "-id")
-        )
-        ctx["miles_entries"] = miles_qs[:25]
-
-        # Odometer today (latest end in year)
         latest_end = miles_qs.aggregate(v=Max("end"))["v"]
-        if latest_end is None:
-            odometer_today = None
-            total_miles_to_date = Decimal("0.0")
-        else:
-            try:
-                odometer_today = Decimal(str(latest_end)).quantize(Decimal("0.1"))
-            except Exception:
-                odometer_today = None
-
-            total_miles_to_date = Decimal("0.0")
-            if vy and odometer_today is not None:
-                try:
-                    total_miles_to_date = (odometer_today - Decimal(str(vy.odometer_start))).quantize(Decimal("0.1"))
-                except Exception:
-                    total_miles_to_date = Decimal("0.0")
-                if total_miles_to_date < 0:
-                    total_miles_to_date = Decimal("0.0")
-
-        ctx["odometer_today"] = odometer_today
-        ctx["total_miles_to_date"] = total_miles_to_date
-
-        # Business miles from logs
-        business_miles = (
-            miles_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS)
-            .aggregate(total=Coalesce(Sum("total"), Value(Decimal("0.0"))))
-            ["total"]
-        )
-        ctx["business_miles"] = business_miles
-
-        # Other miles estimate
-        ctx["other_miles"] = max(Decimal("0.0"), (Decimal(str(total_miles_to_date)) - Decimal(str(business_miles)))).quantize(Decimal("0.1"))
-
-        # Transactions for this vehicle (expenses only, year filtered)
-        Transaction = _get_transaction_model()
-        transactions = []
-        expenses_total = Decimal("0.00")
-
-        if Transaction is not None and hasattr(Transaction, "vehicle"):
-            tx_qs = Transaction.objects.filter(
-                business=business,
-                vehicle=vehicle,
-                date__year=year,
-            ).select_related("subcategory", "category", "contact", "job")
-
-            # Show all tx in table, but compute expenses KPI on Expense type
-            transactions = tx_qs.order_by("-date", "-id")[:50]
-
-            expense_qs = tx_qs.filter(trans_type=Transaction.TransactionType.EXPENSE)
-            # Net refunds out
-            expenses_total = expense_qs.aggregate(
-                total=Coalesce(
-                    Sum(
-                        ExpressionWrapper(
-                            F("amount") * (Value(-1) if False else Value(1)),
-                            output_field=DecimalField(max_digits=12, decimal_places=2),
-                        )
-                    ),
-                    Value(Decimal("0.00")),
-                )
-            )["total"]
-            # If you use is_refund=True to indicate reversing amounts, subtract those
-            refund_total = expense_qs.filter(is_refund=True).aggregate(
-                r=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-            )["r"]
-            non_refund_total = expense_qs.filter(is_refund=False).aggregate(
-                n=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-            )["n"]
-            expenses_total = (Decimal(str(non_refund_total)) - Decimal(str(refund_total))).quantize(Decimal("0.01"))
-
-        ctx["transactions"] = transactions
-        ctx["expenses_total"] = expenses_total
-
+        ctx.update({
+            "year": year,
+            "year_choices": _year_choices(),
+            "vehicle_year": vy,
+            "summary": summary,
+            "alerts": vy.missing_data_flags if vy else [f"Missing {year} annual vehicle record"],
+            "miles_entries": miles_qs[:25],
+            "all_miles_count": miles_qs.count(),
+            "odometer_today": latest_end,
+            "transactions": _expense_transactions_for_vehicle(business=business, vehicle=vehicle, year=year),
+            "quick_mileage_form": QuickMileageForm(business=business, initial={"vehicle": vehicle.id}),
+            "chart_labels_json": json.dumps(labels),
+            "chart_values_json": json.dumps(series),
+        })
         return ctx
 
 
-class VehicleCreateView(CreateView, LoginRequiredMixin):
+class VehicleCreateView(LoginRequiredMixin, CreateView):
     model = Vehicle
     form_class = VehicleForm
     template_name = "vehicles/vehicle_form.html"
     success_url = reverse_lazy("vehicles:vehicle_list")
 
     def form_valid(self, form):
-        form.instance.business = self.request.business
-        self.create_current_year_record = form.cleaned_data.get("create_current_year_record", False)
-        response = super().form_valid(form)
-
-        if self.create_current_year_record:
+        self.object = form.save(commit=False)
+        self.object.business = self.request.business
+        self.object.save()
+        messages.success(self.request, "Vehicle saved.")
+        if form.cleaned_data.get("create_current_year_record"):
             current_year = timezone.localdate().year
-            existing = VehicleYear.objects.filter(
-                business=self.request.business,
-                vehicle=self.object,
-                year=current_year,
-            ).first()
+            existing = VehicleYear.objects.filter(business=self.request.business, vehicle=self.object, year=current_year).first()
             if existing:
-                messages.info(
-                    self.request,
-                    f"{self.object.label} already has a {current_year} annual record. You can edit it below.",
-                )
+                messages.info(self.request, f"{current_year} annual record already exists. You can edit it below.")
                 return redirect("vehicles:vehicle_year_edit", pk=existing.pk)
-
-            messages.success(
-                self.request,
-                f"Vehicle saved. Add the {current_year} annual record for {self.object.label} next.",
-            )
-            url = reverse("vehicles:vehicle_year_add")
-            return redirect(f"{url}?vehicle={self.object.pk}&year={current_year}")
-
-        messages.success(self.request, f"Vehicle saved: {self.object.label}")
-        return response
+            return redirect(f"{reverse('vehicles:vehicle_year_add')}?vehicle={self.object.pk}&year={current_year}&next=detail")
+        return redirect(self.get_success_url())
 
 
-class VehicleUpdateView(UpdateView, LoginRequiredMixin):
+class VehicleUpdateView(LoginRequiredMixin, UpdateView):
     model = Vehicle
     form_class = VehicleForm
     template_name = "vehicles/vehicle_form.html"
@@ -298,11 +233,11 @@ class VehicleUpdateView(UpdateView, LoginRequiredMixin):
 
     def form_valid(self, form):
         form.instance.business = self.request.business
-        messages.success(self.request, f"Annual vehicle record saved for {form.instance.vehicle.label} ({form.instance.year}).")
+        messages.success(self.request, "Vehicle updated.")
         return super().form_valid(form)
 
 
-class VehicleDeleteView(DeleteView, LoginRequiredMixin):
+class VehicleDeleteView(LoginRequiredMixin, DeleteView):
     model = Vehicle
     template_name = "vehicles/vehicle_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_list")
@@ -315,90 +250,74 @@ class VehicleDeleteView(DeleteView, LoginRequiredMixin):
 @require_POST
 def vehicle_archive(request: HttpRequest, pk: int) -> HttpResponse:
     vehicle = get_object_or_404(Vehicle, pk=pk, business=request.business)
-
-    if vehicle.is_active:
-        vehicle.is_active = False
-        vehicle.save(update_fields=["is_active"])
-        messages.success(request, f"Archived: {vehicle.label}")
-
-    next_url = request.POST.get("next") or "vehicles:vehicle_list"
-    return redirect(next_url)
+    vehicle.is_active = False
+    vehicle.save(update_fields=["is_active"])
+    messages.success(request, f"Archived: {vehicle.label}")
+    return redirect(request.POST.get("next") or "vehicles:vehicle_list")
 
 
 @login_required
 @require_POST
 def vehicle_unarchive(request: HttpRequest, pk: int) -> HttpResponse:
     vehicle = get_object_or_404(Vehicle, pk=pk, business=request.business)
-
-    if not vehicle.is_active:
-        vehicle.is_active = True
-        vehicle.save(update_fields=["is_active"])
-        messages.success(request, f"Unarchived: {vehicle.label}")
-
-    next_url = request.POST.get("next") or "vehicles:vehicle_list"
-    return redirect(next_url)
+    vehicle.is_active = True
+    vehicle.save(update_fields=["is_active"])
+    messages.success(request, f"Unarchived: {vehicle.label}")
+    return redirect(request.POST.get("next") or "vehicles:vehicle_list")
 
 
-# ---------------------------------------------------------------------
-# VehicleYear CRUD
-# ---------------------------------------------------------------------
-
-
-class VehicleYearListView(ListView, LoginRequiredMixin):
+class VehicleYearListView(LoginRequiredMixin, ListView):
     model = VehicleYear
     template_name = "vehicles/vehicle_year_list.html"
     context_object_name = "vehicle_years"
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
-        return (
-            VehicleYear.objects.filter(business=self.request.business)
-            .select_related("vehicle")
-            .order_by("-year", "vehicle__label")
-        )
+        year = _parse_year(self.request.GET.get("year"))
+        return VehicleYear.objects.filter(business=self.request.business, year=year).select_related("vehicle").order_by("vehicle__label")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        year = _parse_year(self.request.GET.get("year"))
+        rows = []
+        for r in ctx["vehicle_years"]:
+            rows.append({"object": r, "summary": get_yearly_mileage_summary(business=self.request.business, vehicle_id=r.vehicle_id, year=r.year)})
+        ctx.update({"year": year, "year_choices": _year_choices(), "rows": rows})
+        return ctx
 
 
-class VehicleYearCreateView(CreateView, LoginRequiredMixin):
+class VehicleYearCreateView(LoginRequiredMixin, CreateView):
     model = VehicleYear
     form_class = VehicleYearForm
     template_name = "vehicles/vehicle_year_form.html"
     success_url = reverse_lazy("vehicles:vehicle_year_list")
-
-    def get_initial(self):
-        initial = super().get_initial()
-
-        vehicle_id = self.request.GET.get("vehicle")
-        if vehicle_id:
-            try:
-                initial["vehicle"] = int(vehicle_id)
-            except (TypeError, ValueError):
-                pass
-
-        year = self.request.GET.get("year")
-        if year:
-            try:
-                initial["year"] = int(year)
-            except (TypeError, ValueError):
-                pass
-
-        return initial
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["from_vehicle_create"] = bool(self.request.GET.get("vehicle"))
-        return ctx
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["business"] = self.request.business
         return kwargs
 
+    def get_initial(self):
+        initial = super().get_initial()
+        vehicle = self.request.GET.get("vehicle")
+        year = self.request.GET.get("year")
+        if vehicle:
+            initial["vehicle"] = vehicle
+        if year:
+            initial["year"] = year
+        return initial
+
     def form_valid(self, form):
         form.instance.business = self.request.business
-        return super().form_valid(form)
+        self.object = form.save()
+        messages.success(self.request, "Annual vehicle record saved.")
+        next_target = self.request.GET.get("next")
+        if next_target == "detail":
+            return redirect(f"{reverse('vehicles:vehicle_detail', args=[self.object.vehicle_id])}?year={self.object.year}")
+        return redirect(self.get_success_url() + f"?year={self.object.year}")
 
 
-class VehicleYearUpdateView(UpdateView, LoginRequiredMixin):
+class VehicleYearUpdateView(LoginRequiredMixin, UpdateView):
     model = VehicleYear
     form_class = VehicleYearForm
     template_name = "vehicles/vehicle_year_form.html"
@@ -414,10 +333,14 @@ class VehicleYearUpdateView(UpdateView, LoginRequiredMixin):
 
     def form_valid(self, form):
         form.instance.business = self.request.business
+        messages.success(self.request, "Annual vehicle record updated.")
         return super().form_valid(form)
 
+    def get_success_url(self):
+        return reverse("vehicles:vehicle_detail", args=[self.object.vehicle_id]) + f"?year={self.object.year}"
 
-class VehicleYearDeleteView(DeleteView, LoginRequiredMixin):
+
+class VehicleYearDeleteView(LoginRequiredMixin, DeleteView):
     model = VehicleYear
     template_name = "vehicles/vehicle_year_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_year_list")
@@ -426,24 +349,15 @@ class VehicleYearDeleteView(DeleteView, LoginRequiredMixin):
         return VehicleYear.objects.filter(business=self.request.business)
 
 
-# ---------------------------------------------------------------------
-# VehicleMiles CRUD
-# ---------------------------------------------------------------------
-
-
-class VehicleMilesListView(ListView, LoginRequiredMixin):
+class VehicleMilesListView(LoginRequiredMixin, ListView):
     model = VehicleMiles
     template_name = "vehicles/vehicle_miles_list.html"
     context_object_name = "miles_entries"
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         year = _parse_year(self.request.GET.get("year"))
-        qs = (
-            VehicleMiles.objects.filter(business=self.request.business, date__year=year)
-            .select_related("vehicle", "job", "invoice")
-            .order_by("-date", "-id")
-        )
+        qs = VehicleMiles.objects.filter(business=self.request.business, date__year=year).select_related("vehicle", "job", "invoice").order_by("-date", "-id")
         vehicle_id = self.request.GET.get("vehicle")
         if vehicle_id:
             try:
@@ -455,14 +369,23 @@ class VehicleMilesListView(ListView, LoginRequiredMixin):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         year = _parse_year(self.request.GET.get("year"))
-        ctx["year"] = year
-        ctx["year_choices"] = _year_choices()
-        ctx["vehicles"] = Vehicle.objects.filter(business=self.request.business).order_by("label")
-        ctx["vehicle_filter"] = self.request.GET.get("vehicle") or ""
+        vehicle_filter = self.request.GET.get("vehicle") or ""
+        page_qs = ctx["miles_entries"].object_list if hasattr(ctx["miles_entries"], "object_list") else ctx["miles_entries"]
+        total_logged = page_qs.aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        total_business = page_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        ctx.update({
+            "year": year,
+            "year_choices": _year_choices(),
+            "vehicles": Vehicle.objects.filter(business=self.request.business).order_by("label"),
+            "vehicle_filter": vehicle_filter,
+            "logged_total": total_logged,
+            "business_total": total_business,
+            "other_total": (Decimal(str(total_logged)) - Decimal(str(total_business))).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
+        })
         return ctx
 
 
-class VehicleMilesCreateView(CreateView, LoginRequiredMixin):
+class VehicleMilesCreateView(LoginRequiredMixin, CreateView):
     model = VehicleMiles
     form_class = VehicleMilesForm
     template_name = "vehicles/vehicle_miles_form.html"
@@ -474,38 +397,21 @@ class VehicleMilesCreateView(CreateView, LoginRequiredMixin):
         return kwargs
 
     def get_initial(self):
-        """Support pre-filling invoice/job from query params."""
         initial = super().get_initial()
-
-        invoice_id = self.request.GET.get("invoice")
-        if invoice_id:
-            try:
-                initial["invoice"] = int(invoice_id)
-            except (TypeError, ValueError):
-                pass
-
-        job_id = self.request.GET.get("job")
-        if job_id:
-            try:
-                initial["job"] = int(job_id)
-            except (TypeError, ValueError):
-                pass
-
-        vehicle_id = self.request.GET.get("vehicle")
-        if vehicle_id:
-            try:
-                initial["vehicle"] = int(vehicle_id)
-            except (TypeError, ValueError):
-                pass
-
+        for key in ("invoice", "job", "vehicle"):
+            value = self.request.GET.get(key)
+            if value:
+                initial[key] = value
         return initial
 
     def form_valid(self, form):
         form.instance.business = self.request.business
-        return super().form_valid(form)
+        self.object = form.save()
+        messages.success(self.request, "Mileage entry saved.")
+        return redirect(reverse("vehicles:vehicle_detail", args=[self.object.vehicle_id]) + f"?year={self.object.date.year}")
 
 
-class VehicleMilesUpdateView(UpdateView, LoginRequiredMixin):
+class VehicleMilesUpdateView(LoginRequiredMixin, UpdateView):
     model = VehicleMiles
     form_class = VehicleMilesForm
     template_name = "vehicles/vehicle_miles_form.html"
@@ -521,13 +427,32 @@ class VehicleMilesUpdateView(UpdateView, LoginRequiredMixin):
 
     def form_valid(self, form):
         form.instance.business = self.request.business
+        messages.success(self.request, "Mileage entry updated.")
         return super().form_valid(form)
 
+    def get_success_url(self):
+        return reverse("vehicles:vehicle_detail", args=[self.object.vehicle_id]) + f"?year={self.object.date.year}"
 
-class VehicleMilesDeleteView(DeleteView, LoginRequiredMixin):
+
+class VehicleMilesDeleteView(LoginRequiredMixin, DeleteView):
     model = VehicleMiles
     template_name = "vehicles/vehicle_miles_confirm_delete.html"
     success_url = reverse_lazy("vehicles:vehicle_miles_list")
 
     def get_queryset(self):
         return VehicleMiles.objects.filter(business=self.request.business)
+
+
+@login_required
+@require_POST
+def quick_mileage_add(request: HttpRequest) -> HttpResponse:
+    form = QuickMileageForm(request.POST, business=request.business)
+    if form.is_valid():
+        entry = form.save(commit=False)
+        entry.business = request.business
+        entry.mileage_type = VehicleMiles.MileageType.BUSINESS
+        entry.save()
+        messages.success(request, "Business mileage added.")
+        return redirect(request.POST.get("next") or reverse("vehicles:vehicle_detail", args=[entry.vehicle_id]) + f"?year={entry.date.year}")
+    messages.error(request, "Please correct the quick mileage form.")
+    return render(request, "vehicles/quick_mileage_error.html", {"form": form}, status=400)
