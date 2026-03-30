@@ -82,7 +82,7 @@ class VehicleMilesForm(forms.ModelForm):
 
         if business:
             self.fields["vehicle"].queryset = self.fields["vehicle"].queryset.filter(business=business, is_active=True).order_by("sort_order", "label")
-            self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-is_active", "job_number", "title")
+            self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-is_active", "-job_year", "job_number", "label")
             # Invoice list can get long; keep it ordered newest first.
             self.fields["invoice"].queryset = Invoice.objects.filter(business=business).order_by("-issue_date", "-id")
 
