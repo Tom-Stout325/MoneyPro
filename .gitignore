@@ -75,7 +75,7 @@ htmlcov/
 .DS_Store
 .AppleDouble
 .LSOverride
-Icon?
+Icon/r
 
 # -----------------------------------------------------
 # Database Dumps / Backups
