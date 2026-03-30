@@ -1,6 +1,7 @@
 /* ==========================================================================
    MoneyPro — Custom SVG Icon System
    Airborne Images drone logo icon utilities
+   Inline SVG version
    ========================================================================== */
 
 :root {
@@ -15,28 +16,34 @@
 i.mp-icon,
 span.mp-icon {
   --_icon-size: var(--mp-icon-size);
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: var(--_icon-size);
   height: var(--_icon-size);
   min-width: var(--_icon-size);
   min-height: var(--_icon-size);
   vertical-align: -0.125em;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
   flex: 0 0 auto;
   line-height: 1;
 }
 
-/* Icon names / aliases */
+.mp-icon svg,
+i.mp-icon svg,
+span.mp-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  flex: 0 0 auto;
+}
+
 .mp-icon-drone,
 .mp-icon-airborne,
 .mp-icon-brand,
 .mp-icon-logo {
-  background-image: url("../icons/airborne-drone.svg");
+  /* alias hooks for compatibility */
 }
 
-/* Sizes */
 .mp-icon-xs { --_icon-size: 0.875rem; }
 .mp-icon-sm { --_icon-size: 1rem; }
 .mp-icon-md { --_icon-size: 1.25rem; }
@@ -46,7 +53,6 @@ span.mp-icon {
 .mp-icon-3xl { --_icon-size: 3rem; }
 .mp-icon-4xl { --_icon-size: 4rem; }
 
-/* Common wrappers */
 .mp-icon-soft,
 .mp-icon-circle,
 .mp-icon-tile {
@@ -80,14 +86,8 @@ span.mp-icon {
   box-shadow: var(--mp-icon-shadow);
 }
 
-/* Alignment helpers */
-.mp-icon-inline {
-  margin-right: 0.5rem;
-}
-
-.mp-icon-inline-sm {
-  margin-right: 0.35rem;
-}
+.mp-icon-inline { margin-right: 0.5rem; }
+.mp-icon-inline-sm { margin-right: 0.35rem; }
 
 .btn .mp-icon,
 .nav-link .mp-icon,
@@ -103,7 +103,6 @@ h6 .mp-icon {
   margin-right: 0.5rem;
 }
 
-/* Motion */
 .mp-icon-pop {
   transition: transform 0.18s ease, filter 0.18s ease;
 }
@@ -116,7 +115,6 @@ h6 .mp-icon {
   filter: drop-shadow(0 8px 16px rgba(36, 64, 101, 0.14));
 }
 
-/* Dark mode */
 [data-theme="dark"] .mp-icon-soft {
   background: color-mix(in srgb, var(--color-primary, #7B9669), #0f1720 86%);
   border-color: color-mix(in srgb, var(--color-primary, #7B9669), transparent 74%);

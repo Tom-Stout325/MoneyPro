@@ -486,22 +486,19 @@
           </div>
 
           <div class="invoice-detail-grid">
+       
             <div class="invoice-detail-pill">
-              <span class="invoice-detail-label">Job</span>
-              {% if invoice.job %}
-                <a class="invoice-detail-value" href="{% url 'ledger:job_detail' invoice.job.pk %}">{{ invoice.job.label }}</a>
-              {% else %}
-                <span class="invoice-detail-muted">No job linked</span>
-              {% endif %}
-            </div>
-
-            <div class="invoice-detail-pill">
-              <span class="invoice-detail-label"><i class="fa-solid fa-location-dot text-danger fs-2"></i> Location</span>
+              <span class="invoice-detail-label">  {% include "partials/icon.html" with class="mp-icon-xl" %} Job</span>
               <span class="invoice-detail-value">{{ invoice.location|default:"—" }}</span>
             </div>
 
             <div class="invoice-detail-pill">
-              <span class="invoice-detail-label">Contact</span>
+              <span class="invoice-detail-label"><i class="fa-solid fa-location-dot text-danger fs-5"></i> Location</span>
+              <span class="invoice-detail-value">{{ invoice.location|default:"—" }}</span>
+            </div>
+
+            <div class="invoice-detail-pill">
+              <span class="invoice-detail-label"><i class="fa-solid fa-address-card fs-5 text-primary"></i> Contact</span>
               <span class="invoice-detail-value">{{ invoice.contact.display_name }}</span>
             </div>
           </div>

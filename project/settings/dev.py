@@ -47,3 +47,5 @@ if env.bool("CELERY_TASK_ALWAYS_EAGER", default=False):
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
 
+
+
