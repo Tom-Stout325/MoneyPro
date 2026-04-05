@@ -259,33 +259,33 @@ class Job(BusinessOwnedModelMixin):
             except (TypeError, ValueError):
                 raise ValidationError({"job_year": "Year must be a valid number."})
 
-    def _allocate_job_number(self) -> None:
-        """Allocate job_seq + job_number.
+def _allocate_job_number(self) -> None:
+    """Allocate job_seq + job_number.
 
-        Format: <CLIENTCODE>-<YY><NNNN>
-        Example: NHRA-26001
+    Format: <PREFIX>-<YY><NNNN>
+    Example: NHRA-260001
 
-        Sequence is global per Business + Year (not per client).
-        """
+    Sequence is global per Business + Year (not per client).
+    """
 
-        year = int(self.job_year or timezone.now().year)
-        yy = str(year)[-2:]
+    year = int(self.job_year or timezone.now().year)
+    yy = str(year)[-2:]
 
-        prefix = "JOB"
-        if self.client_id and (self.client.client_code or "").strip():
-            prefix = self.client.client_code.strip().upper()
+    prefix = "JOB"
+    if self.client_id and (self.client.client_code or "").strip():
+        prefix = self.client.client_code.strip().upper()
 
-        with transaction.atomic():
-            max_seq = (
-                Job.objects.filter(business=self.business, job_year=year)
-                .aggregate(m=Max("job_seq"))
-                .get("m")
-            )
-            next_seq = int(max_seq or 0) + 1
+    with transaction.atomic():
+        max_seq = (
+            Job.objects.filter(business=self.business, job_year=year)
+            .aggregate(m=Max("job_seq"))
+            .get("m")
+        )
+        next_seq = int(max_seq or 0) + 1
 
-            self.job_year = year
-            self.job_seq = next_seq
-            self.job_number = f"{prefix}-{yy}{next_seq:03d}"
+        self.job_year = year
+        self.job_seq = next_seq
+        self.job_number = f"{prefix}-{yy}{next_seq:04d}"
 
     def __str__(self) -> str:
         return f"{self.job_number} • {self.label}"
@@ -297,6 +297,10 @@ class Job(BusinessOwnedModelMixin):
             self._allocate_job_number()
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+
+
 
 
 
@@ -314,6 +318,10 @@ class Team(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+
+
 
 
 class Transaction(BusinessOwnedModelMixin):
@@ -563,6 +571,9 @@ class Transaction(BusinessOwnedModelMixin):
         if self.amount is None:
             return Decimal("0.00")
         return -self.amount if self.is_refund else self.amount
+
+
+
 
 
 
