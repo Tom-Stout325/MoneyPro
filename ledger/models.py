@@ -259,44 +259,44 @@ class Job(BusinessOwnedModelMixin):
             except (TypeError, ValueError):
                 raise ValidationError({"job_year": "Year must be a valid number."})
 
-def _allocate_job_number(self) -> None:
-    """Allocate job_seq + job_number.
+    def _allocate_job_number(self) -> None:
+        """Allocate job_seq + job_number.
 
-    Format: <PREFIX>-<YY><NNNN>
-    Example: NHRA-260001
+        Format: <PREFIX>-<YY><NNNN>
+        Example: NHRA-260001
 
-    Sequence is global per Business + Year (not per client).
-    """
+        Sequence is global per Business + Year (not per client).
+        """
 
-    year = int(self.job_year or timezone.now().year)
-    yy = str(year)[-2:]
+        year = int(self.job_year or timezone.now().year)
+        yy = str(year)[-2:]
 
-    prefix = "JOB"
-    if self.client_id and (self.client.client_code or "").strip():
-        prefix = self.client.client_code.strip().upper()
+        prefix = "JOB"
+        if self.client_id and (self.client.client_code or "").strip():
+            prefix = self.client.client_code.strip().upper()
 
-    with transaction.atomic():
-        max_seq = (
-            Job.objects.filter(business=self.business, job_year=year)
-            .aggregate(m=Max("job_seq"))
-            .get("m")
-        )
-        next_seq = int(max_seq or 0) + 1
+        with transaction.atomic():
+            max_seq = (
+                Job.objects.filter(business=self.business, job_year=year)
+                .aggregate(m=Max("job_seq"))
+                .get("m")
+            )
+            next_seq = int(max_seq or 0) + 1
 
-        self.job_year = year
-        self.job_seq = next_seq
-        self.job_number = f"{prefix}-{yy}{next_seq:04d}"
+            self.job_year = year
+            self.job_seq = next_seq
+            self.job_number = f"{prefix}-{yy}{next_seq:04d}"
 
-    def __str__(self) -> str:
-        return f"{self.job_number} • {self.label}"
+        def __str__(self) -> str:
+            return f"{self.job_number} • {self.label}"
 
-    def save(self, *args, **kwargs):
-        if not self.job_number:
-            if not self.business_id:
-                raise ValidationError({"business": "Business is required before generating a Job Number."})
-            self._allocate_job_number()
-        self.full_clean()
-        return super().save(*args, **kwargs)
+        def save(self, *args, **kwargs):
+            if not self.job_number:
+                if not self.business_id:
+                    raise ValidationError({"business": "Business is required before generating a Job Number."})
+                self._allocate_job_number()
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
 
 
@@ -492,6 +492,7 @@ class Transaction(BusinessOwnedModelMixin):
 
         self.full_clean()
         return super().save(*args, **kwargs)
+    
     def is_meals_50(self) -> bool:
         sc = getattr(self, "subcategory", None)
         if not sc:
