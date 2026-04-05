@@ -303,7 +303,6 @@ class Job(BusinessOwnedModelMixin):
 
 
 
-
 class Team(models.Model):
     business         = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="teams")
     name             = models.CharField(max_length=120)
