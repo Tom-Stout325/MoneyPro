@@ -212,39 +212,56 @@ class SubCategory(BusinessOwnedModelMixin):
 
 class Job(BusinessOwnedModelMixin):
     class JobType(models.TextChoices):
-        COMMERCIAL   = "commercial", "Commercial"
-        REAL_ESTATE  = "real_estate", "Real Estate"
-        INSPECTION   = "inspection", "Inspection"
+        COMMERCIAL = "commercial", "Commercial"
+        REAL_ESTATE = "real_estate", "Real Estate"
+        INSPECTION = "inspection", "Inspection"
         CONSTRUCTION = "construction", "Construction"
-        PHOTOGRAPHY  = "photography", "Photography"
-        MAPPING      = "mapping", "Mapping"
-        TRAINING     = "training", "Training"
-        INTERNAL     = "internal", "Internal"
-        OTHER        = "other", "Other"
+        PHOTOGRAPHY = "photography", "Photography"
+        MAPPING = "mapping", "Mapping"
+        TRAINING = "training", "Training"
+        INTERNAL = "internal", "Internal"
+        OTHER = "other", "Other"
 
     # Stable job label shown throughout the UI (invoice lists, etc.).
-    label            = models.CharField(max_length=255)
+    label = models.CharField(max_length=255)
 
     # Year + sequence support for sorting/reporting.
-    job_year         = models.PositiveIntegerField(default=current_year)
-    job_seq          = models.PositiveIntegerField(default=0, editable=False)
+    job_year = models.PositiveIntegerField(default=current_year)
+    job_seq = models.PositiveIntegerField(default=0, editable=False)
 
     # Generated identifier using client_code + year + seq.
-    job_number       = models.CharField(max_length=30, blank=True, editable=False)
-    client           = models.ForeignKey('Contact', on_delete=models.PROTECT, related_name="client_jobs", null=True, blank=True, help_text="Optional. Select a Contact marked as a Customer.",)
-    job_type         = models.CharField(max_length=20, choices=JobType.choices, default=JobType.OTHER)
-    city             = models.CharField(max_length=120, blank=True)
-    address          = models.CharField(max_length=255, blank=True)
-    notes            = models.TextField(blank=True)
-    is_active        = models.BooleanField(default=True)
-    created_at       = models.DateTimeField(auto_now_add=True)
-    updated_at       = models.DateTimeField(auto_now=True)
+    job_number = models.CharField(max_length=30, blank=True, editable=False)
+    client = models.ForeignKey(
+        "Contact",
+        on_delete=models.PROTECT,
+        related_name="client_jobs",
+        null=True,
+        blank=True,
+        help_text="Optional. Select a Contact marked as a Customer.",
+    )
+    job_type = models.CharField(
+        max_length=20,
+        choices=JobType.choices,
+        default=JobType.OTHER,
+    )
+    city = models.CharField(max_length=120, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-is_active", "-job_year", "job_number", "label"]
         constraints = [
-            models.UniqueConstraint(fields=["business", "job_number"], name="uniq_job_business_job_number"),
-            models.UniqueConstraint(fields=["business", "job_year", "job_seq"], name="uniq_job_business_year_seq"),
+            models.UniqueConstraint(
+                fields=["business", "job_number"],
+                name="uniq_job_business_job_number",
+            ),
+            models.UniqueConstraint(
+                fields=["business", "job_year", "job_seq"],
+                name="uniq_job_business_year_seq",
+            ),
         ]
 
     def clean(self):
@@ -267,7 +284,6 @@ class Job(BusinessOwnedModelMixin):
 
         Sequence is global per Business + Year (not per client).
         """
-
         year = int(self.job_year or timezone.now().year)
         yy = str(year)[-2:]
 
@@ -287,16 +303,19 @@ class Job(BusinessOwnedModelMixin):
             self.job_seq = next_seq
             self.job_number = f"{prefix}-{yy}{next_seq:04d}"
 
-        def __str__(self) -> str:
-            return f"{self.job_number} • {self.label}"
+    def __str__(self) -> str:
+        return f"{self.job_number} • {self.label}"
 
-        def save(self, *args, **kwargs):
-            if not self.job_number:
-                if not self.business_id:
-                    raise ValidationError({"business": "Business is required before generating a Job Number."})
-                self._allocate_job_number()
-            self.full_clean()
-            return super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if not self.job_number:
+            if not self.business_id:
+                raise ValidationError(
+                    {"business": "Business is required before generating a Job Number."}
+                )
+            self._allocate_job_number()
+
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 
