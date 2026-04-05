@@ -12,9 +12,16 @@ from django.utils.text import slugify
 from core.models import Business, BusinessOwnedModelMixin
 from assets.models import Asset
 from vehicles.models import Vehicle
+from django.db import transaction
+from django.db.models import Max
+
 
 def current_year() -> int:
     return timezone.now().year
+
+
+
+
 
 
 class Category(BusinessOwnedModelMixin):
@@ -196,17 +203,24 @@ class SubCategory(BusinessOwnedModelMixin):
 
 
 
+
+
+
+
+
+
+
 class Job(BusinessOwnedModelMixin):
     class JobType(models.TextChoices):
-        COMMERCIAL = "commercial", "Commercial"
-        REAL_ESTATE = "real_estate", "Real Estate"
-        INSPECTION = "inspection", "Inspection"
+        COMMERCIAL   = "commercial", "Commercial"
+        REAL_ESTATE  = "real_estate", "Real Estate"
+        INSPECTION   = "inspection", "Inspection"
         CONSTRUCTION = "construction", "Construction"
-        PHOTOGRAPHY = "photography", "Photography"
-        MAPPING = "mapping", "Mapping"
-        TRAINING = "training", "Training"
-        INTERNAL = "internal", "Internal"
-        OTHER = "other", "Other"
+        PHOTOGRAPHY  = "photography", "Photography"
+        MAPPING      = "mapping", "Mapping"
+        TRAINING     = "training", "Training"
+        INTERNAL     = "internal", "Internal"
+        OTHER        = "other", "Other"
 
     # Stable job label shown throughout the UI (invoice lists, etc.).
     label            = models.CharField(max_length=255)
@@ -248,13 +262,11 @@ class Job(BusinessOwnedModelMixin):
     def _allocate_job_number(self) -> None:
         """Allocate job_seq + job_number.
 
-        Format: <CLIENTCODE>-<YY><NNN>
+        Format: <CLIENTCODE>-<YY><NNNN>
         Example: NHRA-26001
 
         Sequence is global per Business + Year (not per client).
         """
-        from django.db import transaction
-        from django.db.models import Max
 
         year = int(self.job_year or timezone.now().year)
         yy = str(year)[-2:]
