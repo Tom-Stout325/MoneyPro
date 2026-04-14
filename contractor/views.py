@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import EmailMessage
+from django.core.mail import get_connection
 from django.core.files.base import ContentFile
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,7 +15,7 @@ from django.views.generic import DetailView, ListView
 
 from ledger.models import Contact, Transaction
 
-from .forms import ContractorYearForm, W9PortalForm
+from .forms import ContractorYearForm, W9PortalForm, W9ReviewForm
 from .models import Contractor1099, ContractorW9Submission
 from .renderer_1099nec import render_1099nec_pdf_bytes, render_1099nec_pdf_response
 from .services.nec1099 import nec_total_for_contact, nec_totals_for_year, default_tax_year
@@ -150,8 +151,102 @@ def send_w9_email(request: HttpRequest, pk: int) -> HttpResponse:
 def w9_view(request: HttpRequest, pk: int) -> HttpResponse:
     business = _get_business(request)
     contact = get_object_or_404(Contact, business=business, pk=pk, is_contractor=True)
-    return render(request, "contractor/w9_view.html", {"contractor": contact})
+    w9_history = contact.w9_submissions.filter(business=business).order_by("-submitted_at", "-id")
+    return render(request, "contractor/w9_view.html", {"contractor": contact, "w9_history": w9_history})
 
+
+
+@login_required
+def w9_review_list(request: HttpRequest) -> HttpResponse:
+    business = _get_business(request)
+    submissions = (
+        ContractorW9Submission.objects.filter(business=business)
+        .select_related("contact")
+        .order_by("-submitted_at", "-id")
+    )
+    pending_count = submissions.filter(review_status=ContractorW9Submission.ReviewStatus.PENDING).count()
+    verified_count = submissions.filter(review_status=ContractorW9Submission.ReviewStatus.VERIFIED).count()
+    return render(
+        request,
+        "contractor/w9_review_list.html",
+        {
+            "submissions": submissions,
+            "pending_count": pending_count,
+            "verified_count": verified_count,
+        },
+    )
+
+
+@login_required
+def w9_review_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    business = _get_business(request)
+    submission = get_object_or_404(
+        ContractorW9Submission.objects.select_related("contact", "business"),
+        business=business,
+        pk=pk,
+    )
+    history = submission.contact.w9_submissions.filter(business=business).exclude(pk=submission.pk).order_by("-submitted_at", "-id")[:10]
+
+    if request.method == "POST":
+        form = W9ReviewForm(request.POST, request.FILES, instance=submission)
+        if form.is_valid():
+            submission = form.save(commit=False)
+            submission.reviewed_at = timezone.now()
+            reviewer_name = request.user.get_full_name().strip() if hasattr(request.user, "get_full_name") else ""
+            submission.reviewed_by_name = reviewer_name or getattr(request.user, "username", "") or "Staff"
+            submission.save()
+
+            contact = submission.contact
+            if form.cleaned_data.get("replace_contact_w9_document") and hasattr(contact, "w9_document"):
+                contact.w9_document = form.cleaned_data["replace_contact_w9_document"]
+
+            if form.cleaned_data.get("verify_and_update_contact"):
+                if hasattr(contact, "w9_status"):
+                    if submission.review_status == ContractorW9Submission.ReviewStatus.VERIFIED:
+                        contact.w9_status = "verified"
+                    elif submission.review_status == ContractorW9Submission.ReviewStatus.NEEDS_UPDATE:
+                        contact.w9_status = "requested"
+                    else:
+                        contact.w9_status = "received"
+                if hasattr(contact, "w9_received_date") and submission.submitted_at:
+                    contact.w9_received_date = (contact.w9_received_date or timezone.localdate())
+                if hasattr(contact, "tin_type") and submission.tin_type:
+                    contact.tin_type = submission.tin_type
+                if hasattr(contact, "tin_last4") and submission.tin_last4:
+                    contact.tin_last4 = submission.tin_last4
+                if hasattr(contact, "is_1099_eligible"):
+                    contact.is_1099_eligible = True
+                if hasattr(contact, "business_name") and submission.business_name:
+                    contact.business_name = submission.business_name
+                if hasattr(contact, "address1") and submission.address_line1:
+                    contact.address1 = submission.address_line1
+                if hasattr(contact, "address2"):
+                    contact.address2 = submission.address_line2
+                if hasattr(contact, "city"):
+                    contact.city = submission.city
+                if hasattr(contact, "state"):
+                    contact.state = submission.state
+                if hasattr(contact, "zip_code"):
+                    contact.zip_code = submission.zip_code
+                if hasattr(contact, "save"):
+                    contact.save()
+            elif form.cleaned_data.get("replace_contact_w9_document") and hasattr(contact, "save"):
+                contact.save(update_fields=["w9_document"])
+
+            messages.success(request, "W-9 review saved.")
+            return redirect("contractor:w9_review_detail", pk=submission.pk)
+    else:
+        form = W9ReviewForm(instance=submission)
+
+    return render(
+        request,
+        "contractor/w9_review_detail.html",
+        {
+            "submission": submission,
+            "form": form,
+            "history": history,
+        },
+    )
 
 def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
     verified = verify_portal_token(token)
@@ -212,6 +307,35 @@ def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
         form = W9PortalForm(initial={"full_name": contact.display_name or contact.legal_name})
 
     return render(request, "contractor/w9_portal.html", {"form": form, "contact": contact, "business": contact.business})
+
+
+def _ensure_1099_record(*, business, contact, year: int, regenerate: bool = False) -> tuple[Contractor1099, Decimal]:
+    total = nec_total_for_contact(business_id=business.id, contact_id=contact.id, year=year)
+    obj, _ = Contractor1099.objects.get_or_create(business=business, contact=contact, tax_year=year)
+
+    if regenerate or not obj.copy_b_pdf:
+        b_bytes = render_1099nec_pdf_bytes(
+            business=business,
+            contractor=contact,
+            year=year,
+            nonemployee_comp=total,
+            copy="b",
+        )
+        obj.copy_b_pdf.save(f"1099-NEC_{year}_copyB.pdf", ContentFile(b_bytes), save=False)
+
+    if regenerate or not obj.copy_1_pdf:
+        one_bytes = render_1099nec_pdf_bytes(
+            business=business,
+            contractor=contact,
+            year=year,
+            nonemployee_comp=total,
+            copy="1",
+        )
+        obj.copy_1_pdf.save(f"1099-NEC_{year}_copy1.pdf", ContentFile(one_bytes), save=False)
+
+    obj.generated_at = timezone.now()
+    obj.save()
+    return obj, total
 
 
 @login_required
@@ -307,20 +431,9 @@ def store_1099_pdf(request: HttpRequest, pk: int) -> HttpResponse:
     year = int(request.GET.get("year") or default_tax_year())
     contact = get_object_or_404(Contact, business=business, pk=pk, is_contractor=True)
 
-    total = nec_total_for_contact(business_id=business.id, contact_id=contact.id, year=year)
-    obj, _ = Contractor1099.objects.get_or_create(business=business, contact=contact, tax_year=year)
-
-    # Always (re)generate on store to keep consistent with latest templates.
-    b_bytes = render_1099nec_pdf_bytes(business=business, contractor=contact, year=year, nonemployee_comp=total, copy="b")
-    one_bytes = render_1099nec_pdf_bytes(business=business, contractor=contact, year=year, nonemployee_comp=total, copy="1")
-
-    obj.copy_b_pdf.save(f"1099-NEC_{year}_copyB.pdf", ContentFile(b_bytes), save=False)
-    obj.copy_1_pdf.save(f"1099-NEC_{year}_copy1.pdf", ContentFile(one_bytes), save=False)
-    obj.generated_at = timezone.now()
-    obj.save()
-
+    _ensure_1099_record(business=business, contact=contact, year=year, regenerate=True)
     messages.success(request, f"Stored 1099 PDFs for tax year {year}.")
-    return redirect("contractor:detail", pk=contact.pk)
+    return redirect("contractor:contractor_1099_center", pk=contact.pk)
 
 
 @login_required
@@ -331,28 +444,39 @@ def email_1099_copy_b(request: HttpRequest, pk: int) -> HttpResponse:
 
     if not contact.email:
         messages.error(request, "This contractor has no email address.")
-        return redirect("contractor:detail", pk=contact.pk)
+        return redirect("contractor:contractor_1099_center", pk=contact.pk)
 
-    total = nec_total_for_contact(business_id=business.id, contact_id=contact.id, year=year)
-    obj, _ = Contractor1099.objects.get_or_create(business=business, contact=contact, tax_year=year)
+    obj, total = _ensure_1099_record(business=business, contact=contact, year=year, regenerate=False)
 
-    # Ensure Copy B exists
-    if not obj.copy_b_pdf:
-        b_bytes = render_1099nec_pdf_bytes(business=business, contractor=contact, year=year, nonemployee_comp=total, copy="b")
-        obj.copy_b_pdf.save(f"1099-NEC_{year}_copyB.pdf", ContentFile(b_bytes), save=False)
-
-    subject = f"Your 1099-NEC for tax year {year}"
-    body = f"Hi {contact.display_name},\n\nAttached is your 1099-NEC (Copy B) for tax year {year}.\n\nThank you."
+    subject = f"Your 1099-NEC Copy B for tax year {year}"
+    body = (
+        f"Hi {contact.display_name},\n\n"
+        f"Attached is your Form 1099-NEC Copy B for tax year {year}. "
+        f"Please keep it with your tax records.\n\n"
+        f"Thank you,\n{business.name}"
+    )
     msg = EmailMessage(subject=subject, body=body, to=[contact.email])
-    obj.copy_b_pdf.open('rb')
-    msg.attach(filename=f"1099-NEC_{year}_copyB.pdf", content=obj.copy_b_pdf.read(), mimetype="application/pdf")
-    obj.copy_b_pdf.close()
-    msg.send(fail_silently=False)
+    with obj.copy_b_pdf.open("rb") as fh:
+        msg.attach(filename=f"1099-NEC_{year}_copyB.pdf", content=fh.read(), mimetype="application/pdf")
+
+    try:
+        # Touch the connection first so placeholder SMTP settings fail cleanly here.
+        connection = get_connection(fail_silently=False)
+        connection.open()
+        msg.connection = connection
+        msg.send(fail_silently=False)
+    except Exception as exc:
+        messages.warning(
+            request,
+            "Copy B PDF was generated and stored, but the email was not sent because the email backend is not configured yet: "
+            f"{exc}"
+        )
+        return redirect("contractor:contractor_1099_center", pk=contact.pk)
 
     obj.emailed_at = timezone.now()
     obj.emailed_to = contact.email
     obj.email_count = (obj.email_count or 0) + 1
-    obj.save(update_fields=["emailed_at", "emailed_to", "email_count", "copy_b_pdf"])
+    obj.save(update_fields=["emailed_at", "emailed_to", "email_count"])
 
-    messages.success(request, f"Emailed Copy B for tax year {year}.")
-    return redirect("contractor:detail", pk=contact.pk)
+    messages.success(request, f"Emailed Copy B for tax year {year} to {contact.email}.")
+    return redirect("contractor:contractor_1099_center", pk=contact.pk)

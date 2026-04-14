@@ -15,7 +15,8 @@
       <a class="btn btn-outline-secondary" href="{% url 'contractor:detail' contractor.pk %}?year={{ year }}">Back to Contractor</a>
       <a class="btn btn-outline-secondary" href="{% url 'contractor:1099_preview' contractor.pk %}?year={{ year }}">Preview</a>
       <a class="btn btn-outline-secondary" href="{% url 'contractor:1099_store' contractor.pk %}?year={{ year }}">Store</a>
-      <a class="btn btn-primary" href="{% url 'contractor:1099_pdf' contractor.pk %}?year={{ year }}">Download PDF</a>
+      <a class="btn btn-primary" href="{% url 'contractor:1099_email_copy_b' contractor.pk %}?year={{ year }}">{% if stored_1099 and stored_1099.email_count %}Resend Copy B{% else %}Send Copy B{% endif %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'contractor:1099_pdf' contractor.pk %}?year={{ year }}">Download PDF</a>
     </div>
   </div>
 
@@ -43,6 +44,11 @@
           {% if stored_1099 and stored_1099.generated_at %}
             <div class="fw-semibold">Generated</div>
             <div class="text-muted small">{{ stored_1099.generated_at|date:"m/d/Y g:i A" }}</div>
+            {% if stored_1099.emailed_at %}
+              <div class="text-success small mt-2">Sent {{ stored_1099.emailed_at|date:"m/d/Y g:i A" }}{% if stored_1099.emailed_to %} to {{ stored_1099.emailed_to }}{% endif %}</div>
+            {% else %}
+              <div class="text-muted small mt-2">Copy B has not been emailed yet.</div>
+            {% endif %}
           {% else %}
             <div class="fw-semibold">Not stored yet</div>
             <div class="text-muted small">Use Store to save the current PDFs.</div>

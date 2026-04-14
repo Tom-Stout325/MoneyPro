@@ -117,7 +117,7 @@
         <div class="d-flex flex-wrap gap-2">
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'contractor:1099_preview' contractor.pk %}?year={{ year }}">View</a>
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'contractor:1099_store' contractor.pk %}?year={{ year }}">Store</a>
-          <a class="btn btn-sm btn-primary" href="{% url 'contractor:1099_email_copy_b' contractor.pk %}?year={{ year }}">Email</a>
+          <a class="btn btn-sm btn-primary" href="{% url 'contractor:1099_email_copy_b' contractor.pk %}?year={{ year }}">Send Copy B</a>
           <a class="btn btn-sm btn-outline-secondary ms-auto" href="{% url 'contractor:1099_pdf' contractor.pk %}?year={{ year }}">Download PDF</a>
         </div>
       </div>

@@ -84,7 +84,7 @@ def recipient_address_lines(contact: Contact) -> tuple[str, str]:
 
 
 def masked_recipient_tin(contact: Contact) -> str:
-    last4 = (contact.tin_last4 or "").strip() if tp else ""
+    last4 = (contact.tin_last4 or "").strip()
     if not last4:
         return ""
     return f"****{last4}"

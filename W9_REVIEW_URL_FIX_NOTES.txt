@@ -1,0 +1,16 @@
+MoneyPro contractor W-9 review URL fix
+
+What this patch fixes:
+- Adds the missing W-9 review list view
+- Adds the missing W-9 review detail view
+- Adds the missing contractor URL names:
+  - contractor:w9_review_list
+  - contractor:w9_review_detail
+- Updates w9_view to pass submission history expected by the template
+- Cleans the duplicate 1099 alias path so 1099_home uses /1099/home/
+
+Files to unzip over project root:
+- contractor/views.py
+- contractor/urls.py
+
+No migration required.
