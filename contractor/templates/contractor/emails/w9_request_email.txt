@@ -1,0 +1,7 @@
+Hi {{ contractor_name }},
+
+{{ business_name }} is requesting your W-9 information.
+Please complete the secure W-9 portal here:
+{{ portal_url }}
+
+If you have questions, reply to {{ support_email }}.

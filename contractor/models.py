@@ -14,6 +14,11 @@ class ContractorW9Submission(BusinessOwnedModelMixin):
     - We intentionally do NOT store full TIN long-term. We store last4 only.
     """
 
+    class ReviewStatus(models.TextChoices):
+        PENDING = "pending", "Pending Review"
+        VERIFIED = "verified", "Verified"
+        NEEDS_UPDATE = "needs_update", "Needs Update"
+
     contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="w9_submissions")
 
     # Audit timestamps (migration 0001 already includes these fields)
@@ -35,16 +40,29 @@ class ContractorW9Submission(BusinessOwnedModelMixin):
 
     signature_name = models.CharField(max_length=255, blank=True)
     signature_data = models.TextField(blank=True)  # base64 png from signature pad (optional)
+    signature_date = models.DateField(null=True, blank=True)
+    certification_accepted = models.BooleanField(default=False)
+    uploaded_w9_document = models.FileField(upload_to="w9/submissions/", blank=True, null=True)
 
     submitted_ip = models.GenericIPAddressField(null=True, blank=True)
     submitted_ua = models.CharField(max_length=255, blank=True)
 
     submitted_at = models.DateTimeField(default=timezone.now)
 
+    review_status = models.CharField(
+        max_length=20,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.PENDING,
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by_name = models.CharField(max_length=255, blank=True)
+    review_notes = models.TextField(blank=True)
+
     class Meta:
         ordering = ["-submitted_at"]
         indexes = [
             models.Index(fields=["business", "contact"], name="ctr_w9_bus_contact_idx"),
+            models.Index(fields=["business", "review_status"], name="ctr_w9_bus_review_idx"),
         ]
 
     def __str__(self) -> str:

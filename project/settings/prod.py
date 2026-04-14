@@ -102,14 +102,14 @@ if USE_S3:
 # ------------------------------------------------------------------------------
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.smtp.EmailBackend",
+    default="django.core.mail.backends.console.EmailBackend",
 )
-EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.placeholder.local")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="placeholder_user")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="placeholder_password")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.test")
 
 # ------------------------------------------------------------------------------
 # Allauth safety: ensure correct scheme behind proxy
@@ -156,13 +156,13 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (  # noqa: F405
 ROOT_URLCONF = "project.urls"
 WSGI_APPLICATION = "project.wsgi.application"
 
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = env('EMAIL_HOST', default='smtp.office365.com')
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.placeholder.local')
 EMAIL_PORT = env.int('EMAIL_PORT', default=587)
 EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
-EMAIL_HOST_USER = env('EMAIL_HOST_USER', default=None)
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default=None)
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='placeholder_user')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='placeholder_password')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='no-reply@example.test')
 
 POSTMARK_SERVER_TOKEN = env('POSTMARK_SERVER_TOKEN', default=None)
 REPLY_TO_EMAIL = env('REPLY_TO_EMAIL', default=DEFAULT_FROM_EMAIL)

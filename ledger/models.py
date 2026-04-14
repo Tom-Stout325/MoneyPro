@@ -204,12 +204,6 @@ class SubCategory(BusinessOwnedModelMixin):
 
 
 
-
-
-
-
-
-
 class Job(BusinessOwnedModelMixin):
     class JobType(models.TextChoices):
         COMMERCIAL = "commercial", "Commercial"

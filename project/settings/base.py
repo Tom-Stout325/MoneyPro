@@ -357,6 +357,13 @@ EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
     default="django.core.mail.backends.console.EmailBackend",
 )
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.placeholder.local")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="placeholder_user")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="placeholder_password")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.test")
+REPLY_TO_EMAIL = env("REPLY_TO_EMAIL", default=DEFAULT_FROM_EMAIL)
 
 # ------------------------------------------------------------------------------
 # Security headers (baseline; prod.py will enforce HTTPS/HSTS)

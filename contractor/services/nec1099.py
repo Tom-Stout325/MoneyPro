@@ -24,20 +24,16 @@ def default_tax_year() -> int:
 
 
 def nec_total_for_contact(*, business_id: int, contact_id: int, year: int) -> Decimal:
-    qs = (
-        Transaction.objects.filter(
-            business_id=business_id,
-            contact_id=contact_id,
-            trans_type=Transaction.TransactionType.EXPENSE,
-            date__year=year,
-            is_refund=False,
-            subcategory__is_1099_reportable_default=True,
-        )
-        .values("contact_id")
-        .annotate(total=Sum("amount"))
-    )
-    row = qs.first()
-    return (row["total"] or Decimal("0.00")) if row else Decimal("0.00")
+    row = Transaction.objects.filter(
+        business_id=business_id,
+        contact_id=contact_id,
+        trans_type=Transaction.TransactionType.EXPENSE,
+        date__year=year,
+        is_refund=False,
+        subcategory__is_1099_reportable_default=True,
+    ).aggregate(total=Sum("amount"))
+
+    return row["total"] or Decimal("0.00")
 
 
 def nec_totals_for_year(*, business_id: int, year: int) -> list[NEC1099Totals]:

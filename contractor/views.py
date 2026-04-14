@@ -85,7 +85,7 @@ class ContractorDetailView(LoginRequiredMixin, DetailView):
                 is_refund=False,
                 subcategory__is_1099_reportable_default=True,
             )
-            .select_related("subcategory")
+            .select_related("subcategory", "job", "team")
             .order_by("-date", "-id")
         )
 
@@ -212,6 +212,47 @@ def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
         form = W9PortalForm(initial={"full_name": contact.display_name or contact.legal_name})
 
     return render(request, "contractor/w9_portal.html", {"form": form, "contact": contact, "business": contact.business})
+
+
+@login_required
+def contractor_1099_center(request: HttpRequest, pk: int) -> HttpResponse:
+    business = _get_business(request)
+    year = int(request.GET.get("year") or default_tax_year())
+    contractor = get_object_or_404(Contact, business=business, pk=pk, is_contractor=True)
+
+    transactions = (
+        Transaction.objects.filter(
+            business=business,
+            contact=contractor,
+            date__year=year,
+            trans_type=Transaction.TransactionType.EXPENSE,
+            is_refund=False,
+            subcategory__is_1099_reportable_default=True,
+        )
+        .select_related("subcategory", "job", "team")
+        .order_by("-date", "-id")
+    )
+
+    total = nec_total_for_contact(business_id=business.id, contact_id=contractor.id, year=year)
+    stored_1099 = Contractor1099.objects.filter(
+        business=business,
+        contact=contractor,
+        tax_year=year,
+    ).first()
+
+    return render(
+        request,
+        "contractor/1099_center_detail.html",
+        {
+            "business": business,
+            "contractor": contractor,
+            "year": year,
+            "year_form": ContractorYearForm(initial={"year": year}, year_choices=_year_choices()),
+            "transactions": transactions,
+            "total_1099": total,
+            "stored_1099": stored_1099,
+        },
+    )
 
 
 @login_required
