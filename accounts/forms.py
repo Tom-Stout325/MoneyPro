@@ -226,3 +226,40 @@ class InviteSignupForm(SignupForm):
                 user.save(update_fields=["email"])
 
         return user
+
+from core.models import BusinessEmailSettings
+
+
+class BusinessEmailSettingsForm(forms.ModelForm):
+    class Meta:
+        model = BusinessEmailSettings
+        fields = [
+            "display_name",
+            "from_name",
+            "from_email",
+            "reply_to_email",
+            "invoice_cc_email",
+            "payment_questions_email",
+            "email_signature",
+            "send_mode",
+        ]
+        widgets = {
+            "display_name": forms.TextInput(attrs={"placeholder": "Business name shown to recipients"}),
+            "from_name": forms.TextInput(attrs={"placeholder": "Sender name"}),
+            "from_email": forms.EmailInput(attrs={"readonly": "readonly"}),
+            "reply_to_email": forms.EmailInput(attrs={"placeholder": "Where replies should go"}),
+            "invoice_cc_email": forms.EmailInput(attrs={"placeholder": "Optional internal copy"}),
+            "payment_questions_email": forms.EmailInput(attrs={"placeholder": "Optional payment contact"}),
+            "email_signature": forms.Textarea(attrs={"rows": 4, "placeholder": "Thank you for your business."}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["from_email"].disabled = True
+        self.fields["send_mode"].help_text = "Use MoneyPro default for V1. Custom domain is reserved for a later phase."
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.instance and self.instance.pk:
+            cleaned["from_email"] = self.instance.from_email
+        return cleaned

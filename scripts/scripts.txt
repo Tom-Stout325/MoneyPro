@@ -1,5 +1,4 @@
-chmod +x scripts/zip_project.sh
-./scripts/zip_project.sh
+chmod +x scripts/zip_project.shpyt
 
 
 Heroku Django Shell:  heroku run -a moneypro -- python manage.py shell

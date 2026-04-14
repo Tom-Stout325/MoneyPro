@@ -324,7 +324,7 @@ def invoice_send(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("invoices:invoice_detail", pk=invoice.pk)
 
     try:
-        send_invoice(invoice=invoice, base_url=request.build_absolute_uri("/"))
+        send_invoice(invoice=invoice, base_url=request.build_absolute_uri("/"), sent_by=request.user)
         messages.success(request, "Invoice sent (PDF frozen).")
     except Exception as e:
         messages.error(request, f"Could not send invoice: {e}")

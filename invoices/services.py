@@ -4,12 +4,14 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.mail import EmailMultiAlternatives
 from django.db import models, transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
 from weasyprint import HTML
 
+from core.models import OutgoingEmailLog, get_or_create_business_email_settings
 from ledger.models import Transaction
 
 from .models import (
@@ -110,8 +112,7 @@ def render_invoice_pdf_bytes(*, invoice: Invoice, base_url: str | None = None) -
     return HTML(string=html, base_url=resolved_base_url).write_pdf()
 
 
-@transaction.atomic
-def send_invoice(*, invoice: Invoice, base_url: str | None = None) -> None:
+def send_invoice(*, invoice: Invoice, base_url: str | None = None, sent_by=None) -> None:
     if invoice.status != Invoice.Status.DRAFT:
         raise ValueError("Only draft invoices can be sent.")
 
@@ -122,6 +123,8 @@ def send_invoice(*, invoice: Invoice, base_url: str | None = None) -> None:
     invoice.sent_date = timezone.localdate()
     pdf_bytes = render_invoice_pdf_bytes(invoice=invoice, base_url=base_url)
     invoice.pdf_file.save(f"{invoice.invoice_number}.pdf", ContentFile(pdf_bytes), save=False)
+
+    _send_invoice_email(invoice=invoice, pdf_bytes=pdf_bytes, base_url=base_url, sent_by=sent_by)
 
     invoice.status = Invoice.Status.SENT
     invoice.save()
@@ -209,3 +212,69 @@ def void_invoice(*, invoice: Invoice) -> None:
         raise ValueError("Paid invoices cannot be voided.")
     invoice.status = Invoice.Status.VOID
     invoice.save(update_fields=["status"])
+
+
+
+def _invoice_recipient(invoice: Invoice) -> str:
+    return (invoice.bill_to_email or getattr(invoice.contact, "email", "") or "").strip()
+
+
+def _send_invoice_email(*, invoice: Invoice, pdf_bytes: bytes, base_url: str | None = None, sent_by=None) -> None:
+    recipient = _invoice_recipient(invoice)
+    if not recipient:
+        raise ValueError("Invoice contact does not have an email address.")
+
+    email_settings = get_or_create_business_email_settings(business=invoice.business, owner_user=sent_by)
+    if not email_settings.sending_ready:
+        raise ValueError("Business email settings are not ready for sending.")
+
+    company = getattr(invoice.business, "company_profile", None)
+    subject = f"Invoice {invoice.invoice_number} from {email_settings.display_name or invoice.business.name}"
+    context = {
+        "invoice": invoice,
+        "business": invoice.business,
+        "company": company,
+        "email_settings": email_settings,
+    }
+    text_body = render_to_string("invoices/email/invoice_email.txt", context)
+    html_body = render_to_string("invoices/email/invoice_email.html", context)
+
+    from_name = (email_settings.from_name or email_settings.display_name or invoice.business.name).strip()
+    from_email = (email_settings.from_email or settings.DEFAULT_FROM_EMAIL).strip()
+    cc = [email_settings.invoice_cc_email] if (email_settings.invoice_cc_email or "").strip() else []
+    reply_to = [email_settings.reply_to_email] if (email_settings.reply_to_email or "").strip() else None
+
+    log = OutgoingEmailLog.objects.create(
+        business=invoice.business,
+        invoice=invoice,
+        template_type=OutgoingEmailLog.TemplateType.INVOICE,
+        recipient_email=recipient,
+        cc_email=(email_settings.invoice_cc_email or "").strip(),
+        subject=subject,
+        from_email=from_email,
+        reply_to_email=(email_settings.reply_to_email or "").strip(),
+        sent_by=sent_by,
+        status=OutgoingEmailLog.Status.PENDING,
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=f'{from_name} <{from_email}>' if from_name else from_email,
+            to=[recipient],
+            cc=cc,
+            reply_to=reply_to,
+        )
+        msg.attach_alternative(html_body, "text/html")
+        msg.attach(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")
+        msg.send(fail_silently=False)
+
+        log.status = OutgoingEmailLog.Status.SENT
+        log.sent_at = timezone.now()
+        log.save(update_fields=["status", "sent_at"])
+    except Exception as exc:
+        log.status = OutgoingEmailLog.Status.FAILED
+        log.error_message = str(exc)
+        log.save(update_fields=["status", "error_message"])
+        raise

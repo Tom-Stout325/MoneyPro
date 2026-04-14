@@ -8,10 +8,10 @@ from django.views import View
 from django.views.generic import UpdateView
 from django.db import transaction
 
-from .forms import CompanyProfileForm, UserInfoForm
+from .forms import CompanyProfileForm, UserInfoForm, BusinessEmailSettingsForm
 from .models import CompanyProfile, Invitation
 from .adapters import InviteOnlyAccountAdapter
-from core.models import Business, BusinessMembership
+from core.models import Business, BusinessMembership, get_or_create_business_email_settings
 from ledger.models import Category, Transaction
 
 
@@ -115,12 +115,16 @@ class SettingsView(LoginRequiredMixin, View):
 
         business = profile.business
 
+        email_settings = get_or_create_business_email_settings(business=business, owner_user=request.user)
+
         return render(
             request,
             self.template_name,
             {
                 "company_form": CompanyProfileForm(instance=profile, prefix="company"),
                 "user_form": UserInfoForm(instance=request.user, prefix="user"),
+                "email_form": BusinessEmailSettingsForm(instance=email_settings, prefix="email"),
+                "email_settings": email_settings,
                 "has_seeded": Category.objects.filter(business=business).exists(),
                 "can_rebuild": not Transaction.objects.filter(business=business).exists(),
             },
@@ -135,8 +139,11 @@ class SettingsView(LoginRequiredMixin, View):
 
         form_id = request.POST.get("form_id", "")
 
+        email_settings = get_or_create_business_email_settings(business=business, owner_user=request.user)
+
         company_form = CompanyProfileForm(instance=profile, prefix="company")
         user_form = UserInfoForm(instance=request.user, prefix="user")
+        email_form = BusinessEmailSettingsForm(instance=email_settings, prefix="email")
 
         if form_id == "company":
             company_form = CompanyProfileForm(request.POST, request.FILES, instance=profile, prefix="company")
@@ -158,6 +165,13 @@ class SettingsView(LoginRequiredMixin, View):
                 messages.success(request, "User info updated.")
                 return redirect("accounts:settings")
 
+        elif form_id == "email":
+            email_form = BusinessEmailSettingsForm(request.POST, instance=email_settings, prefix="email")
+            if email_form.is_valid():
+                email_form.save()
+                messages.success(request, "Email settings saved.")
+                return redirect("accounts:settings")
+
         else:
             messages.error(request, "Invalid form submission.")
 
@@ -167,6 +181,8 @@ class SettingsView(LoginRequiredMixin, View):
             {
                 "company_form": company_form,
                 "user_form": user_form,
+                "email_form": email_form,
+                "email_settings": email_settings,
                 "has_seeded": Category.objects.filter(business=business).exists(),
                 "can_rebuild": not Transaction.objects.filter(business=business).exists(),
             },
