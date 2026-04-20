@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from email.utils import formataddr
 from typing import Any
 
 from django.conf import settings
@@ -9,11 +10,17 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from accounts.models import Invitation
-from core.emailing import formatted_from_header, normalize_reply_to, platform_from_email, platform_reply_to_email
 
 
 def _get_setting(name: str, default: Any = None) -> Any:
     return getattr(settings, name, default)
+
+
+def _required_setting(name: str) -> Any:
+    value = _get_setting(name)
+    if value in (None, ""):
+        raise ImproperlyConfigured(f"Missing required setting: {name}")
+    return value
 
 
 def _clean_subject(value: str) -> str:
@@ -22,22 +29,27 @@ def _clean_subject(value: str) -> str:
 
 def _build_invite_url(invitation: Invitation, request_obj=None) -> str:
     path = reverse("accounts:invite_start", args=[invitation.token])
+
     if request_obj is not None:
         return request_obj.build_absolute_uri(path)
 
-    site_url = (_get_setting("SITE_URL", "") or "").strip().rstrip("/")
+    site_url = (
+        _get_setting("SITE_URL")
+        or _get_setting("APP_BASE_URL")
+        or ""
+    ).strip().rstrip("/")
+
     if not site_url:
         raise ImproperlyConfigured(
-            "SITE_URL is required when sending invitation email without an HTTP request."
+            "SITE_URL or APP_BASE_URL is required when sending invitation email without an HTTP request."
         )
+
     return f"{site_url}{path}"
 
 
-def _email_context(*, invitation: Invitation, request_obj=None) -> tuple[dict[str, Any], str, str, str, str, str, str]:
-    from_email = platform_from_email()
-    if not from_email:
-        raise ImproperlyConfigured("DEFAULT_FROM_EMAIL is required for invitation email sending.")
-    reply_to = platform_reply_to_email()
+def _email_context(*, invitation: Invitation, request_obj=None) -> tuple[dict[str, Any], str, str, str, str, str]:
+    from_email = _required_setting("DEFAULT_FROM_EMAIL")
+    reply_to = (_get_setting("REPLY_TO_EMAIL", "") or "").strip()
     app_name = (_get_setting("APP_NAME", "MoneyPro") or "MoneyPro").strip()
     invite_url = _build_invite_url(invitation, request_obj=request_obj)
 
@@ -55,10 +67,20 @@ def _email_context(*, invitation: Invitation, request_obj=None) -> tuple[dict[st
     )
     text_body = render_to_string("accounts/emails/invitation_email.txt", context)
     html_body = render_to_string("accounts/emails/invitation_email.html", context)
+
     return context, from_email, reply_to, app_name, subject, text_body, html_body
 
 
-def _send_via_django_backend(*, invitation: Invitation, request_obj=None) -> None:
+def send_invitation_email(*, invitation: Invitation, request_obj=None) -> None:
+    """
+    Send invitation email through Django's configured email backend.
+
+    This works for:
+    - local development using console/file/locmem backends
+    - production using SMTP (SendGrid)
+
+    Reply-To uses REPLY_TO_EMAIL when configured.
+    """
     _context, from_email, reply_to, app_name, subject, text_body, html_body = _email_context(
         invitation=invitation,
         request_obj=request_obj,
@@ -67,14 +89,9 @@ def _send_via_django_backend(*, invitation: Invitation, request_obj=None) -> Non
     message = EmailMultiAlternatives(
         subject=subject,
         body=text_body,
-        from_email=formatted_from_header(display_name=app_name, email=from_email),
+        from_email=formataddr((app_name, from_email)),
         to=[invitation.email],
-        reply_to=normalize_reply_to(reply_to),
+        reply_to=[reply_to] if reply_to else None,
     )
     message.attach_alternative(html_body, "text/html")
-    message.send()
-
-
-def send_invitation_email(*, invitation: Invitation, request_obj=None) -> None:
-    """Send invitation email through Django's configured email backend in every environment."""
-    _send_via_django_backend(invitation=invitation, request_obj=request_obj)
+    message.send(fail_silently=False)
