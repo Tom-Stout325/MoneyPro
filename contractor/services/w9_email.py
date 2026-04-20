@@ -1,33 +1,16 @@
 from __future__ import annotations
 
-from email.utils import formataddr
-
-from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
-
-def _setting(name: str, default: str = "") -> str:
-    return str(getattr(settings, name, default) or default)
+from core.emailing import business_from_email, formatted_from_header, normalize_reply_to, uses_preview_backend
 
 
-def _uses_preview_backend() -> bool:
-    backend = _setting("EMAIL_BACKEND").strip().lower()
-    return backend in {
-        "django.core.mail.backends.console.emailbackend",
-        "django.core.mail.backends.filebased.emailbackend",
-        "django.core.mail.backends.locmem.emailbackend",
-        "django.core.mail.backends.dummy.emailbackend",
-    }
-
-
-def send_w9_request_email(*, business_name: str, contractor_name: str, contractor_email: str, portal_url: str) -> tuple[bool, str]:
-    from_email = _setting("DEFAULT_FROM_EMAIL", "no-reply@example.test")
-    reply_to = _setting("REPLY_TO_EMAIL", from_email)
-    app_name = _setting("APP_NAME", "MoneyPro")
+def send_w9_request_email(*, business, contractor_name: str, contractor_email: str, portal_url: str, owner_user=None) -> tuple[bool, str]:
+    from_name, from_email, reply_to = business_from_email(business=business, owner_user=owner_user)
 
     context = {
-        "business_name": business_name,
+        "business_name": business.name,
         "contractor_name": contractor_name,
         "portal_url": portal_url,
         "support_email": reply_to or from_email,
@@ -39,13 +22,13 @@ def send_w9_request_email(*, business_name: str, contractor_name: str, contracto
     message = EmailMultiAlternatives(
         subject=subject,
         body=text_body,
-        from_email=formataddr((app_name, from_email)),
+        from_email=formatted_from_header(display_name=from_name, email=from_email),
         to=[contractor_email],
-        reply_to=[reply_to] if reply_to else None,
+        reply_to=normalize_reply_to(reply_to),
     )
     message.attach_alternative(html_body, "text/html")
     message.send(fail_silently=False)
 
-    if _uses_preview_backend():
+    if uses_preview_backend():
         return False, "Email preview generated using the current placeholder/local email backend."
     return True, "W-9 request email sent."

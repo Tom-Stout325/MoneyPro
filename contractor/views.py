@@ -6,7 +6,6 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import EmailMessage
-from django.core.mail import get_connection
 from django.core.files.base import ContentFile
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,6 +18,8 @@ from .forms import ContractorYearForm, W9PortalForm, W9ReviewForm
 from .models import Contractor1099, ContractorW9Submission
 from .renderer_1099nec import render_1099nec_pdf_bytes, render_1099nec_pdf_response
 from .services.nec1099 import nec_total_for_contact, nec_totals_for_year, default_tax_year
+from core.emailing import business_from_email, normalize_reply_to
+from .services.w9_email import send_w9_request_email
 from .utils_token import build_portal_url, issue_portal_token, verify_portal_token
 
 
@@ -129,21 +130,20 @@ def send_w9_email(request: HttpRequest, pk: int) -> HttpResponse:
     token = issue_portal_token(business_id=business.id, contact_id=contact.id)
     portal_url = build_portal_url(request, token)
 
-    subject = f"W-9 request from {business.name}"
-    body = (
-        f"Hi {contact.display_name},\n\n"
-        f"Please complete your W-9 using the secure link below:\n{portal_url}\n\n"
-        f"Thank you."
+    _sent, message = send_w9_request_email(
+        business=business,
+        contractor_name=contact.display_name,
+        contractor_email=contact.email,
+        portal_url=portal_url,
+        owner_user=request.user,
     )
-
-    EmailMessage(subject=subject, body=body, to=[contact.email]).send(fail_silently=False)
 
     # Update status automatically (requested)
     contact.w9_status = "requested"
     contact.w9_sent_date = timezone.localdate()
     contact.save(update_fields=["w9_status", "w9_sent_date"])
 
-    messages.success(request, "W-9 email sent and status set to Requested.")
+    messages.success(request, f"{message} Status set to Requested.")
     return redirect("contractor:detail", pk=contact.pk)
 
 
@@ -448,6 +448,8 @@ def email_1099_copy_b(request: HttpRequest, pk: int) -> HttpResponse:
 
     obj, total = _ensure_1099_record(business=business, contact=contact, year=year, regenerate=False)
 
+    from_name, from_email, reply_to = business_from_email(business=business, owner_user=request.user)
+
     subject = f"Your 1099-NEC Copy B for tax year {year}"
     body = (
         f"Hi {contact.display_name},\n\n"
@@ -455,15 +457,17 @@ def email_1099_copy_b(request: HttpRequest, pk: int) -> HttpResponse:
         f"Please keep it with your tax records.\n\n"
         f"Thank you,\n{business.name}"
     )
-    msg = EmailMessage(subject=subject, body=body, to=[contact.email])
+    msg = EmailMessage(
+        subject=subject,
+        body=body,
+        to=[contact.email],
+        from_email=f"{from_name} <{from_email}>" if from_name and from_email else from_email or None,
+        reply_to=normalize_reply_to(reply_to),
+    )
     with obj.copy_b_pdf.open("rb") as fh:
         msg.attach(filename=f"1099-NEC_{year}_copyB.pdf", content=fh.read(), mimetype="application/pdf")
 
     try:
-        # Touch the connection first so placeholder SMTP settings fail cleanly here.
-        connection = get_connection(fail_silently=False)
-        connection.open()
-        msg.connection = connection
         msg.send(fail_silently=False)
     except Exception as exc:
         messages.warning(

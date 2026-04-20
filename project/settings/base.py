@@ -47,9 +47,8 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 APP_NAME = env("APP_NAME", default="MoneyPro")
 DEFAULT_COMPANY_NAME = env("DEFAULT_COMPANY_NAME", default="Your Business")
 SITE_URL = env("SITE_URL", default="")
-POSTMARK_SERVER_TOKEN = env("POSTMARK_SERVER_TOKEN", default=None)
-POSTMARK_MESSAGE_STREAM = env("POSTMARK_MESSAGE_STREAM", default="outbound")
 REPLY_TO_EMAIL = env("REPLY_TO_EMAIL", default="")
+SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
 
 
 # ------------------------------------------------------------------------------
@@ -398,5 +397,5 @@ SHORT_DATETIME_FORMAT = "m-d-Y P"
 
 
 
-BUSINESS_EMAIL_PLATFORM_DOMAIN = env("BUSINESS_EMAIL_PLATFORM_DOMAIN", default="billing.12bytes.net")
-BUSINESS_EMAIL_LOCALPART = env("BUSINESS_EMAIL_LOCALPART", default="invoices")
+BUSINESS_EMAIL_PLATFORM_DOMAIN = env("BUSINESS_EMAIL_PLATFORM_DOMAIN", default="moneypro.12bytes.net")
+BUSINESS_EMAIL_LOCALPART = env("BUSINESS_EMAIL_LOCALPART", default="noreply")

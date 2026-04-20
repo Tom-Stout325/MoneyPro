@@ -9,14 +9,7 @@ zip -r "$OUTPUT" . \
   -x "__pycache__/*" \
   -x "*.pyc" \
   -x ".DS_Store" \
-  -x "__MACOSX/*" \ 
+  -x "__MACOSX/*" \
   -x "staticfiles/*"
 
 echo "Created $OUTPUT"
-
-
-
-chmod +x scripts/zip_project.sh
-
-# chmod +x scripts/zip_project.sh
-# ./scripts/zip_project.sh

@@ -1,16 +1,17 @@
-MoneyPro contractor W-9 review URL fix
+I want to use SendGrid for everything and completely replace Postmark
 
-What this patch fixes:
-- Adds the missing W-9 review list view
-- Adds the missing W-9 review detail view
-- Adds the missing contractor URL names:
-  - contractor:w9_review_list
-  - contractor:w9_review_detail
-- Updates w9_view to pass submission history expected by the template
-- Cleans the duplicate 1099 alias path so 1099_home uses /1099/home/
+1.  Heroku App:  Tom-Stout325/MoneyPro
 
-Files to unzip over project root:
-- contractor/views.py
-- contractor/urls.py
+2.  Authenticate a subdomain: moneypro.12bytes.net
 
-No migration required.
+3.  noreply@moneypro.12bytes.net
+
+4.  Yes, fully repolace Postmark
+
+5.  use placeholder and I will fill in my SendGrid credentials
+
+6.  write a full drop in patch for me to unzip
+
+7.  use reply to that is stored in BusinessEmailSettings
+
+API Key ID: 3bs27jOHRtCjZtbcB9dLyw
