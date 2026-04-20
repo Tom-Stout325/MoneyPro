@@ -1,19 +1,17 @@
-# accounts/admin.py 
 from __future__ import annotations
 
 from django.contrib import admin, messages
 from django.core.exceptions import ImproperlyConfigured
+from django.core.mail import BadHeaderError
 from django.db.models import QuerySet
-from django.urls import path, reverse
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import path, reverse
 
 from .models import CompanyProfile, Invitation
 from .services import send_invitation_email
-from .services.invitations import PostmarkEmailError
 
 
 class OwnedOneToOneAdminMixin:
-
     def get_queryset(self, request) -> QuerySet:
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -63,8 +61,6 @@ class CompanyProfileAdmin(admin.ModelAdmin):
     )
     list_filter = ("timezone", "currency", "country")
     readonly_fields = ("created_at", "updated_at", "phone_display")
-
-    # Helps admin avoid N+1 queries
     list_select_related = ("business", "created_by")
 
     fieldsets = (
@@ -123,7 +119,6 @@ class InvitationAdmin(admin.ModelAdmin):
     readonly_fields = ("token", "created_at", "accepted_at", "accepted_user")
 
     actions = ["send_invite_email"]
-
     change_form_template = "admin/accounts/invitation/change_form.html"
 
     @admin.action(description="Send invite email")
@@ -135,13 +130,24 @@ class InvitationAdmin(admin.ModelAdmin):
             for inv in queryset:
                 inv_to_send = inv
                 if inv.is_expired or inv.is_used:
-                    inv_to_send = Invitation.objects.create(email=inv.email, invited_by=inv.invited_by)
+                    inv_to_send = Invitation.objects.create(
+                        email=inv.email,
+                        invited_by=inv.invited_by,
+                    )
                     renewed += 1
 
                 self._send_invite(request, inv_to_send)
                 sent += 1
-        except (ImproperlyConfigured, PostmarkEmailError) as exc:
+
+        except (ImproperlyConfigured, BadHeaderError, ValueError) as exc:
             self.message_user(request, str(exc), level=messages.ERROR)
+            return
+        except Exception as exc:
+            self.message_user(
+                request,
+                f"Invite email could not be sent: {exc}",
+                level=messages.ERROR,
+            )
             return
 
         messages.success(
@@ -163,8 +169,10 @@ class InvitationAdmin(admin.ModelAdmin):
 
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         if obj and obj.pk:
-            context["resend_invite_url"] = reverse("admin:accounts_invitation_resend", args=[obj.pk])
-            # Always show button; it will renew if needed.
+            context["resend_invite_url"] = reverse(
+                "admin:accounts_invitation_resend",
+                args=[obj.pk],
+            )
             context["show_resend_invite"] = True
             context["resend_invite_label"] = "Resend invite"
         return super().render_change_form(request, context, add, change, form_url, obj)
@@ -172,18 +180,27 @@ class InvitationAdmin(admin.ModelAdmin):
     def resend_invite_view(self, request, object_id):
         inv = get_object_or_404(Invitation, pk=object_id)
 
-        # If expired OR used, auto-renew (create a fresh invite) and send that.
         inv_to_send = inv
         renewed = False
 
         if inv.is_expired or inv.is_used:
-            inv_to_send = Invitation.objects.create(email=inv.email, invited_by=inv.invited_by)
+            inv_to_send = Invitation.objects.create(
+                email=inv.email,
+                invited_by=inv.invited_by,
+            )
             renewed = True
 
         try:
             self._send_invite(request, inv_to_send)
-        except (ImproperlyConfigured, PostmarkEmailError) as exc:
+        except (ImproperlyConfigured, BadHeaderError, ValueError) as exc:
             self.message_user(request, str(exc), level=messages.ERROR)
+            return redirect(reverse("admin:accounts_invitation_change", args=[inv.pk]))
+        except Exception as exc:
+            self.message_user(
+                request,
+                f"Invite email could not be sent: {exc}",
+                level=messages.ERROR,
+            )
             return redirect(reverse("admin:accounts_invitation_change", args=[inv.pk]))
 
         if renewed:
