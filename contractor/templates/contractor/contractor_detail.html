@@ -94,11 +94,18 @@
 
         <hr class="my-3">
 
-        <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-primary" href="{% url 'contractor:send_w9_email' contractor.pk %}">Send W‑9</a>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'contractor:mark_w9_requested' contractor.pk %}">Mark Requested</a>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <form method="post" action="{% url 'contractor:send_w9_email' contractor.pk %}" class="m-0">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-primary" type="submit">Send W‑9</button>
+          </form>
+          <form method="post" action="{% url 'contractor:mark_w9_requested' contractor.pk %}" class="m-0">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Mark Requested</button>
+          </form>
           <div class="ms-auto text-muted small">
-            Portal link: <a href="{{ w9_portal_url }}" target="_blank" rel="noopener">open</a>
+            Portal link: <a href="{{ w9_portal_url }}" target="_blank" rel="noopener">open</a><br>
+            W-9 PDF attachment is included when sending the email.
           </div>
         </div>
       </div>

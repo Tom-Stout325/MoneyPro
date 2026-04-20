@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.decorators.http import require_POST
 from django.core.mail import EmailMessage
 from django.core.files.base import ContentFile
 from django.http import Http404, HttpRequest, HttpResponse
@@ -106,6 +107,7 @@ class ContractorDetailView(LoginRequiredMixin, DetailView):
 
 
 @login_required
+@require_POST
 def mark_w9_requested(request: HttpRequest, pk: int) -> HttpResponse:
     business = _get_business(request)
     contact = get_object_or_404(Contact, business=business, pk=pk, is_contractor=True)
@@ -119,6 +121,7 @@ def mark_w9_requested(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+@require_POST
 def send_w9_email(request: HttpRequest, pk: int) -> HttpResponse:
     business = _get_business(request)
     contact = get_object_or_404(Contact, business=business, pk=pk, is_contractor=True)
@@ -130,13 +133,17 @@ def send_w9_email(request: HttpRequest, pk: int) -> HttpResponse:
     token = issue_portal_token(business_id=business.id, contact_id=contact.id)
     portal_url = build_portal_url(request, token)
 
-    _sent, message = send_w9_request_email(
-        business=business,
-        contractor_name=contact.display_name,
-        contractor_email=contact.email,
-        portal_url=portal_url,
-        owner_user=request.user,
-    )
+    try:
+        _sent, message = send_w9_request_email(
+            business=business,
+            contractor_name=contact.display_name or contact.legal_name or "Contractor",
+            contractor_email=contact.email,
+            portal_url=portal_url,
+            owner_user=request.user,
+        )
+    except Exception as exc:
+        messages.error(request, f"W-9 email could not be sent: {exc}")
+        return redirect("contractor:detail", pk=contact.pk)
 
     # Update status automatically (requested)
     contact.w9_status = "requested"
@@ -259,25 +266,28 @@ def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
     contact = get_object_or_404(Contact, business_id=business_id, pk=contact_id, is_contractor=True)
 
     if request.method == "POST":
-        form = W9PortalForm(request.POST)
+        form = W9PortalForm(request.POST, request.FILES)
         if form.is_valid():
             cleaned = form.cleaned_data
 
-            ContractorW9Submission.objects.create(
+            submission = ContractorW9Submission.objects.create(
                 business_id=business_id,
                 contact=contact,
-                full_name=cleaned["full_name"],
+                full_name=(cleaned.get("full_name") or "").strip(),
                 business_name=(cleaned.get("business_name") or "").strip(),
-                entity_type=(contact.entity_type or "").strip(),
+                entity_type=(cleaned.get("entity_type") or "").strip(),
                 tin_type=cleaned["taxpayer_id_type"],
                 tin_last4=str(cleaned["tin"])[-4:],
-                address_line1=(cleaned["address1"] or "").strip(),
+                address_line1=(cleaned.get("address1") or "").strip(),
                 address_line2=(cleaned.get("address2") or "").strip(),
                 city=(cleaned.get("city") or "").strip(),
                 state=(cleaned.get("state") or "").strip(),
                 zip_code=(cleaned.get("zip_code") or "").strip(),
                 signature_name=(cleaned.get("signature_name") or "").strip(),
-                signature_data="",
+                signature_data=(cleaned.get("signature_data") or "").strip(),
+                signature_date=cleaned.get("signature_date"),
+                certification_accepted=bool(cleaned.get("certification_accepted")),
+                uploaded_w9_document=cleaned.get("upload_w9_document"),
                 submitted_ip=request.META.get("REMOTE_ADDR") or None,
                 submitted_ua=(request.META.get("HTTP_USER_AGENT") or "")[:255],
             )
@@ -291,8 +301,10 @@ def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
 
             # Optional sync back of basic info
             bn = (cleaned.get("business_name") or "").strip()
-            if bn:
+            if bn and hasattr(contact, "business_name"):
                 contact.business_name = bn
+            if hasattr(contact, "entity_type") and cleaned.get("entity_type"):
+                contact.entity_type = cleaned["entity_type"]
 
             contact.address1 = (cleaned.get("address1") or "").strip()
             contact.address2 = (cleaned.get("address2") or "").strip()
@@ -302,9 +314,24 @@ def w9_portal(request: HttpRequest, token: str) -> HttpResponse:
 
             contact.save()
 
-            return render(request, "contractor/w9_thanks.html", {"contact": contact, "business": contact.business})
+            return render(
+                request,
+                "contractor/w9_thanks.html",
+                {"contact": contact, "business": contact.business, "submission": submission},
+            )
     else:
-        form = W9PortalForm(initial={"full_name": contact.display_name or contact.legal_name})
+        form = W9PortalForm(initial={
+            "full_name": contact.display_name or contact.legal_name,
+            "business_name": getattr(contact, "business_name", ""),
+            "address1": getattr(contact, "address1", ""),
+            "address2": getattr(contact, "address2", ""),
+            "city": getattr(contact, "city", ""),
+            "state": getattr(contact, "state", ""),
+            "zip_code": getattr(contact, "zip_code", ""),
+            "entity_type": getattr(contact, "entity_type", ""),
+            "taxpayer_id_type": getattr(contact, "tin_type", "") or "ssn",
+            "signature_name": contact.display_name or contact.legal_name,
+        })
 
     return render(request, "contractor/w9_portal.html", {"form": form, "contact": contact, "business": contact.business})
 
