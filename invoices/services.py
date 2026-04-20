@@ -148,6 +148,7 @@ def create_revision(*, invoice: Invoice) -> Invoice:
         due_date=invoice.due_date,
         contact=invoice.contact,
         job=invoice.job,
+        team=invoice.team,
         location=invoice.location,
         invoice_number=new_number,
         revises=invoice,
@@ -195,6 +196,7 @@ def mark_paid(*, invoice: Invoice, paid_date=None) -> Transaction:
         subcategory=first.subcategory,
         contact=invoice.contact,
         job=invoice.job,
+        team=invoice.team,
         invoice_number=invoice.invoice_number,
         notes="Auto-generated from paid invoice.",
     )
