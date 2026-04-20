@@ -205,6 +205,7 @@ class Invoice(BusinessOwnedModelMixin):
     updated_at          = models.DateTimeField(auto_now=True)
     contact             = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="invoices")
     job                 = models.ForeignKey(Job, on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
+    team                = models.ForeignKey("ledger.Team", on_delete=models.PROTECT, related_name="invoices", null=True, blank=True)
     revises             = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="revisions", help_text="If set, this invoice is a revision of another invoice.",)
     income_transaction  = models.OneToOneField(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_income_for",)
 

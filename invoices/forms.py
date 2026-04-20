@@ -4,7 +4,7 @@ from django import forms
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Field
 
-from ledger.models import Job, Contact, SubCategory
+from ledger.models import Job, Contact, SubCategory, Team
 from .models import Invoice, InvoiceItem, validate_manual_invoice_number
 from .services import get_next_invoice_number_preview
 
@@ -18,6 +18,7 @@ class InvoiceForm(forms.ModelForm):
             "due_date",
             "contact",
             "job",
+            "team",
             "location",
             "paid_date",
             "status",
@@ -39,6 +40,7 @@ class InvoiceForm(forms.ModelForm):
 
         self.fields["contact"].queryset = Contact.objects.filter(business=business, is_customer=True).order_by("display_name")
         self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-job_year", "job_number", "label")
+        self.fields["team"].queryset = Team.objects.filter(business=business, is_active=True).order_by("sort_order", "name")
         self.fields["status"].disabled = True
         self.fields["paid_date"].disabled = True  # controlled by Mark Paid
 
@@ -69,7 +71,8 @@ class InvoiceForm(forms.ModelForm):
                 css_class="row g-2",
             ),
             Div(
-                Div(Field("location"), css_class="col-12 col-md-8"),
+                Div(Field("team"), css_class="col-12 col-md-4"),
+                Div(Field("location"), css_class="col-12 col-md-4"),
                 Div(Field("status"), css_class="col-6 col-md-2"),
                 Div(Field("paid_date"), css_class="col-6 col-md-2"),
                 css_class="row g-2",
