@@ -1,4 +1,4 @@
-{% extends "index.html" %}
+{% extends "public_portal_base.html" %}
 
 {% block title %}W-9 Portal | MoneyPro{% endblock %}
 
@@ -10,14 +10,30 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-2 px-md-3 py-4" style="max-width: 980px;">
+<div class="mx-auto" style="max-width: 980px;">
   <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-    <div class="card-body p-3 p-md-4">
-      <div class="d-flex flex-column gap-1 mb-3">
-        <div class="text-muted small">W-9 Portal</div>
-        <h1 class="h4 mb-0 text-secondary-brand">{{ business.name }}</h1>
-        <div class="text-muted">Contractor: <span class="fw-semibold">{{ contact.display_name|default:contact.legal_name }}</span></div>
+    <div class="card-body p-3 p-md-4 p-lg-5">
+      <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+        <div>
+          <div class="text-muted small text-uppercase mb-1">W-9 Portal</div>
+          <h1 class="h3 mb-1 text-secondary-brand">{{ business.name }}</h1>
+          <div class="text-muted">Contractor: <span class="fw-semibold">{{ contact.display_name|default:contact.legal_name }}</span></div>
+        </div>
+        <div class="align-self-start">
+          <span class="badge text-bg-light border px-3 py-2">
+            <i class="fa-solid fa-shield-halved me-1"></i> Secure submission
+          </span>
+        </div>
       </div>
+
+      {% if request.user.is_authenticated %}
+        <div class="alert alert-warning d-flex gap-2 align-items-start mb-3" role="alert">
+          <i class="fa-solid fa-circle-info mt-1"></i>
+          <div>
+            You are signed in to MoneyPro in this browser, but this page is a public contractor form. Internal navigation is intentionally hidden here.
+          </div>
+        </div>
+      {% endif %}
 
       <div class="alert alert-info mb-3">
         Complete the W-9 intake form below. We store only the last 4 digits of your TIN. You may also upload a signed W-9 document.
