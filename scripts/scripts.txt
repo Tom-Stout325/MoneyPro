@@ -15,3 +15,27 @@ rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
 
 
 
+from django.core.mail import send_mail
+from django.conf import settings
+
+print(settings.EMAIL_BACKEND)
+print(settings.EMAIL_HOST)
+print(settings.EMAIL_HOST_USER)
+print(settings.DEFAULT_FROM_EMAIL)
+
+send_mail(
+    "MoneyPro SMTP Test",
+    "This is a live SendGrid SMTP test.",
+    settings.DEFAULT_FROM_EMAIL,
+    ["tom.stout@icloud.com"],
+    fail_silently=False,
+)
+
+
+(venv) tomstout@Toms-Mac-Studio _MoneyPro % heroku config:get EMAIL_HOST_PASSWORD -a moneypro
+heroku config:get SENDGRID_API_KEY -a moneypro
+ ›   Warning: heroku update available from 10.16.0 to 10.17.0.
+SG.xxxxxxxxxxxxxxxxxxxx
+ ›   Warning: heroku update available from 10.16.0 to 10.17.0.
+
+(venv) tomstout@Toms-Mac-Studio _MoneyPro % 
