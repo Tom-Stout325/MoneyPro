@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from django import forms
@@ -6,7 +5,7 @@ from django.utils import timezone
 
 from invoices.models import Invoice
 from ledger.models import Job
-from vehicles.models import Vehicle, VehicleMiles, VehicleYear
+from vehicles.models import Vehicle, VehicleLoan, VehicleMiles, VehicleYear
 
 
 class VehicleForm(forms.ModelForm):
@@ -48,6 +47,13 @@ class VehicleForm(forms.ModelForm):
 
 
 class VehicleYearForm(forms.ModelForm):
+    loan_purchase_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}))
+    loan_first_payment_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}))
+    loan_amount = forms.DecimalField(required=False, decimal_places=2, max_digits=12, min_value=0, widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}))
+    loan_interest_rate = forms.DecimalField(required=False, decimal_places=4, max_digits=7, min_value=0, widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.0001", "placeholder": "e.g. 7.2500"}))
+    loan_number_of_payments = forms.IntegerField(required=False, min_value=1, widget=forms.NumberInput(attrs={"class": "form-control", "step": "1"}))
+    regenerate_amortization = forms.BooleanField(required=False, initial=True, label="Generate or refresh amortization schedule")
+
     class Meta:
         model = VehicleYear
         fields = [
@@ -65,35 +71,36 @@ class VehicleYearForm(forms.ModelForm):
             "odometer_start": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
             "odometer_end": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
             "standard_mileage_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.001", "placeholder": "e.g. 0.670"}),
-            "annual_interest_paid": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "placeholder": "Optional annual interest paid"}),
+            "annual_interest_paid": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "placeholder": "Optional manual yearly interest total"}),
             "deduction_method": forms.Select(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args, **kwargs):
-        business = kwargs.pop("business", None)
+        self.business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
 
-        if business and not self.instance.business_id:
-            self.instance.business = business
+        if self.business and not self.instance.business_id:
+            self.instance.business = self.business
 
-        if business:
-            self.fields["vehicle"].queryset = Vehicle.objects.filter(business=business).order_by("sort_order", "label")
+        if self.business:
+            self.fields["vehicle"].queryset = Vehicle.objects.filter(business=self.business).order_by("sort_order", "label")
         self.fields["vehicle"].widget.attrs.update({"class": "form-select"})
         self.fields["is_locked"].widget.attrs.update({"class": "form-check-input"})
+        self.fields["regenerate_amortization"].widget.attrs.update({"class": "form-check-input"})
 
+        vehicle_id = self.instance.vehicle_id or self.initial.get("vehicle") or self.data.get("vehicle")
         if not self.instance.pk:
-            initial_vehicle = self.initial.get("vehicle") or self.data.get("vehicle")
             initial_year = self.initial.get("year") or self.data.get("year") or timezone.localdate().year
             try:
-                initial_vehicle = int(initial_vehicle) if initial_vehicle else None
+                initial_vehicle = int(vehicle_id) if vehicle_id else None
                 initial_year = int(initial_year)
             except (TypeError, ValueError):
                 initial_vehicle = None
                 initial_year = timezone.localdate().year
 
-            if business and initial_vehicle:
+            if self.business and initial_vehicle:
                 prior = (
-                    VehicleYear.objects.filter(business=business, vehicle_id=initial_vehicle, year__lt=initial_year)
+                    VehicleYear.objects.filter(business=self.business, vehicle_id=initial_vehicle, year__lt=initial_year)
                     .order_by("-year")
                     .first()
                 )
@@ -101,6 +108,108 @@ class VehicleYearForm(forms.ModelForm):
                     self.fields["odometer_start"].initial = prior.odometer_end
                     if prior.standard_mileage_rate is not None:
                         self.fields["standard_mileage_rate"].initial = prior.standard_mileage_rate
+
+        loan = None
+        try:
+            if self.instance and self.instance.vehicle_id:
+                loan = self.instance.vehicle.loan
+            elif vehicle_id:
+                loan = VehicleLoan.objects.filter(vehicle_id=vehicle_id).first()
+        except VehicleLoan.DoesNotExist:
+            loan = None
+
+        if loan:
+            self.fields["loan_purchase_date"].initial = loan.purchase_date
+            self.fields["loan_first_payment_date"].initial = loan.first_payment_date
+            self.fields["loan_amount"].initial = loan.original_loan_amount
+            self.fields["loan_interest_rate"].initial = loan.annual_interest_rate
+            self.fields["loan_number_of_payments"].initial = loan.number_of_payments
+            self.fields["regenerate_amortization"].initial = False
+
+    def clean(self):
+        cleaned = super().clean()
+        loan_amount = cleaned.get("loan_amount")
+        loan_purchase_date = cleaned.get("loan_purchase_date")
+        loan_interest_rate = cleaned.get("loan_interest_rate")
+        loan_number_of_payments = cleaned.get("loan_number_of_payments")
+
+        any_loan_terms = any(value not in (None, "") for value in [
+            loan_amount,
+            loan_purchase_date,
+            loan_interest_rate,
+            loan_number_of_payments,
+            cleaned.get("loan_first_payment_date"),
+        ])
+        if any_loan_terms:
+            required_missing = []
+            if loan_purchase_date in (None, ""):
+                required_missing.append("purchase date")
+            if loan_amount in (None, ""):
+                required_missing.append("loan amount")
+            if loan_interest_rate in (None, ""):
+                required_missing.append("interest rate")
+            if loan_number_of_payments in (None, ""):
+                required_missing.append("number of payments")
+            if required_missing:
+                raise forms.ValidationError(
+                    "To generate amortization, complete: " + ", ".join(required_missing) + "."
+                )
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.business and not instance.business_id:
+            instance.business = self.business
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+            self._save_loan(instance)
+        return instance
+
+    def _save_loan(self, instance: VehicleYear):
+        loan_amount = self.cleaned_data.get("loan_amount")
+        loan_purchase_date = self.cleaned_data.get("loan_purchase_date")
+        loan_interest_rate = self.cleaned_data.get("loan_interest_rate")
+        loan_number_of_payments = self.cleaned_data.get("loan_number_of_payments")
+        loan_first_payment_date = self.cleaned_data.get("loan_first_payment_date")
+
+        any_loan_terms = any(value not in (None, "") for value in [
+            loan_amount,
+            loan_purchase_date,
+            loan_interest_rate,
+            loan_number_of_payments,
+            loan_first_payment_date,
+        ])
+        if not any_loan_terms:
+            return
+
+        loan, _ = VehicleLoan.objects.get_or_create(
+            business=instance.business,
+            vehicle=instance.vehicle,
+            defaults={
+                "purchase_date": loan_purchase_date,
+                "first_payment_date": loan_first_payment_date,
+                "original_loan_amount": loan_amount,
+                "annual_interest_rate": loan_interest_rate,
+                "number_of_payments": loan_number_of_payments,
+            },
+        )
+        changed = False
+        for attr, value in {
+            "purchase_date": loan_purchase_date,
+            "first_payment_date": loan_first_payment_date,
+            "original_loan_amount": loan_amount,
+            "annual_interest_rate": loan_interest_rate,
+            "number_of_payments": loan_number_of_payments,
+        }.items():
+            if getattr(loan, attr) != value:
+                setattr(loan, attr, value)
+                changed = True
+        if changed:
+            loan.save()
+        if self.cleaned_data.get("regenerate_amortization") or changed or not loan.payments.exists():
+            loan.regenerate_schedule()
 
 
 class VehicleMilesForm(forms.ModelForm):

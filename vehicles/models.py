@@ -1,8 +1,8 @@
-
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 
+from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
@@ -50,6 +50,133 @@ class Vehicle(BusinessOwnedModelMixin):
         return self.label
 
 
+class VehicleLoan(BusinessOwnedModelMixin):
+    vehicle = models.OneToOneField(Vehicle, on_delete=models.CASCADE, related_name="loan")
+    purchase_date = models.DateField(help_text="Date the vehicle was purchased.")
+    first_payment_date = models.DateField(blank=True, null=True, help_text="Optional first loan payment date.")
+    original_loan_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
+    annual_interest_rate = models.DecimalField(
+        max_digits=7,
+        decimal_places=4,
+        validators=[MinValueValidator(0)],
+        help_text="Annual interest rate as a percent, e.g. 7.2500",
+    )
+    number_of_payments = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["vehicle__label"]
+
+    def __str__(self) -> str:
+        return f"{self.vehicle.label} loan"
+
+    def clean(self):
+        super().clean()
+        if self.vehicle_id and self.business_id and self.vehicle.business_id != self.business_id:
+            raise ValidationError({"vehicle": "Vehicle does not belong to this business."})
+        if self.first_payment_date and self.purchase_date and self.first_payment_date < self.purchase_date:
+            raise ValidationError({"first_payment_date": "First payment date cannot be earlier than the purchase date."})
+
+    @property
+    def payment_start_date(self):
+        return self.first_payment_date or self.purchase_date
+
+    @property
+    def monthly_interest_rate(self) -> Decimal:
+        return (Decimal(str(self.annual_interest_rate)) / Decimal("100") / Decimal("12")).quantize(
+            Decimal("0.0000001"),
+            rounding=ROUND_HALF_UP,
+        )
+
+    @property
+    def payment_amount(self) -> Decimal:
+        principal = Decimal(str(self.original_loan_amount or ZERO_CENTS))
+        periods = int(self.number_of_payments or 0)
+        if principal <= ZERO_CENTS or periods <= 0:
+            return ZERO_CENTS
+        rate = self.monthly_interest_rate
+        if rate == 0:
+            return (principal / Decimal(periods)).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+        numerator = principal * rate
+        denominator = Decimal("1") - ((Decimal("1") + rate) ** Decimal(-periods))
+        return (numerator / denominator).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+
+    def regenerate_schedule(self):
+        self.full_clean()
+        self.payments.all().delete()
+
+        balance = Decimal(str(self.original_loan_amount)).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+        payment_amount = self.payment_amount
+        rate = self.monthly_interest_rate
+        payment_date = self.payment_start_date
+
+        rows: list[VehicleLoanPayment] = []
+        for payment_no in range(1, int(self.number_of_payments) + 1):
+            beginning_balance = balance
+            interest_amount = (beginning_balance * rate).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+            principal_amount = (payment_amount - interest_amount).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+            if payment_no == int(self.number_of_payments) or principal_amount > balance:
+                principal_amount = balance
+                payment_amount_effective = (principal_amount + interest_amount).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+            else:
+                payment_amount_effective = payment_amount
+            ending_balance = (beginning_balance - principal_amount).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+            if ending_balance < ZERO_CENTS:
+                ending_balance = ZERO_CENTS
+
+            rows.append(
+                VehicleLoanPayment(
+                    business_id=self.business_id,
+                    loan=self,
+                    payment_number=payment_no,
+                    payment_date=payment_date,
+                    beginning_balance=beginning_balance,
+                    payment_amount=payment_amount_effective,
+                    principal_amount=principal_amount,
+                    interest_amount=interest_amount,
+                    ending_balance=ending_balance,
+                )
+            )
+
+            balance = ending_balance
+            payment_date = payment_date + relativedelta(months=1)
+            if balance <= ZERO_CENTS:
+                break
+
+        VehicleLoanPayment.objects.bulk_create(rows)
+        return rows
+
+
+class VehicleLoanPayment(BusinessOwnedModelMixin):
+    loan = models.ForeignKey(VehicleLoan, on_delete=models.CASCADE, related_name="payments")
+    payment_number = models.PositiveIntegerField()
+    payment_date = models.DateField()
+    beginning_balance = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    principal_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    interest_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    ending_balance = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["payment_date", "payment_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["loan", "payment_number"], name="uniq_vehicle_loan_payment_number"),
+        ]
+        indexes = [
+            models.Index(fields=["business", "payment_date"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.loan_id and self.business_id and self.loan.business_id != self.business_id:
+            raise ValidationError({"loan": "Loan does not belong to this business."})
+
+    def __str__(self) -> str:
+        return f"{self.loan.vehicle.label} payment #{self.payment_number}"
+
+
 class VehicleYear(BusinessOwnedModelMixin):
     class DeductionMethod(models.TextChoices):
         STANDARD_MILEAGE = "standard_mileage", "Standard mileage"
@@ -81,12 +208,12 @@ class VehicleYear(BusinessOwnedModelMixin):
         help_text="Optional standard mileage rate for this year.",
     )
     annual_interest_paid = models.DecimalField(
-        max_digits=10,
+        max_digits=12,
         decimal_places=2,
         null=True,
         blank=True,
         validators=[MinValueValidator(0)],
-        help_text="Optional manually entered total loan interest paid during this calendar year.",
+        help_text="Optional manual entry for total vehicle-loan interest paid during this calendar year.",
     )
 
     deduction_method = models.CharField(
@@ -228,9 +355,13 @@ class VehicleYear(BusinessOwnedModelMixin):
         if Transaction is None:
             return ZERO_CENTS
 
+        business_id = self._effective_business_id()
+        if not business_id or not self.vehicle_id:
+            return ZERO_CENTS
+
         qs = Transaction.objects.filter(
-            business=self.business,
-            vehicle=self.vehicle,
+            business_id=business_id,
+            vehicle_id=self.vehicle_id,
             date__year=self.year,
         )
         if hasattr(Transaction, "TransactionType"):
@@ -248,25 +379,50 @@ class VehicleYear(BusinessOwnedModelMixin):
         return total.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
 
     @property
-    def standard_mileage_deduction(self) -> Decimal | None:
-        if self.standard_mileage_rate is None:
-            return None
-        value = self.business_miles * Decimal(str(self.standard_mileage_rate))
-        return value.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+    def generated_interest_paid(self) -> Decimal:
+        business_id = self._effective_business_id()
+        if not business_id or not self.vehicle_id:
+            return ZERO_CENTS
+        total = VehicleLoanPayment.objects.filter(
+            business_id=business_id,
+            loan__vehicle_id=self.vehicle_id,
+            payment_date__year=self.year,
+        ).aggregate(total=Sum("interest_amount"))["total"] or ZERO_CENTS
+        return Decimal(str(total)).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+
+    @property
+    def effective_annual_interest_paid(self) -> Decimal:
+        if self.annual_interest_paid is not None:
+            return Decimal(str(self.annual_interest_paid)).quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+        return self.generated_interest_paid
+
+    @property
+    def interest_source_label(self) -> str:
+        if self.annual_interest_paid is not None:
+            return "Manual"
+        if self.generated_interest_paid > ZERO_CENTS:
+            return "Amortization"
+        return "—"
 
     @property
     def business_interest_amount(self) -> Decimal:
-        interest_paid = Decimal(str(self.annual_interest_paid or ZERO_CENTS))
         pct = self.business_use_pct
-        if not interest_paid or pct in (None, ZERO_TENTH):
+        if pct is None:
             return ZERO_CENTS
-        value = interest_paid * (Decimal(str(pct)) / Decimal("100"))
+        value = self.effective_annual_interest_paid * (pct / Decimal("100"))
         return value.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
 
     @property
     def actual_expenses_with_interest_total(self) -> Decimal:
         total = self.actual_expenses_total + self.business_interest_amount
         return total.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+
+    @property
+    def standard_mileage_deduction(self) -> Decimal | None:
+        if self.standard_mileage_rate is None:
+            return None
+        value = self.business_miles * Decimal(str(self.standard_mileage_rate))
+        return value.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
 
     @property
     def deduction_amount(self) -> Decimal | None:
@@ -288,8 +444,8 @@ class VehicleYear(BusinessOwnedModelMixin):
             flags.append("No business miles logged")
         if self.deduction_method == self.DeductionMethod.STANDARD_MILEAGE and self.standard_mileage_rate is None:
             flags.append("Standard mileage rate missing")
-        if self.annual_interest_paid and self.business_use_pct in (None, ZERO_TENTH):
-            flags.append("Interest entered but business use % is not available yet")
+        if self.deduction_method == self.DeductionMethod.ACTUAL_EXPENSES and self.effective_annual_interest_paid == ZERO_CENTS:
+            flags.append("No annual interest entered or generated")
         return flags
 
     def save(self, *args, **kwargs):

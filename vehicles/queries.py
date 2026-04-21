@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,6 +29,9 @@ class MileageYearSummary:
     standard_mileage_rate: Decimal | None
     standard_mileage_deduction: Decimal | None
     annual_interest_paid: Decimal | None
+    generated_interest_paid: Decimal
+    effective_annual_interest_paid: Decimal
+    interest_source_label: str
     business_interest_amount: Decimal
     actual_expenses_total: Decimal
     actual_expenses_with_interest_total: Decimal
@@ -72,6 +74,9 @@ def get_yearly_mileage_summary(*, business, vehicle_id: int, year: int) -> Milea
         standard_mileage_rate=_q(vy.standard_mileage_rate, Decimal("0.001")),
         standard_mileage_deduction=_q(vy.standard_mileage_deduction, ONE_HUNDREDTH),
         annual_interest_paid=_q(vy.annual_interest_paid, ONE_HUNDREDTH),
+        generated_interest_paid=_q(vy.generated_interest_paid, ONE_HUNDREDTH) or Decimal("0.00"),
+        effective_annual_interest_paid=_q(vy.effective_annual_interest_paid, ONE_HUNDREDTH) or Decimal("0.00"),
+        interest_source_label=vy.interest_source_label,
         business_interest_amount=_q(vy.business_interest_amount, ONE_HUNDREDTH) or Decimal("0.00"),
         actual_expenses_total=_q(vy.actual_expenses_total, ONE_HUNDREDTH) or Decimal("0.00"),
         actual_expenses_with_interest_total=_q(vy.actual_expenses_with_interest_total, ONE_HUNDREDTH) or Decimal("0.00"),

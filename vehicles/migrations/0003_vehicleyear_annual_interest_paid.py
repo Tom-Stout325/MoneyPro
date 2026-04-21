@@ -1,5 +1,5 @@
-from django.db import migrations, models
 import django.core.validators
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
@@ -15,8 +15,8 @@ class Migration(migrations.Migration):
             field=models.DecimalField(
                 blank=True,
                 decimal_places=2,
-                help_text="Optional manually entered total loan interest paid during this calendar year.",
-                max_digits=10,
+                help_text="Optional manual entry for total vehicle-loan interest paid during this calendar year.",
+                max_digits=12,
                 null=True,
                 validators=[django.core.validators.MinValueValidator(0)],
             ),

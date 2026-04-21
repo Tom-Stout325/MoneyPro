@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
 from vehicles.forms import QuickMileageForm, VehicleForm, VehicleMilesForm, VehicleYearForm
-from vehicles.models import Vehicle, VehicleMiles, VehicleYear
+from vehicles.models import Vehicle, VehicleLoanPayment, VehicleMiles, VehicleYear
 from vehicles.queries import get_yearly_mileage_summary
 
 ZERO_TENTH = Decimal("0.0")
@@ -184,11 +184,21 @@ class VehicleDetailView(LoginRequiredMixin, DetailView):
         labels, series = _month_series_for_business(business=business, year=year, vehicle=vehicle)
 
         latest_end = miles_qs.aggregate(v=Max("end"))["v"]
+        try:
+            loan = vehicle.loan
+        except Exception:
+            loan = None
+        loan_payments = []
+        if loan:
+            loan_payments = list(loan.payments.filter(payment_date__year=year).order_by("payment_date", "payment_number")[:24])
+
         ctx.update({
             "year": year,
             "year_choices": _year_choices(),
             "vehicle_year": vy,
             "summary": summary,
+            "loan": loan,
+            "loan_payments": loan_payments,
             "alerts": vy.missing_data_flags if vy else [f"Missing {year} annual vehicle record"],
             "miles_entries": miles_qs[:25],
             "all_miles_count": miles_qs.count(),
