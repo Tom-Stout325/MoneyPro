@@ -12,7 +12,7 @@ from django.views.generic import TemplateView
 from .pdf import render_pdf_from_template
 from .schedule_c import build_schedule_c_lines, build_schedule_c_yoy
 from .profit_loss import build_profit_loss_single, build_profit_loss_yoy
-from .tax_packet import build_tax_packet
+from .tax_packet import TaxPacketOptions, build_tax_packet_context, is_truthy, selected_year as selected_tax_packet_year
 
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
     template_name = "reports/home.html"
@@ -416,29 +416,12 @@ def _profit_loss_yoy_pdf(request: HttpRequest, *, download: bool) -> HttpRespons
 
 @login_required
 def tax_packet(request: HttpRequest) -> HttpResponse:
-    today = date.today()
-    try:
-        selected_year = int(request.GET.get("year") or today.year)
-    except ValueError:
-        selected_year = today.year
-
-    year_choices = list(range(2023, today.year + 1))
-    business = getattr(request, "business", None)
-    packet = build_tax_packet(business=business, year=selected_year)
-
-    company_profile = getattr(business, "company_profile", None)
-    company_name = None
-    if company_profile and getattr(company_profile, "company_name", None):
-        company_name = company_profile.company_name
-
-    ctx = {
-        "selected_year": selected_year,
-        "year_choices": year_choices,
-        "packet": packet,
-        "business": business,
-        "company_profile": company_profile,
-        "company_name": company_name or getattr(business, "name", ""),
-    }
+    year = selected_tax_packet_year(request)
+    options = TaxPacketOptions(
+        include_transaction_detail=is_truthy(request.GET.get("include_transactions")),
+        include_mileage_detail=is_truthy(request.GET.get("include_mileage")),
+    )
+    ctx = build_tax_packet_context(request, year=year, options=options)
     return render(request, "reports/tax_packet.html", ctx)
 
 
@@ -452,46 +435,18 @@ def tax_packet_pdf_download(request: HttpRequest) -> HttpResponse:
     return _tax_packet_pdf(request, download=True)
 
 
-
 def _tax_packet_pdf(request: HttpRequest, *, download: bool) -> HttpResponse:
-    today = date.today()
-    try:
-        selected_year = int(request.GET.get("year") or today.year)
-    except ValueError:
-        selected_year = today.year
-
-    business = getattr(request, "business", None)
-    packet = build_tax_packet(business=business, year=selected_year)
-    company_profile = getattr(business, "company_profile", None)
-    company_name = None
-    if company_profile and getattr(company_profile, "company_name", None):
-        company_name = company_profile.company_name
-
-    logo_src = None
-    if company_profile and getattr(company_profile, "logo", None):
-        try:
-            url = company_profile.logo.url
-            if url and url.startswith("/"):
-                logo_src = request.build_absolute_uri(url)
-            else:
-                logo_src = url
-        except Exception:
-            logo_src = None
-
-    ctx = {
-        "selected_year": selected_year,
-        "packet": packet,
-        "business": business,
-        "company_profile": company_profile,
-        "company_name": company_name or getattr(business, "name", ""),
-        "logo_src": logo_src,
-    }
-
+    year = selected_tax_packet_year(request)
+    options = TaxPacketOptions(
+        include_transaction_detail=is_truthy(request.GET.get("include_transactions")),
+        include_mileage_detail=is_truthy(request.GET.get("include_mileage")),
+    )
+    ctx = build_tax_packet_context(request, year=year, options=options)
     result = render_pdf_from_template(
         request=request,
         template_name="reports/pdf/tax_packet_pdf.html",
         context=ctx,
-        filename=f"tax-report-packet-{selected_year}.pdf",
+        filename=f"tax-report-packet-{year}.pdf",
         download=download,
     )
     return result.response
