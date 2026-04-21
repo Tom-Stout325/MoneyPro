@@ -183,6 +183,8 @@ class VehicleDetailView(LoginRequiredMixin, DetailView):
         miles_qs = VehicleMiles.objects.filter(business=business, vehicle=vehicle, date__year=year).select_related("job", "invoice").order_by("-date", "-id")
         labels, series = _month_series_for_business(business=business, year=year, vehicle=vehicle)
 
+        loan = getattr(vehicle, "loan", None)
+        loan_payments_qs = loan.payments.filter(payment_date__year=year).order_by("payment_date", "payment_number") if loan else None
         latest_end = miles_qs.aggregate(v=Max("end"))["v"]
         ctx.update({
             "year": year,
@@ -195,6 +197,9 @@ class VehicleDetailView(LoginRequiredMixin, DetailView):
             "odometer_today": latest_end,
             "transactions": _expense_transactions_for_vehicle(business=business, vehicle=vehicle, year=year),
             "quick_mileage_form": QuickMileageForm(business=business, initial={"vehicle": vehicle.id}),
+            "loan": loan,
+            "loan_payments": list(loan_payments_qs[:24]) if loan_payments_qs is not None else [],
+            "loan_payments_count": loan_payments_qs.count() if loan_payments_qs is not None else 0,
             "chart_labels_json": json.dumps(labels),
             "chart_values_json": json.dumps(series),
         })
@@ -386,9 +391,9 @@ class VehicleMilesListView(LoginRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         year = _parse_year(self.request.GET.get("year"))
         vehicle_filter = self.request.GET.get("vehicle") or ""
-        totals_qs = self.get_queryset()
-        total_logged = totals_qs.aggregate(total=Sum("total"))["total"] or ZERO_TENTH
-        total_business = totals_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        page_qs = ctx["miles_entries"].object_list if hasattr(ctx["miles_entries"], "object_list") else ctx["miles_entries"]
+        total_logged = page_qs.aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        total_business = page_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
         ctx.update({
             "year": year,
             "year_choices": _year_choices(),
