@@ -589,7 +589,7 @@
           
           <hr class="w-50 text-primary text-center">
 
-          {% if invoice.income_transaction %}
+          {% comment %} {% if invoice.income_transaction %}
             <div class="px-3 pb-3">
               <div class="invoice-detail-pill">
                 <span class="invoice-detail-label">Income transaction created</span>
@@ -605,13 +605,13 @@
                 </div>
               </div>
             </div>
-          {% endif %}
+          {% endif %} {% endcomment %}
 
             <div class="section-heading pt-0">
               <div class="section-title-wrap">
                 <span class="section-icon"><i class="fa-solid fa-receipt"></i></span>
-                <div>
-                  <h3 class="text-center">Actual Amounts</h3>
+                  <div class="text-center">
+                    <h3>Actual Amounts</h3>
                   <div class="section-subtitle">Includes Actual Expnese Amounts.</div>
                 </div>
               </div>
@@ -635,12 +635,14 @@
                 <div class="invoice-kpi-note">Actual Income.</div>
               </article>
             </div>
-<hr class="w-50 text-warning text-center">
+
+ <hr class="w-50 text-warning text-center">
+
             <div class="section-heading pt-0">
               <div class="section-title-wrap">
                 <span class="section-icon"><i class="fa-solid fa-receipt"></i></span>
                 <div>
-                  <h3>Taxable Amounts</h3>
+                  <h3 class="text-success mx-auto text-center">Taxable Amounts</h3>
                   <div class="section-subtitle">Includes Tax Deductible Expneses.</div>
                 </div>
               </div>
