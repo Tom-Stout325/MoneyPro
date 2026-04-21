@@ -20,4 +20,7 @@ urlpatterns = [
     path("profit-loss/pdf/download/", views.profit_loss_pdf_download, name="profit_loss_pdf_download"),
     path("profit-loss/yoy/pdf/preview/", views.profit_loss_yoy_pdf_preview, name="profit_loss_yoy_pdf_preview"),
     path("profit-loss/yoy/pdf/download/", views.profit_loss_yoy_pdf_download, name="profit_loss_yoy_pdf_download"),
+    path("tax-packet/", views.tax_packet, name="tax_packet"),
+    path("tax-packet/pdf/preview/", views.tax_packet_pdf_preview, name="tax_packet_pdf_preview"),
+    path("tax-packet/pdf/download/", views.tax_packet_pdf_download, name="tax_packet_pdf_download"),
 ]
