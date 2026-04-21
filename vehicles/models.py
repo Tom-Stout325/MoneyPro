@@ -148,18 +148,31 @@ class VehicleYear(BusinessOwnedModelMixin):
             return None
         return (self.odometer_end - self.odometer_start).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
 
+    def _effective_business_id(self) -> int | None:
+        if self.business_id:
+            return self.business_id
+        if self.vehicle_id:
+            return self.vehicle.business_id
+        return None
+
     @property
     def logged_miles_total(self) -> Decimal:
+        business_id = self._effective_business_id()
+        if not self.vehicle_id or not business_id:
+            return ZERO_TENTH
         total = self.vehicle.miles_entries.filter(
-            business=self.business,
+            business_id=business_id,
             date__year=self.year,
         ).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
         return Decimal(str(total)).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
 
     @property
     def business_miles(self) -> Decimal:
+        business_id = self._effective_business_id()
+        if not self.vehicle_id or not business_id:
+            return ZERO_TENTH
         total = self.vehicle.miles_entries.filter(
-            business=self.business,
+            business_id=business_id,
             date__year=self.year,
             mileage_type=VehicleMiles.MileageType.BUSINESS,
         ).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
@@ -167,8 +180,11 @@ class VehicleYear(BusinessOwnedModelMixin):
 
     @property
     def reimbursed_miles(self) -> Decimal:
+        business_id = self._effective_business_id()
+        if not self.vehicle_id or not business_id:
+            return ZERO_TENTH
         total = self.vehicle.miles_entries.filter(
-            business=self.business,
+            business_id=business_id,
             date__year=self.year,
             mileage_type=VehicleMiles.MileageType.REIMBURSED,
         ).aggregate(total=Sum("total"))["total"] or ZERO_TENTH

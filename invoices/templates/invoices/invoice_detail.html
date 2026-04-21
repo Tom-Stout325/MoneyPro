@@ -467,7 +467,7 @@
         <div>
           <div class="invoice-kicker">
             <i class="fa-solid fa-file-invoice-dollar"></i>
-            Invoice overview
+            Invoice Details
           </div>
 
           <div class="invoice-title-row">
@@ -562,7 +562,7 @@
           <div class="section-title-wrap">
             <span class="section-icon"><i class="fa-solid fa-chart-simple"></i></span>
             <div>
-              <h2>Invoice review</h2>
+              <h2 class="text-center">Invoice Review</h2>
               <div class="section-subtitle">Revenue, expenses, and taxable view for this invoice.</div>
             </div>
           </div>
@@ -586,6 +586,8 @@
               <div class="value money-counter" data-money-value="{{ invoice.total|default:0 }}">${{ invoice.total|floatformat:2|intcomma }}</div>
             </div>
           </div>
+          
+<hr class="w-50 text-primary">
 
           {% if invoice.income_transaction %}
             <div class="px-3 pb-3">

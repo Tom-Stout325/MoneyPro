@@ -71,6 +71,9 @@ class VehicleYearForm(forms.ModelForm):
         business = kwargs.pop("business", None)
         super().__init__(*args, **kwargs)
 
+        if business and not self.instance.business_id:
+            self.instance.business = business
+
         if business:
             self.fields["vehicle"].queryset = Vehicle.objects.filter(business=business).order_by("sort_order", "label")
         self.fields["vehicle"].widget.attrs.update({"class": "form-select"})
