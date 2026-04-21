@@ -8,7 +8,7 @@ from .models import Vehicle, VehicleMiles, VehicleYear
 
 
 class BusinessAdminMixin(admin.ModelAdmin):
-    """Scope objects to the user's business in Django Admin (for non-superusers)."""
+    """Scope admin records to the active business for non-superusers."""
 
     def _user_business(self, request):
         membership = (
@@ -32,22 +32,20 @@ class BusinessAdminMixin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if not request.user.is_superuser:
-            biz = self._user_business(request)
-            if biz and db_field.name in {"vehicle", "job", "invoice"}:
-                qs = db_field.remote_field.model.objects.filter(business=biz)
-                if db_field.name == "invoice":
-                    qs = qs.select_related("job")
-                kwargs["queryset"] = qs
+        if request.user.is_superuser:
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        biz = self._user_business(request)
+        model = db_field.remote_field.model
+        if biz and hasattr(model, "business_id"):
+            kwargs["queryset"] = model.objects.filter(business=biz)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(Vehicle)
 class VehicleAdmin(BusinessAdminMixin):
-    list_display = ("label", "year", "make", "model", "plate", "is_active")
-    list_filter = ("is_active", "is_business", "year")
+    list_display = ("label", "year", "make", "model", "is_business", "is_active")
+    list_filter = ("is_business", "is_active", "make")
     search_fields = ("label", "make", "model", "plate", "vin_last6")
-    ordering = ("sort_order", "label")
 
 
 @admin.register(VehicleYear)
@@ -55,161 +53,52 @@ class VehicleYearAdmin(BusinessAdminMixin):
     list_display = (
         "vehicle",
         "year",
-        "odometer_start",
-        "odometer_end",
-        "total_miles_display",
-        "business_miles_display",
-        "other_miles_display",
         "deduction_method",
+        "annual_interest_paid",
+        "business_interest_amount_display",
+        "business_use_pct_display",
         "is_locked",
     )
     list_filter = ("year", "deduction_method", "is_locked")
-    search_fields = ("vehicle__label", "vehicle__make", "vehicle__model", "vehicle__plate")
-    autocomplete_fields = ("vehicle",)
+    search_fields = ("vehicle__label",)
     readonly_fields = (
-        "total_miles_display",
-        "logged_miles_total_display",
-        "business_miles_display",
-        "reimbursed_miles_display",
-        "other_miles_display",
+        "business_interest_amount_display",
         "business_use_pct_display",
-        "actual_expenses_total_display",
-        "standard_mileage_deduction_display",
-        "deduction_amount_display",
-        "missing_data_flags_display",
-        "created_at",
-        "updated_at",
+        "actual_expenses_with_interest_total_display",
     )
-
     fieldsets = (
+        (None, {"fields": ("vehicle", "year", "deduction_method", "is_locked")}),
+        ("Odometer", {"fields": ("odometer_start", "odometer_end", "standard_mileage_rate")}),
         (
-            None,
+            "Loan interest",
             {
                 "fields": (
-                    "vehicle",
-                    "year",
-                    "deduction_method",
-                    "is_locked",
-                )
-            },
-        ),
-        (
-            "Odometer",
-            {
-                "fields": (
-                    "odometer_start",
-                    "odometer_end",
-                    "standard_mileage_rate",
-                )
-            },
-        ),
-        (
-            "Computed summary",
-            {
-                "fields": (
-                    "total_miles_display",
-                    "logged_miles_total_display",
-                    "business_miles_display",
-                    "reimbursed_miles_display",
-                    "other_miles_display",
+                    "annual_interest_paid",
                     "business_use_pct_display",
-                    "actual_expenses_total_display",
-                    "standard_mileage_deduction_display",
-                    "deduction_amount_display",
-                    "missing_data_flags_display",
-                )
+                    "business_interest_amount_display",
+                    "actual_expenses_with_interest_total_display",
+                ),
+                "description": "Enter the full annual interest paid. MoneyPro calculates the business-use portion from the annual business-use percentage.",
             },
-        ),
-        (
-            "Timestamps",
-            {"classes": ("collapse",), "fields": ("created_at", "updated_at")},
         ),
     )
-
-    @admin.display(description="Total miles")
-    def total_miles_display(self, obj):
-        return obj.total_miles
-
-    @admin.display(description="Logged miles total")
-    def logged_miles_total_display(self, obj):
-        return obj.logged_miles_total
-
-    @admin.display(description="Business miles")
-    def business_miles_display(self, obj):
-        return obj.business_miles
-
-    @admin.display(description="Reimbursed miles")
-    def reimbursed_miles_display(self, obj):
-        return obj.reimbursed_miles
-
-    @admin.display(description="Other miles")
-    def other_miles_display(self, obj):
-        return obj.other_miles
 
     @admin.display(description="Business use %")
     def business_use_pct_display(self, obj):
-        pct = obj.business_use_pct
-        return f"{pct}%" if pct is not None else "—"
+        return f"{obj.business_use_pct:.2f}%" if obj.business_use_pct is not None else "—"
 
-    @admin.display(description="Actual expenses total")
-    def actual_expenses_total_display(self, obj):
-        return obj.actual_expenses_total
+    @admin.display(description="Business interest amount")
+    def business_interest_amount_display(self, obj):
+        return obj.business_interest_amount
 
-    @admin.display(description="Standard mileage deduction")
-    def standard_mileage_deduction_display(self, obj):
-        return obj.standard_mileage_deduction
-
-    @admin.display(description="Deduction amount")
-    def deduction_amount_display(self, obj):
-        return obj.deduction_amount
-
-    @admin.display(description="Missing data flags")
-    def missing_data_flags_display(self, obj):
-        return "; ".join(obj.missing_data_flags) if obj.missing_data_flags else "—"
+    @admin.display(description="Actual expenses + interest")
+    def actual_expenses_with_interest_total_display(self, obj):
+        return obj.actual_expenses_with_interest_total
 
 
 @admin.register(VehicleMiles)
 class VehicleMilesAdmin(BusinessAdminMixin):
-    list_display = (
-        "date",
-        "vehicle",
-        "mileage_type",
-        "begin",
-        "end",
-        "total",
-        "job",
-        "invoice",
-    )
+    list_display = ("date", "vehicle", "mileage_type", "total", "job", "invoice")
     list_filter = ("mileage_type", "date", "vehicle")
-    search_fields = (
-        "vehicle__label",
-        "job__job_number",
-        "job__label",
-        "invoice__invoice_number",
-        "notes",
-    )
-    autocomplete_fields = ("vehicle", "job", "invoice")
-    readonly_fields = ("total", "created_at")
-    fieldsets = (
-        (
-            None,
-            {
-                "fields": (
-                    "date",
-                    "vehicle",
-                    "mileage_type",
-                    "begin",
-                    "end",
-                    "total",
-                )
-            },
-        ),
-        (
-            "Related records",
-            {"fields": ("job", "invoice", "notes")},
-        ),
-        (
-            "Timestamps",
-            {"classes": ("collapse",), "fields": ("created_at",)},
-        ),
-    )
+    search_fields = ("vehicle__label", "notes", "job__label", "invoice__invoice_number")
+    readonly_fields = ("total",)

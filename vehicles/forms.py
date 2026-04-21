@@ -56,6 +56,7 @@ class VehicleYearForm(forms.ModelForm):
             "odometer_start",
             "odometer_end",
             "standard_mileage_rate",
+            "annual_interest_paid",
             "deduction_method",
             "is_locked",
         ]
@@ -64,6 +65,7 @@ class VehicleYearForm(forms.ModelForm):
             "odometer_start": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
             "odometer_end": forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
             "standard_mileage_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.001", "placeholder": "e.g. 0.670"}),
+            "annual_interest_paid": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "placeholder": "Optional annual interest paid"}),
             "deduction_method": forms.Select(attrs={"class": "form-select"}),
         }
 

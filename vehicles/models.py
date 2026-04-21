@@ -80,6 +80,14 @@ class VehicleYear(BusinessOwnedModelMixin):
         validators=[MinValueValidator(0)],
         help_text="Optional standard mileage rate for this year.",
     )
+    annual_interest_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="Optional manually entered total loan interest paid during this calendar year.",
+    )
 
     deduction_method = models.CharField(
         max_length=20,
@@ -247,9 +255,23 @@ class VehicleYear(BusinessOwnedModelMixin):
         return value.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
 
     @property
+    def business_interest_amount(self) -> Decimal:
+        interest_paid = Decimal(str(self.annual_interest_paid or ZERO_CENTS))
+        pct = self.business_use_pct
+        if not interest_paid or pct in (None, ZERO_TENTH):
+            return ZERO_CENTS
+        value = interest_paid * (Decimal(str(pct)) / Decimal("100"))
+        return value.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+
+    @property
+    def actual_expenses_with_interest_total(self) -> Decimal:
+        total = self.actual_expenses_total + self.business_interest_amount
+        return total.quantize(ONE_HUNDREDTH, rounding=ROUND_HALF_UP)
+
+    @property
     def deduction_amount(self) -> Decimal | None:
         if self.deduction_method == self.DeductionMethod.ACTUAL_EXPENSES:
-            return self.actual_expenses_total
+            return self.actual_expenses_with_interest_total
         return self.standard_mileage_deduction
 
     @property
@@ -266,6 +288,8 @@ class VehicleYear(BusinessOwnedModelMixin):
             flags.append("No business miles logged")
         if self.deduction_method == self.DeductionMethod.STANDARD_MILEAGE and self.standard_mileage_rate is None:
             flags.append("Standard mileage rate missing")
+        if self.annual_interest_paid and self.business_use_pct in (None, ZERO_TENTH):
+            flags.append("Interest entered but business use % is not available yet")
         return flags
 
     def save(self, *args, **kwargs):

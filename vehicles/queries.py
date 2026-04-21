@@ -29,7 +29,10 @@ class MileageYearSummary:
     business_use_pct: Decimal | None
     standard_mileage_rate: Decimal | None
     standard_mileage_deduction: Decimal | None
+    annual_interest_paid: Decimal | None
+    business_interest_amount: Decimal
     actual_expenses_total: Decimal
+    actual_expenses_with_interest_total: Decimal
     deduction_amount: Decimal | None
     warnings: list[str]
 
@@ -68,7 +71,10 @@ def get_yearly_mileage_summary(*, business, vehicle_id: int, year: int) -> Milea
         business_use_pct=_q(vy.business_use_pct, ONE_HUNDREDTH),
         standard_mileage_rate=_q(vy.standard_mileage_rate, Decimal("0.001")),
         standard_mileage_deduction=_q(vy.standard_mileage_deduction, ONE_HUNDREDTH),
+        annual_interest_paid=_q(vy.annual_interest_paid, ONE_HUNDREDTH),
+        business_interest_amount=_q(vy.business_interest_amount, ONE_HUNDREDTH) or Decimal("0.00"),
         actual_expenses_total=_q(vy.actual_expenses_total, ONE_HUNDREDTH) or Decimal("0.00"),
+        actual_expenses_with_interest_total=_q(vy.actual_expenses_with_interest_total, ONE_HUNDREDTH) or Decimal("0.00"),
         deduction_amount=_q(vy.deduction_amount, ONE_HUNDREDTH),
         warnings=warnings,
     )

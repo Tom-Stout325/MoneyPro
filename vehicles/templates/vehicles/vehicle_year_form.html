@@ -1,1 +1,72 @@
-{% extends "index.html" %}{% load static %}{% block title %}Annual Vehicle Record | MoneyPro{% endblock %}{% block extra_css %}<link rel="stylesheet" href="{% static 'vehicles/vehicles.css' %}">{% endblock %}{% block content %}<div class="vehicle-shell"><section class="vehicle-section-card"><div class="vehicle-section-head"><div><div class="vehicle-eyebrow">Annual record</div><h1 class="vehicle-title mb-1">{% if object %}Edit annual record{% else %}Create annual record{% endif %}</h1><div class="vehicle-subtitle">This drives business use %, other miles, and deduction math.</div></div><a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Back</a></div><form method="post" novalidate>{% csrf_token %}<div class="row g-3">{% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger">{{ form.non_field_errors }}</div></div>{% endif %}<div class="col-12 col-md-6">{{ form.vehicle.label_tag }}{{ form.vehicle }}</div><div class="col-12 col-md-2">{{ form.year.label_tag }}{{ form.year }}</div><div class="col-12 col-md-4">{{ form.deduction_method.label_tag }}{{ form.deduction_method }}</div><div class="col-12 col-md-4">{{ form.odometer_start.label_tag }}{{ form.odometer_start }}<div class="form-text">Auto-filled from prior year when available.</div></div><div class="col-12 col-md-4">{{ form.odometer_end.label_tag }}{{ form.odometer_end }}</div><div class="col-12 col-md-4">{{ form.standard_mileage_rate.label_tag }}{{ form.standard_mileage_rate }}<div class="form-text">Used for standard mileage calculations.</div></div><div class="col-12"><div class="form-check mt-2">{{ form.is_locked }}<label class="form-check-label ms-2" for="{{ form.is_locked.id_for_label }}">Lock this annual record</label></div></div><div class="col-12 d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Cancel</a><button class="btn btn-primary">Save annual record</button></div></div></form></section></div>{% endblock %}
+{% extends "index.html" %}
+{% load static %}
+{% block title %}Annual Vehicle Record | MoneyPro{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vehicles/vehicles.css' %}">{% endblock %}
+{% block content %}
+<div class="vehicle-shell">
+  <section class="vehicle-section-card">
+    <div class="vehicle-section-head">
+      <div>
+        <div class="vehicle-eyebrow">Annual record</div>
+        <h1 class="vehicle-title mb-1">{% if object %}Edit annual record{% else %}Create annual record{% endif %}</h1>
+        <div class="vehicle-subtitle">This drives business use %, other miles, deduction math, and optional loan-interest allocation.</div>
+      </div>
+      <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Back</a>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        {% if form.non_field_errors %}
+          <div class="col-12"><div class="alert alert-danger">{{ form.non_field_errors }}</div></div>
+        {% endif %}
+
+        <div class="col-12 col-md-6">{{ form.vehicle.label_tag }}{{ form.vehicle }}</div>
+        <div class="col-12 col-md-2">{{ form.year.label_tag }}{{ form.year }}</div>
+        <div class="col-12 col-md-4">{{ form.deduction_method.label_tag }}{{ form.deduction_method }}</div>
+
+        <div class="col-12 col-md-4">
+          {{ form.odometer_start.label_tag }}{{ form.odometer_start }}
+          <div class="form-text">Auto-filled from prior year when available.</div>
+        </div>
+        <div class="col-12 col-md-4">{{ form.odometer_end.label_tag }}{{ form.odometer_end }}</div>
+        <div class="col-12 col-md-4">
+          {{ form.standard_mileage_rate.label_tag }}{{ form.standard_mileage_rate }}
+          <div class="form-text">Used for standard mileage calculations.</div>
+        </div>
+
+        <div class="col-12">
+          <div class="vehicle-section-card border-0 shadow-sm bg-light-subtle">
+            <div class="vehicle-section-head compact">
+              <div>
+                <h2 class="vehicle-section-title">Optional vehicle loan interest</h2>
+                <div class="vehicle-subtitle">Enter the total interest paid during this calendar year. MoneyPro will calculate the business portion using this annual record's business-use percentage.</div>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                {{ form.annual_interest_paid.label_tag }}{{ form.annual_interest_paid }}
+                <div class="form-text">Leave blank if you do not want to track interest for this year.</div>
+              </div>
+              <div class="col-12 col-md-8">
+                <div class="alert alert-info rounded-4 mb-0">
+                  Business interest amount = Annual interest paid × Business use %.
+                  This value updates after mileage and odometer information establish the business-use percentage.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check mt-2">{{ form.is_locked }}<label class="form-check-label ms-2" for="{{ form.is_locked.id_for_label }}">Lock this annual record</label></div>
+        </div>
+        <div class="col-12 d-flex justify-content-end gap-2">
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}">Cancel</a>
+          <button class="btn btn-primary">Save annual record</button>
+        </div>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}
