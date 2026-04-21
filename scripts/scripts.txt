@@ -39,3 +39,6 @@ heroku run -a moneypro -- python manage.py migrate
 
 
 Invoices aren't calculating Mileage in taxable amount:  See Bristol 2025
+Invoice Detail:  
+    Add Days To Pay button in place of SubTotal
+    
