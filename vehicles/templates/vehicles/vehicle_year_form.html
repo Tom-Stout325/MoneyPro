@@ -1,100 +1,51 @@
 {% extends "index.html" %}
-{% load humanize static %}
-{% block title %}{% if object %}Edit Annual Vehicle Record{% else %}Add Annual Vehicle Record{% endif %} | MoneyPro{% endblock %}
+{% load static %}
+{% block title %}Annual Vehicle Record | MoneyPro{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'vehicles/vehicles.css' %}">{% endblock %}
 {% block content %}
 <div class="vehicle-shell">
   <section class="vehicle-section-card">
     <div class="vehicle-section-head">
       <div>
-        <div class="vehicle-eyebrow">Vehicle setup</div>
-        <h1 class="vehicle-title mb-1">{% if object %}Edit annual vehicle record{% else %}Add annual vehicle record{% endif %}</h1>
-        <div class="vehicle-subtitle">Enter odometer data, deduction settings, optional manual interest, or loan terms to generate an amortization schedule.</div>
+        <div class="vehicle-eyebrow">Annual record</div>
+        <h1 class="vehicle-title mb-1">{% if object %}Edit annual record{% else %}Create annual record{% endif %}</h1>
+        <div class="vehicle-subtitle">This drives business use %, other miles, and deduction math.</div>
       </div>
-      <div class="d-grid d-md-flex gap-2">
-        <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}?year={{ form.year.value|default:request.GET.year|default:year }}">Back</a>
-      </div>
+      <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}?year={{ year }}">Back</a>
     </div>
 
-    <form method="post" class="row g-3">
+    <form method="post" novalidate>
       {% csrf_token %}
-      {% if form.non_field_errors %}
+      <div class="row g-3">
+        {% if form.non_field_errors %}
+          <div class="col-12"><div class="alert alert-danger">{{ form.non_field_errors }}</div></div>
+        {% endif %}
+
+        <div class="col-12 col-md-6">{{ form.vehicle.label_tag }}{{ form.vehicle }}</div>
+        <div class="col-12 col-md-2">{{ form.year.label_tag }}{{ form.year }}</div>
+        <div class="col-12 col-md-4">{{ form.deduction_method.label_tag }}{{ form.deduction_method }}</div>
+
+        <div class="col-12 col-md-4">
+          {{ form.odometer_start.label_tag }}{{ form.odometer_start }}
+          <div class="form-text">Auto-filled from prior year when available.</div>
+        </div>
+        <div class="col-12 col-md-4">{{ form.odometer_end.label_tag }}{{ form.odometer_end }}</div>
+        <div class="col-12 col-md-4">
+          {{ form.standard_mileage_rate.label_tag }}{{ form.standard_mileage_rate }}
+          <div class="form-text">Used for standard mileage calculations.</div>
+        </div>
+
         <div class="col-12">
-          <div class="alert alert-danger mb-0">{{ form.non_field_errors }}</div>
-        </div>
-      {% endif %}
-
-      <div class="col-12 col-lg-6">
-        <div class="vehicle-section-card h-100 border">
-          <div class="vehicle-section-head compact">
-            <div>
-              <h2 class="vehicle-section-title">Annual record</h2>
-              <div class="vehicle-subtitle">Core annual setup for mileage deduction reporting.</div>
-            </div>
-          </div>
-          <div class="row g-3">
-            <div class="col-12">{{ form.vehicle.label_tag }}{{ form.vehicle }}{{ form.vehicle.errors }}</div>
-            <div class="col-6">{{ form.year.label_tag }}{{ form.year }}{{ form.year.errors }}</div>
-            <div class="col-6">{{ form.deduction_method.label_tag }}{{ form.deduction_method }}{{ form.deduction_method.errors }}</div>
-            <div class="col-6">{{ form.odometer_start.label_tag }}{{ form.odometer_start }}{{ form.odometer_start.errors }}</div>
-            <div class="col-6">{{ form.odometer_end.label_tag }}{{ form.odometer_end }}{{ form.odometer_end.errors }}</div>
-            <div class="col-6">{{ form.standard_mileage_rate.label_tag }}{{ form.standard_mileage_rate }}{{ form.standard_mileage_rate.errors }}</div>
-            <div class="col-6 d-flex align-items-end">
-              <div class="form-check mt-4">
-                {{ form.is_locked }}
-                <label class="form-check-label" for="{{ form.is_locked.id_for_label }}">Lock annual record</label>
-              </div>
-            </div>
+          <div class="form-check mt-2">
+            {{ form.is_locked }}
+            <label class="form-check-label ms-2" for="{{ form.is_locked.id_for_label }}">Lock this annual record</label>
           </div>
         </div>
-      </div>
 
-      <div class="col-12 col-lg-6">
-        <div class="vehicle-section-card h-100 border">
-          <div class="vehicle-section-head compact">
-            <div>
-              <h2 class="vehicle-section-title">Manual annual interest</h2>
-              <div class="vehicle-subtitle">Use this when you already know the full loan interest paid for the calendar year.</div>
-            </div>
-          </div>
-          <div class="row g-3">
-            <div class="col-12">
-              {{ form.annual_interest_paid.label_tag }}
-              {{ form.annual_interest_paid }}
-              {{ form.annual_interest_paid.errors }}
-              <div class="form-text">When entered, this manual amount takes priority over any generated amortization interest for the year.</div>
-            </div>
-          </div>
+        <div class="col-12 d-flex justify-content-end gap-2">
+          <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}?year={{ year }}">Cancel</a>
+          <button class="btn btn-primary">Save annual record</button>
         </div>
-      </div>
-
-      <div class="col-12">
-        <div class="vehicle-section-card border">
-          <div class="vehicle-section-head compact">
-            <div>
-              <h2 class="vehicle-section-title">Optional amortization generator</h2>
-              <div class="vehicle-subtitle">Leave this blank to skip. Fill it in to generate or refresh a payment schedule for this vehicle loan.</div>
-            </div>
-          </div>
-          <div class="row g-3">
-            <div class="col-12 col-md-3">{{ form.loan_purchase_date.label_tag }}{{ form.loan_purchase_date }}{{ form.loan_purchase_date.errors }}</div>
-            <div class="col-12 col-md-3">{{ form.loan_first_payment_date.label_tag }}{{ form.loan_first_payment_date }}{{ form.loan_first_payment_date.errors }}</div>
-            <div class="col-12 col-md-2">{{ form.loan_amount.label_tag }}{{ form.loan_amount }}{{ form.loan_amount.errors }}</div>
-            <div class="col-12 col-md-2">{{ form.loan_interest_rate.label_tag }}{{ form.loan_interest_rate }}{{ form.loan_interest_rate.errors }}</div>
-            <div class="col-12 col-md-2">{{ form.loan_number_of_payments.label_tag }}{{ form.loan_number_of_payments }}{{ form.loan_number_of_payments.errors }}</div>
-            <div class="col-12">
-              <div class="form-check mt-2">
-                {{ form.regenerate_amortization }}
-                <label class="form-check-label" for="{{ form.regenerate_amortization.id_for_label }}">Generate or refresh amortization schedule when saving</label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
-        <a class="btn btn-outline-secondary" href="{% url 'vehicles:vehicle_year_list' %}?year={{ form.year.value|default:request.GET.year|default:year }}">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save annual vehicle record</button>
       </div>
     </form>
   </section>
