@@ -8,7 +8,7 @@ cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/MoneyPro_mark_paid_team_fix.zip
+unzip ~/Downloads/mileage_log_fix_patch.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./

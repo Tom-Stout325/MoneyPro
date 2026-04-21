@@ -10,22 +10,6 @@ python manage.py import_subcategories_csv --business-id 1 --csv "/docs/SubCatego
 python manage.py import_subcategories_csv --business-id 1 --csv "/path/to/SubCategories.csv"
 
 
-
-
-Files you can delete if you are fully moving to CSV as the source of truth:
-ledger/management/commands/apply_subcategory_rules.py
-ledger/management/commands/build_subcategory_rules_json.py
-ledger/data/subcategory_rules.json
-
-
-Heroku commands:
-
-Restart Server:   heroku ps:restart -a moneypro    
-Logs:             heroku logs --tail -a moneypro                                                 
-          
-
-
-
 Create a Job Review section
   add a profitability scale to job analsys
 
@@ -187,44 +171,6 @@ text-muted
   font-style: normal;
 }
 
-
-
-
-
-
-
-Production postgresql shell:
-heroku run -a moneypro -- python manage.py dbshell
-heroku run -a flightplan-skyguy -- python manage.py dbshell
-
-Heroku shell:
-heroku run -a moneypro -- python manage.py shell
-heroku run -a flightplan-skyguy -- python manage.py shell
-
-
-Heroku logs:
-heroku logs --tail -a moneypro
-
-
-Get into local psql:
-python manage.py dbshell
-
-SELECT COUNT(*) FROM equipment_dronesafetyprofile;
-SELECT COUNT(*) FROM flightplan_equipment;
-
-
-
-Run Migrations on Heroku:
-heroku run -a moneypro -- python manage.py migrate
-Run Migrations on Heroku:
-heroku run -a flightplan-skyguy -- python manage.py migrate
-
-
-
-View Databases in production:
-heroku pg:psql -a moneypro
-\dt *invoice*;    Or
-\dt *flightlog*;
 
 
 
