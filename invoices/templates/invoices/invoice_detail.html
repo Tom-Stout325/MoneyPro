@@ -587,7 +587,7 @@
             </div>
           </div>
           
-<hr class="w-50 text-primary">
+          <hr class="w-50 text-primary text-center">
 
           {% if invoice.income_transaction %}
             <div class="px-3 pb-3">
@@ -606,6 +606,16 @@
               </div>
             </div>
           {% endif %}
+
+            <div class="section-heading pt-0">
+              <div class="section-title-wrap">
+                <span class="section-icon"><i class="fa-solid fa-receipt"></i></span>
+                <div>
+                  <h3>Actual Amounts</h3>
+                  <div class="section-subtitle">Includes Tax Deductible Expneses.</div>
+                </div>
+              </div>
+            </div>
 
           {% if has_transactions %}
             <div class="invoice-summary-grid">
