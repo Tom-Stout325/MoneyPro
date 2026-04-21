@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
 from vehicles.forms import QuickMileageForm, VehicleForm, VehicleMilesForm, VehicleYearForm
-from vehicles.models import Vehicle, VehicleLoanPayment, VehicleMiles, VehicleYear
+from vehicles.models import Vehicle, VehicleMiles, VehicleYear
 from vehicles.queries import get_yearly_mileage_summary
 
 ZERO_TENTH = Decimal("0.0")
@@ -184,21 +184,11 @@ class VehicleDetailView(LoginRequiredMixin, DetailView):
         labels, series = _month_series_for_business(business=business, year=year, vehicle=vehicle)
 
         latest_end = miles_qs.aggregate(v=Max("end"))["v"]
-        try:
-            loan = vehicle.loan
-        except Exception:
-            loan = None
-        loan_payments = []
-        if loan:
-            loan_payments = list(loan.payments.filter(payment_date__year=year).order_by("payment_date", "payment_number")[:24])
-
         ctx.update({
             "year": year,
             "year_choices": _year_choices(),
             "vehicle_year": vy,
             "summary": summary,
-            "loan": loan,
-            "loan_payments": loan_payments,
             "alerts": vy.missing_data_flags if vy else [f"Missing {year} annual vehicle record"],
             "miles_entries": miles_qs[:25],
             "all_miles_count": miles_qs.count(),
@@ -317,6 +307,18 @@ class VehicleYearCreateView(LoginRequiredMixin, CreateView):
             initial["year"] = year
         return initial
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        selected_year = _parse_year(self.request.GET.get("year") or self.initial.get("year") if hasattr(self, "initial") else None)
+        selected_vehicle = self.request.GET.get("vehicle") or self.get_initial().get("vehicle") or ""
+        ctx.update({
+            "year": selected_year,
+            "year_choices": _year_choices(),
+            "vehicle_id": selected_vehicle,
+            "next": self.request.GET.get("next", ""),
+        })
+        return ctx
+
     def form_valid(self, form):
         form.instance.business = self.request.business
         self.object = form.save()
@@ -340,6 +342,16 @@ class VehicleYearUpdateView(LoginRequiredMixin, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs["business"] = self.request.business
         return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            "year": self.object.year,
+            "year_choices": _year_choices(),
+            "vehicle_id": self.object.vehicle_id,
+            "next": self.request.GET.get("next", ""),
+        })
+        return ctx
 
     def form_valid(self, form):
         form.instance.business = self.request.business

@@ -8,18 +8,34 @@ cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/vehicle_amortization_patch.zip
+unzip ~/Downloads/vehicle_year_context_fix_patch.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
 
 
 
-from django.core.mail import send_mail
-from django.conf import settings
+HEROKU COMMANDS
+
+Restart Server:   heroku ps:restart -a moneypro    
+Logs:             heroku logs --tail -a moneypro          
+
+Postgresql shell:
+heroku run -a moneypro -- python manage.py dbshell
 
 
+View Databases in production:
+heroku pg:psql -a moneypro
+\dt *invoice*;    Or
+\dt *flightlog*;
 
+
+Local Shell:
+python manage.py dbshell
+
+
+Run Migrations on Heroku:
+heroku run -a moneypro -- python manage.py migrate
 
 
 Invoices aren't calculating Mileage in taxable amount:  See Bristol 2025
