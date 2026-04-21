@@ -128,6 +128,21 @@ class VehicleYearForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+
+        vehicle = cleaned.get("vehicle")
+        year = cleaned.get("year")
+        if self.business and vehicle and year:
+            duplicate_qs = VehicleYear.objects.filter(
+                business=self.business,
+                vehicle=vehicle,
+                year=year,
+            )
+            if self.instance.pk:
+                duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+            if duplicate_qs.exists():
+                self.add_error("vehicle", "An annual record for this vehicle and year already exists.")
+                self.add_error("year", "Choose a different year or edit the existing annual record.")
+
         loan_amount = cleaned.get("loan_amount")
         loan_purchase_date = cleaned.get("loan_purchase_date")
         loan_interest_rate = cleaned.get("loan_interest_rate")
