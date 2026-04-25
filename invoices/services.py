@@ -21,6 +21,8 @@ from .models import (
     allocate_next_invoice_number,
     bump_counter_if_needed,
     next_revision_suffix,
+    _max_existing_invoice_seq,
+    _max_invoiceable_job_seq,
 )
 
 
@@ -35,6 +37,11 @@ def get_next_invoice_number_preview(*, business, issue_date=None) -> str:
 
     counter = InvoiceCounter.objects.filter(business=business, year=year).only("last_seq").first()
     last_seq = counter.last_seq if counter else 0
+    last_seq = max(
+        int(last_seq or 0),
+        _max_existing_invoice_seq(business=business, year=year),
+        _max_invoiceable_job_seq(business=business, year=year),
+    )
 
     return f"{issue_date.year % 100:02d}{last_seq + 1:04d}"
 
@@ -83,7 +90,11 @@ def ensure_number(*, invoice: Invoice) -> None:
         )
         return
 
-    invoice.invoice_number = allocate_next_invoice_number(business=invoice.business, issue_date=invoice.issue_date)
+    invoice.invoice_number = allocate_next_invoice_number(
+        business=invoice.business,
+        issue_date=invoice.issue_date,
+        job=invoice.job,
+    )
     invoice.save(update_fields=["invoice_number"])
 
 

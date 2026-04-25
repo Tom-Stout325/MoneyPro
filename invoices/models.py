@@ -35,11 +35,75 @@ def _parse_numeric_invoice_number(invoice_number: str) -> tuple[int, int] | None
         return None
     return int(s[:2]), int(s[2:])
 
+def _sequence_from_job(job: Job | None, *, year: int) -> int | None:
+    """Return a job's YY#### sequence when it is an invoice-aligned job."""
+    if not job:
+        return None
+    if getattr(job, "is_general_job", False):
+        return None
+    seq = int(getattr(job, "job_seq", 0) or 0)
+    if seq <= 0 or seq >= 9000:
+        return None
+    if int(getattr(job, "job_year", year) or year) != int(year):
+        return None
+    return seq
 
-def allocate_next_invoice_number(*, business, issue_date) -> str:
+
+def _max_existing_invoice_seq(*, business, year: int) -> int:
+    """Max YY#### invoice sequence already used for this business/year."""
+    yy = year % 100
+    max_seq = 0
+    invoice_numbers = (
+        Invoice.objects.filter(
+            business=business,
+            issue_date__year=year,
+            invoice_number__regex=r"^[0-9]{6}$",
+        )
+        .values_list("invoice_number", flat=True)
+    )
+    for invoice_number in invoice_numbers:
+        parsed = _parse_numeric_invoice_number(invoice_number)
+        if parsed and parsed[0] == yy:
+            max_seq = max(max_seq, parsed[1])
+    return max_seq
+
+
+def _max_invoiceable_job_seq(*, business, year: int) -> int:
+    """Max job sequence that should participate in invoice numbering."""
+    try:
+        return int(
+            Job.invoice_sequence_queryset(business=business, year=year)
+            .aggregate(m=models.Max("job_seq"))
+            .get("m")
+            or 0
+        )
+    except AttributeError:
+        # Backward-compatible fallback if an older Job model is loaded.
+        return int(
+            Job.objects.filter(business=business, job_year=year)
+            .exclude(job_number__istartswith="GENERAL")
+            .exclude(label__istartswith="GENERAL")
+            .exclude(job_seq__gte=9000)
+            .aggregate(m=models.Max("job_seq"))
+            .get("m")
+            or 0
+        )
+
+
+def _number_is_available(*, business, invoice_number: str) -> bool:
+    return not Invoice.objects.filter(business=business, invoice_number=invoice_number).exists()
+
+
+
+def allocate_next_invoice_number(*, business, issue_date, job: Job | None = None) -> str:
     """Allocate the next numeric invoice number for the given business + issue_date.
 
-    Format: YY#### (e.g., 250001).
+    Format: YY#### (e.g., 260005).
+
+    If an invoice-aligned job is supplied, the invoice uses the job sequence first
+    so job NHRA-260005 creates invoice 260005. Otherwise, the next sequence is
+    based on the highest of: InvoiceCounter, existing invoices, and invoiceable
+    jobs. General/internal jobs do not participate.
     """
     issue_date = issue_date or timezone.localdate()
     year = int(issue_date.year)
@@ -50,7 +114,22 @@ def allocate_next_invoice_number(*, business, issue_date) -> str:
             InvoiceCounter.objects.select_for_update()
             .get_or_create(business=business, year=year, defaults={"last_seq": 0})
         )
-        counter.last_seq += 1
+
+        job_seq = _sequence_from_job(job, year=year)
+        if job_seq:
+            job_number = f"{yy:02d}{job_seq:04d}"
+            if _number_is_available(business=business, invoice_number=job_number):
+                counter.last_seq = max(counter.last_seq, job_seq)
+                counter.full_clean()
+                counter.save(update_fields=["last_seq"])
+                return job_number
+
+        floor = max(
+            int(counter.last_seq or 0),
+            _max_existing_invoice_seq(business=business, year=year),
+            _max_invoiceable_job_seq(business=business, year=year),
+        )
+        counter.last_seq = floor + 1
         counter.full_clean()
         counter.save(update_fields=["last_seq"])
         return f"{yy:02d}{counter.last_seq:04d}"
@@ -75,8 +154,13 @@ def bump_counter_if_needed(*, business, issue_date, invoice_number: str) -> None
         counter, _ = InvoiceCounter.objects.select_for_update().get_or_create(
             business=business, year=year, defaults={"last_seq": 0}
         )
-        if counter.last_seq < seq:
-            counter.last_seq = seq
+        floor = max(
+            seq,
+            _max_existing_invoice_seq(business=business, year=year),
+            _max_invoiceable_job_seq(business=business, year=year),
+        )
+        if counter.last_seq < floor:
+            counter.last_seq = floor
             counter.full_clean()
             counter.save(update_fields=["last_seq"])
 
@@ -250,7 +334,11 @@ class Invoice(BusinessOwnedModelMixin):
             if creating:
                 # Force assignment at creation: never persist blank/empty invoice_number.
                 if not (self.invoice_number or "").strip():
-                    self.invoice_number = allocate_next_invoice_number(business=self.business, issue_date=self.issue_date)
+                    self.invoice_number = allocate_next_invoice_number(
+                        business=self.business,
+                        issue_date=self.issue_date,
+                        job=self.job,
+                    )
 
             # Ensure tenant guards and validators always run.
             self.full_clean()

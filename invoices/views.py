@@ -235,7 +235,11 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
                 )
             else:
                 # Reserve next number on draft save
-                invoice.invoice_number = allocate_next_invoice_number(business=business, issue_date=invoice.issue_date)
+                invoice.invoice_number = allocate_next_invoice_number(
+                    business=business,
+                    issue_date=invoice.issue_date,
+                    job=invoice.job,
+                )
 
             invoice.save()
 
@@ -291,7 +295,11 @@ def invoice_update(request: HttpRequest, pk: int) -> HttpResponse:
             else:
                 # Do not allow clearing an existing reserved number
                 if not invoice.invoice_number:
-                    invoice.invoice_number = allocate_next_invoice_number(business=business, issue_date=invoice.issue_date)
+                    invoice.invoice_number = allocate_next_invoice_number(
+                        business=business,
+                        issue_date=invoice.issue_date,
+                        job=invoice.job,
+                    )
 
             invoice.save()
 

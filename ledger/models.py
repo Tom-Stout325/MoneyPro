@@ -270,28 +270,96 @@ class Job(BusinessOwnedModelMixin):
             except (TypeError, ValueError):
                 raise ValidationError({"job_year": "Year must be a valid number."})
 
+    @staticmethod
+    def is_general_job_value(*, job_number: str = "", label: str = "", job_type: str = "") -> bool:
+        """Return True for non-invoice/general jobs that should not consume a sequence.
+
+        General jobs are useful as a bucket for non-invoiced work, but they should
+        not affect the invoice-aligned YY#### sequence used by customer jobs.
+        """
+        number = (job_number or "").strip().upper()
+        label_value = (label or "").strip().upper()
+        type_value = (job_type or "").strip().lower()
+        return (
+            number.startswith("GENERAL")
+            or label_value.startswith("GENERAL")
+            or type_value == Job.JobType.INTERNAL
+        )
+
+    @property
+    def is_general_job(self) -> bool:
+        return self.is_general_job_value(
+            job_number=self.job_number,
+            label=self.label,
+            job_type=self.job_type,
+        )
+
+    @staticmethod
+    def invoice_sequence_queryset(*, business, year):
+        """Jobs that participate in the invoice/job YY#### sequence."""
+        return (
+            Job.objects.filter(business=business, job_year=year)
+            .exclude(job_number__istartswith="GENERAL")
+            .exclude(label__istartswith="GENERAL")
+            .exclude(job_type=Job.JobType.INTERNAL)
+            .exclude(job_seq__gte=9000)
+        )
+
     def _allocate_job_number(self) -> None:
         """Allocate job_seq + job_number.
 
         Format: <PREFIX>-<YY><NNNN>
         Example: NHRA-260001
 
-        Sequence is global per Business + Year (not per client).
+        The numeric sequence is global per Business + Year and is shared with
+        invoices. General/internal jobs are intentionally excluded so a bucket
+        such as GENERAL-2026 does not consume an invoice number.
         """
         year = int(self.job_year or timezone.now().year)
         yy = str(year)[-2:]
+
+        # General/internal jobs are allowed, but they do not reserve YY####.
+        if self.is_general_job_value(label=self.label, job_type=self.job_type):
+            self.job_year = year
+            self.job_seq = 0
+            self.job_number = f"GENERAL-{year}"
+            return
 
         prefix = "JOB"
         if self.client_id and (self.client.client_code or "").strip():
             prefix = self.client.client_code.strip().upper()
 
         with transaction.atomic():
-            max_seq = (
-                Job.objects.filter(business=self.business, job_year=year)
+            max_job_seq = (
+                Job.invoice_sequence_queryset(business=self.business, year=year)
                 .aggregate(m=Max("job_seq"))
                 .get("m")
-            )
-            next_seq = int(max_seq or 0) + 1
+            ) or 0
+
+            max_invoice_seq = 0
+            try:
+                # Local import avoids a module-level circular import.
+                from invoices.models import Invoice, _parse_numeric_invoice_number
+
+                invoice_numbers = (
+                    Invoice.objects.filter(
+                        business=self.business,
+                        issue_date__year=year,
+                        invoice_number__regex=r"^[0-9]{6}$",
+                    )
+                    .values_list("invoice_number", flat=True)
+                )
+                for invoice_number in invoice_numbers:
+                    parsed = _parse_numeric_invoice_number(invoice_number)
+                    if parsed and parsed[0] == int(yy):
+                        max_invoice_seq = max(max_invoice_seq, parsed[1])
+            except Exception:
+                # Job creation should not fail if the invoices app is unavailable
+                # during migrations/tests. The database uniqueness constraints still
+                # protect against collisions.
+                max_invoice_seq = 0
+
+            next_seq = max(int(max_job_seq or 0), int(max_invoice_seq or 0)) + 1
 
             self.job_year = year
             self.job_seq = next_seq

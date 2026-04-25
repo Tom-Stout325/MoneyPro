@@ -90,6 +90,7 @@ class InvoiceForm(forms.ModelForm):
             business=self.business,
             issue_date=issue_date,
             invoice_number=num,
+            exclude_pk=self.instance.pk if self.instance and self.instance.pk else None,
         )
         return num
 
