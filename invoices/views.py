@@ -176,6 +176,18 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                     expense_total += amt
                     taxable_expense_total += _deductible_expense_amount(t, amt)
 
+        # Mileage linked directly to this invoice is not a ledger transaction,
+        # but standard business mileage is deductible and should be included in
+        # the taxable expense view. Keep actual expenses based on linked ledger
+        # transactions only; add mileage only to the taxable totals.
+        taxable_mileage_total = ctx.get("mileage_deduction_total") or Decimal("0.00")
+        try:
+            taxable_mileage_total = Decimal(taxable_mileage_total)
+        except Exception:
+            taxable_mileage_total = Decimal("0.00")
+
+        taxable_expense_total += taxable_mileage_total
+
         net_income = income_total - expense_total
         taxable_net_income = taxable_income_total - taxable_expense_total
 
@@ -187,8 +199,9 @@ class InvoiceDetailView(LoginRequiredMixin, BusinessScopedMixin, DetailView):
                 "net_income": net_income,
                 "taxable_income_total": taxable_income_total,
                 "taxable_expense_total": taxable_expense_total,
+                "taxable_mileage_total": taxable_mileage_total,
                 "taxable_net_income": taxable_net_income,
-                "has_transactions": bool(tx_list),
+                "has_transactions": bool(tx_list or taxable_mileage_total),
             }
         )
         return ctx
