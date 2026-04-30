@@ -244,13 +244,20 @@ class VehicleMilesForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         business = kwargs.pop("business", None)
+        self.business = business
         super().__init__(*args, **kwargs)
 
         if business:
-            self.fields["vehicle"].queryset = Vehicle.objects.filter(business=business, is_active=True).order_by("sort_order", "label")
+            vehicle_qs = Vehicle.objects.filter(business=business).order_by("sort_order", "label")
+            if not (self.instance and self.instance.pk):
+                vehicle_qs = vehicle_qs.filter(is_active=True)
+            self.fields["vehicle"].queryset = vehicle_qs
             self.fields["job"].queryset = Job.objects.filter(business=business).order_by("-is_active", "-job_year", "job_number", "label")
             self.fields["invoice"].queryset = Invoice.objects.filter(business=business).order_by("-issue_date", "-id")
 
+        self.fields["vehicle"].required = True
+        self.fields["vehicle"].empty_label = "Select a vehicle"
+        self.fields["vehicle"].help_text = "Required. Mileage entries must be tied to a vehicle, not an asset."
         self.fields["job"].required = False
         self.fields["invoice"].required = False
 
@@ -262,6 +269,15 @@ class VehicleMilesForm(forms.ModelForm):
                     self.fields["begin"].initial = last_entry.end
             except (TypeError, ValueError):
                 pass
+
+    def clean_vehicle(self):
+        vehicle = self.cleaned_data.get("vehicle")
+        if vehicle is None:
+            raise forms.ValidationError("Select a vehicle.")
+        business = getattr(self, "business", None)
+        if business and vehicle.business_id != business.id:
+            raise forms.ValidationError("Selected vehicle does not belong to this business.")
+        return vehicle
 
 
 class QuickMileageForm(VehicleMilesForm):
