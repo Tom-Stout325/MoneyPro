@@ -391,9 +391,13 @@ class VehicleMilesListView(LoginRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         year = _parse_year(self.request.GET.get("year"))
         vehicle_filter = self.request.GET.get("vehicle") or ""
-        page_qs = ctx["miles_entries"].object_list if hasattr(ctx["miles_entries"], "object_list") else ctx["miles_entries"]
-        total_logged = page_qs.aggregate(total=Sum("total"))["total"] or ZERO_TENTH
-        total_business = page_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        # Use a fresh, unsliced queryset for totals. The paginated object_list is
+        # sliced by Django before this method runs, and sliced querysets cannot
+        # be filtered again. Keeping totals separate also makes the KPI cards
+        # reflect the full filtered result set, not just the current page.
+        totals_qs = self.get_queryset()
+        total_logged = totals_qs.aggregate(total=Sum("total"))["total"] or ZERO_TENTH
+        total_business = totals_qs.filter(mileage_type=VehicleMiles.MileageType.BUSINESS).aggregate(total=Sum("total"))["total"] or ZERO_TENTH
         ctx.update({
             "year": year,
             "year_choices": _year_choices(),

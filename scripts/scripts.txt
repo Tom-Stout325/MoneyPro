@@ -8,10 +8,14 @@ cp -R _MONEYPRO _MONEYPRO_backup
 
 cd into the root folder
 
-unzip ~/Downloads/moneypro_mileage_vehicle_patch.zip
+unzip ~/Downloads/moneypro_vehicle_miles_list_totals_fix.zip
 or:
 unzip ~/Downloads/MoneyPro_invite.zip -d /tmp/moneypro_invite
 rsync -av --progress /tmp/moneypro_invite/MoneyPro/ ./
+
+
+
+
 
 
 
