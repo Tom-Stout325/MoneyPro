@@ -1,0 +1,107 @@
+{% extends "index.html" %}
+{% load humanize %}
+
+{% block title %}Admin Backups | MoneyPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-3">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+    <div>
+      <div class="small text-muted mb-1">
+        <a href="{% url 'dashboard:home' %}" class="text-decoration-none">Dashboard</a>
+        <span class="mx-1">/</span>
+        Admin Backups
+      </div>
+      <h1 class="h2 mb-1 text-secondary-brand">Admin Backups</h1>
+      <div class="text-muted small">
+        Export business-scoped MoneyPro tables for <strong>{{ business.name }}</strong>.
+      </div>
+    </div>
+
+    <div class="d-grid d-sm-flex gap-2">
+      <a class="btn btn-primary" href="{% url 'dashboard:business_backup_all_xlsx' %}">
+        <i class="fa-solid fa-file-excel me-1"></i> Download All
+      </a>
+      <a class="btn btn-outline-secondary" href="{% url 'dashboard:home' %}">
+        <i class="fa-solid fa-arrow-left me-1"></i> Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-info small" role="alert">
+    <div class="fw-semibold mb-1">What this exports</div>
+    Individual downloads are CSV files. <strong>Download All</strong> creates one Excel workbook with a manifest tab and one tab per table. Exports are filtered to the active business where the table supports business ownership.
+  </div>
+
+  <div class="card table-head-accent table-head-accent-secondary">
+    <div class="card-body p-3 p-md-4">
+      <div class="dash-card-head">
+        <div>
+          <h2 class="h5 dash-card-title mb-0">Tables</h2>
+          <div class="dash-card-subtitle">Download each table individually or export the full workbook.</div>
+        </div>
+      </div>
+
+      <div class="d-md-none">
+        <div class="list-group list-group-soft">
+          {% for row in table_rows %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <div class="fw-semibold">{{ row.spec.verbose_name }}</div>
+                  <div class="list-meta">
+                    {{ row.spec.label }} · {{ row.spec.table_name }}
+                  </div>
+                  <div class="small text-muted mt-1">
+                    Rows: {% if row.row_count is None %}Unknown{% else %}{{ row.row_count|intcomma }}{% endif %}
+                  </div>
+                </div>
+                <a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'dashboard:business_backup_table_csv' row.spec.slug %}">
+                  CSV
+                </a>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted small">No business-scoped tables were found.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="table-responsive d-none d-md-block">
+        <table class="table table-sm align-middle mb-0 table-soft table-zebra">
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Model</th>
+              <th>Database table</th>
+              <th class="text-end">Rows</th>
+              <th class="text-end">Download</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in table_rows %}
+              <tr>
+                <td class="fw-semibold">{{ row.spec.verbose_name }}</td>
+                <td><code>{{ row.spec.label }}</code></td>
+                <td><code>{{ row.spec.table_name }}</code></td>
+                <td class="text-end">
+                  {% if row.row_count is None %}Unknown{% else %}{{ row.row_count|intcomma }}{% endif %}
+                </td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'dashboard:business_backup_table_csv' row.spec.slug %}">
+                    <i class="fa-solid fa-download me-1"></i> CSV
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-muted small">No business-scoped tables were found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

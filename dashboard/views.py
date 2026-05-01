@@ -6,12 +6,19 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, DecimalField, F, Sum, Value, When
 from django.db.models.functions import TruncMonth
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.core.management import call_command
 from core.models import BusinessMembership
+from core.business_backup_exports import (
+    business_backup_table_specs,
+    csv_response_for_table,
+    get_backup_table_spec_or_404,
+    queryset_for_business,
+    workbook_response_for_business,
+)
 from ledger.models import Transaction, Category, SubCategory
 from invoices.models import Invoice
 from ledger.services import seed_schedule_c_defaults
@@ -239,6 +246,69 @@ def dashboard_home(request):
         "recent_invoices": recent_invoices,
     }
     return render(request, "dashboard/home.html", context)
+
+
+@login_required
+@require_GET
+def business_backup_admin(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("accounts:onboarding")
+
+    table_rows = []
+    for spec in business_backup_table_specs():
+        try:
+            row_count = queryset_for_business(spec, business).count()
+        except Exception:
+            row_count = None
+        table_rows.append({"spec": spec, "row_count": row_count})
+
+    return render(
+        request,
+        "dashboard/business_backup_admin.html",
+        {
+            "business": business,
+            "table_rows": table_rows,
+        },
+    )
+
+
+@login_required
+@require_GET
+def business_backup_table_csv(request, table_slug: str):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        raise Http404("No active business is set for your account.")
+
+    spec = get_backup_table_spec_or_404(table_slug)
+    return csv_response_for_table(spec=spec, business=business)
+
+
+@login_required
+@require_GET
+def business_backup_all_xlsx(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        raise Http404("No active business is set for your account.")
+
+    try:
+        return workbook_response_for_business(business=business)
+    except RuntimeError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:business_backup_admin")
 
 
 @login_required
