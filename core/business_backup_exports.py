@@ -220,7 +220,7 @@ def _unique_sheet_name(base_name: str, used: set[str]) -> str:
     return name
 
 
-def workbook_response_for_business(*, business) -> HttpResponse:
+def workbook_bytes_for_business(*, business) -> bytes:
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill
@@ -284,8 +284,15 @@ def workbook_response_for_business(*, business) -> HttpResponse:
     workbook.save(buffer)
     buffer.seek(0)
 
+    return buffer.getvalue()
+
+
+def workbook_response_for_business(*, business) -> HttpResponse:
+    now = timezone.localtime(timezone.now()).strftime("%Y%m%d-%H%M%S")
+    business_slug = _safe_filename_part(getattr(business, "slug", "") or getattr(business, "name", "business"))
+    data = workbook_bytes_for_business(business=business)
     response = HttpResponse(
-        buffer.getvalue(),
+        data,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     response["Content-Disposition"] = f'attachment; filename="{business_slug}-moneypro-backup-{now}.xlsx"'

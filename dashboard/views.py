@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.core.management import call_command
-from core.models import BusinessMembership
+from core.models import BackupLog, BusinessMembership
 from core.business_backup_exports import (
     business_backup_table_specs,
     csv_response_for_table,
@@ -19,6 +19,7 @@ from core.business_backup_exports import (
     queryset_for_business,
     workbook_response_for_business,
 )
+from core.business_backup_storage import backup_download_url, cleanup_old_business_backups, create_business_backup
 from ledger.models import Transaction, Category, SubCategory
 from invoices.models import Invoice
 from ledger.services import seed_schedule_c_defaults
@@ -268,12 +269,18 @@ def business_backup_admin(request):
             row_count = None
         table_rows.append({"spec": spec, "row_count": row_count})
 
+    backup_logs = BackupLog.objects.filter(business=business).order_by("-created_at")[:25]
+    backup_history = []
+    for log in backup_logs:
+        backup_history.append({"log": log, "download_url": backup_download_url(log) if log.status == BackupLog.Status.SUCCESS else ""})
+
     return render(
         request,
         "dashboard/business_backup_admin.html",
         {
             "business": business,
             "table_rows": table_rows,
+            "backup_history": backup_history,
         },
     )
 
@@ -309,6 +316,48 @@ def business_backup_all_xlsx(request):
     except RuntimeError as exc:
         messages.error(request, str(exc))
         return redirect("dashboard:business_backup_admin")
+
+
+@login_required
+@require_POST
+def business_backup_send_to_s3(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("accounts:onboarding")
+
+    try:
+        result = create_business_backup(business=business, created_by=request.user)
+    except Exception as exc:
+        messages.error(request, f"Backup failed: {exc}")
+    else:
+        messages.success(
+            request,
+            f"Backup saved. {result.log.row_count} rows across {result.log.table_count} tables were exported. "
+            f"Old backups deleted: {result.deleted_count}.",
+        )
+    return redirect("dashboard:business_backup_admin")
+
+
+@login_required
+@require_POST
+def business_backup_cleanup(request):
+    gate = _onboarding_gate_or_redirect(request)
+    if gate:
+        return gate
+
+    business = getattr(request, "business", None)
+    if business is None:
+        messages.error(request, "No active business is set for your account.")
+        return redirect("accounts:onboarding")
+
+    deleted_count = cleanup_old_business_backups(business=business)
+    messages.success(request, f"Backup cleanup complete. Old backups deleted: {deleted_count}.")
+    return redirect("dashboard:business_backup_admin")
 
 
 @login_required

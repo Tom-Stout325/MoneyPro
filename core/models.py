@@ -251,3 +251,55 @@ def default_reply_to_email(*, business: Business, owner_user=None) -> str:
         if user_email:
             return user_email
     return (getattr(settings, "REPLY_TO_EMAIL", "") or getattr(settings, "DEFAULT_FROM_EMAIL", "") or "").strip().lower()
+
+
+class BackupLog(models.Model):
+    """History of generated MoneyPro business backups."""
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "Running"
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
+        DELETED = "deleted", "Deleted"
+
+    class BackupType(models.TextChoices):
+        XLSX = "xlsx", "Excel workbook"
+        JSON = "json", "JSON package"
+
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="backup_logs")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_backup_logs",
+    )
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.RUNNING)
+    backup_type = models.CharField(max_length=10, choices=BackupType.choices, default=BackupType.XLSX)
+    storage_key = models.CharField(max_length=500, blank=True)
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    table_count = models.PositiveIntegerField(default=0)
+    row_count = models.PositiveIntegerField(default=0)
+    retention_days = models.PositiveIntegerField(default=7)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Backup log"
+        verbose_name_plural = "Backup logs"
+
+    def __str__(self) -> str:
+        return f"{self.business} backup {self.created_at:%Y-%m-%d %H:%M} ({self.status})"
+
+    @property
+    def filename(self) -> str:
+        return self.storage_key.rsplit("/", 1)[-1] if self.storage_key else ""
+
+    @property
+    def size_mb(self) -> float:
+        return round((self.size_bytes or 0) / (1024 * 1024), 2)

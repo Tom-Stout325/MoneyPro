@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.models import Business, BusinessMembership, BusinessEmailSettings, OutgoingEmailLog
+from core.models import Business, BusinessMembership, BusinessEmailSettings, OutgoingEmailLog, BackupLog
 
 
 @admin.register(Business)
@@ -31,3 +31,27 @@ class OutgoingEmailLogAdmin(admin.ModelAdmin):
     list_filter = ("template_type", "status")
     search_fields = ("business__name", "recipient_email", "subject", "from_email")
     readonly_fields = ("created_at",)
+
+
+@admin.register(BackupLog)
+class BackupLogAdmin(admin.ModelAdmin):
+    list_display = ("business", "status", "backup_type", "size_mb", "row_count", "retention_days", "created_at")
+    list_filter = ("status", "backup_type", "business")
+    search_fields = ("business__name", "storage_key", "error_message")
+    readonly_fields = (
+        "business",
+        "created_by",
+        "status",
+        "backup_type",
+        "storage_key",
+        "size_bytes",
+        "table_count",
+        "row_count",
+        "retention_days",
+        "error_message",
+        "started_at",
+        "completed_at",
+        "deleted_at",
+        "created_at",
+        "updated_at",
+    )

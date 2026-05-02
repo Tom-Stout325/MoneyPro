@@ -399,3 +399,8 @@ SHORT_DATETIME_FORMAT = "m-d-Y P"
 
 BUSINESS_EMAIL_PLATFORM_DOMAIN = env("BUSINESS_EMAIL_PLATFORM_DOMAIN", default="moneypro.12bytes.net")
 BUSINESS_EMAIL_LOCALPART = env("BUSINESS_EMAIL_LOCALPART", default="noreply")
+
+# ------------------------------------------------------------------------------
+# Business backup retention
+# ------------------------------------------------------------------------------
+MONEYPRO_BACKUP_RETENTION_DAYS = env.int("MONEYPRO_BACKUP_RETENTION_DAYS", default=7)
