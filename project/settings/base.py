@@ -17,14 +17,6 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, []),
 )
 
-# Optional: load environment files if present.
-#
-# Load order:
-# 1. .env        -> shared project defaults
-# 2. .env.local  -> machine-local overrides (loaded last on purpose)
-#
-# This lets local development switch from SQLite to Postgres without changing
-# production settings or committing workstation-specific secrets.
 ENV_FILE = BASE_DIR / ".env"
 ENV_LOCAL_FILE = BASE_DIR / ".env.local"
 
@@ -393,7 +385,7 @@ SHORT_DATE_FORMAT = "m-d-Y"
 DATETIME_FORMAT = "m-d-Y P"
 SHORT_DATETIME_FORMAT = "m-d-Y P"
 
-
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 
 
 
