@@ -1,6 +1,9 @@
 from django.contrib import admin
-
 from core.models import Business, BusinessMembership, BusinessEmailSettings, OutgoingEmailLog, BackupLog
+from core.models import Business, BusinessMembership, BusinessEmailSettings, OutgoingEmailLog
+from .business_features import BusinessFeature
+
+
 
 
 @admin.register(Business)
@@ -55,3 +58,10 @@ class BackupLogAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+@admin.register(BusinessFeature)
+class BusinessFeatureAdmin(admin.ModelAdmin):
+    list_display = ["business", "code"]
+    list_filter = ["code"]
+    search_fields = ["business__name", "code"]
+

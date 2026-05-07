@@ -1,6 +1,9 @@
 from __future__ import annotations
-from django.urls import path
+from django.urls import path, include
+
 from . import views
+
+from .views import *
 
 app_name = "reports"
 
@@ -23,4 +26,6 @@ urlpatterns = [
     path("tax-packet/", views.tax_packet, name="tax_packet"),
     path("tax-packet/pdf/preview/", views.tax_packet_pdf_preview, name="tax_packet_pdf_preview"),
     path("tax-packet/pdf/download/", views.tax_packet_pdf_download, name="tax_packet_pdf_download"),
+    
+    path("travel-expense-summary/", TravelExpenseSummaryView.as_view(), name="travel_expense_summary",),
 ]

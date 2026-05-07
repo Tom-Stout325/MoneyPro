@@ -6,6 +6,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 from django.db.models import Q
+from .business_features import BusinessFeature
 
 
 class Business(models.Model):
@@ -31,6 +32,11 @@ class Business(models.Model):
 
     def __str__(self) -> str:
         return self.name
+    
+    def has_feature(self, code):
+        return self.features.filter(code=code).exists()
+    
+    
 
 
 class BusinessMembership(models.Model):

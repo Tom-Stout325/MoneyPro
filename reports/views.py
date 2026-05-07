@@ -8,12 +8,23 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.generic import TemplateView
-
+from decimal import Decimal
+from django.db.models import Sum
+from collections import defaultdict
 from .pdf import render_pdf_from_template
 from .schedule_c import build_schedule_c_lines, build_schedule_c_yoy
 from .profit_loss import build_profit_loss_single, build_profit_loss_yoy
 from .tax_packet import TaxPacketOptions, build_tax_packet_context, is_truthy, selected_year as selected_tax_packet_year
 
+from django.views.generic import TemplateView
+
+from core.feature_mixins import FeatureRequiredMixin
+
+from invoices.models import Invoice
+from ledger.models import Transaction
+
+    
+    
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
     template_name = "reports/home.html"
 
@@ -450,3 +461,139 @@ def _tax_packet_pdf(request: HttpRequest, *, download: bool) -> HttpResponse:
         download=download,
     )
     return result.response
+
+
+
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- C U S T O M   R E P O R T S 
+
+class TravelExpenseSummaryView(
+    LoginRequiredMixin,
+    FeatureRequiredMixin,
+    TemplateView,
+):
+    template_name = "reports/travel_expense_summary.html"
+    required_feature = "TRAVEL_EXPENSE_REPORT"
+
+    TRAVEL_SUBCATEGORY_MAP = {
+        "Travel: Airfare": "airfare",
+        "Travel: Hotels": "hotels",
+        "Travel: Car Rental": "car_rental",
+        "Travel: Gas": "fuel",
+    }
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+
+        today = date.today()
+        business = getattr(self.request, "business", None)
+
+        try:
+            selected_year = int(self.request.GET.get("year") or today.year)
+        except (TypeError, ValueError):
+            selected_year = today.year
+
+        years = list(range(2023, today.year + 1))
+
+        invoices = (
+            Invoice.objects
+            .filter(
+                business=business,
+                issue_date__year=selected_year,
+            )
+            .select_related("job")
+            .order_by("issue_date", "invoice_number")
+        )
+
+        invoice_numbers = [
+            inv.invoice_number
+            for inv in invoices
+            if inv.invoice_number
+        ]
+
+        expense_totals = defaultdict(lambda: {
+            "airfare": Decimal("0.00"),
+            "hotels": Decimal("0.00"),
+            "car_rental": Decimal("0.00"),
+            "fuel": Decimal("0.00"),
+        })
+
+        transactions = (
+            Transaction.objects
+            .filter(
+                business=business,
+                invoice_number__in=invoice_numbers,
+                trans_type=Transaction.TransactionType.EXPENSE,
+                subcategory__name__in=self.TRAVEL_SUBCATEGORY_MAP.keys(),
+            )
+            .values("invoice_number", "subcategory__name")
+            .annotate(total=Sum("amount"))
+        )
+
+        for item in transactions:
+            invoice_number = item["invoice_number"]
+            subcategory_name = item["subcategory__name"]
+            amount = item["total"] or Decimal("0.00")
+            bucket = self.TRAVEL_SUBCATEGORY_MAP.get(subcategory_name)
+
+            if bucket:
+                expense_totals[invoice_number][bucket] += amount
+
+        rows = []
+
+        totals = {
+            "invoice_amount": Decimal("0.00"),
+            "airfare": Decimal("0.00"),
+            "hotels": Decimal("0.00"),
+            "car_rental": Decimal("0.00"),
+            "fuel": Decimal("0.00"),
+            "total_expense": Decimal("0.00"),
+            "net_amount": Decimal("0.00"),
+        }
+
+        for invoice in invoices:
+            invoice_amount = invoice.total or Decimal("0.00")
+            expenses = expense_totals[invoice.invoice_number]
+
+            total_expense = (
+                expenses["airfare"]
+                + expenses["hotels"]
+                + expenses["car_rental"]
+                + expenses["fuel"]
+            )
+
+            net_amount = invoice_amount - total_expense
+
+            row = {
+                "invoice": invoice,
+                "event_name": invoice.job.label if invoice.job_id else "",
+                "invoice_amount": invoice_amount,
+                "airfare": expenses["airfare"],
+                "hotels": expenses["hotels"],
+                "car_rental": expenses["car_rental"],
+                "fuel": expenses["fuel"],
+                "total_expense": total_expense,
+                "net_amount": net_amount,
+            }
+
+            rows.append(row)
+
+            for key in totals:
+                totals[key] += row[key]
+
+        invoice_count = len(rows) or 1
+
+        averages = {
+            key: value / invoice_count
+            for key, value in totals.items()
+        }
+
+        ctx.update({
+            "selected_year": selected_year,
+            "years": years,
+            "rows": rows,
+            "totals": totals,
+            "averages": averages,
+        })
+
+        return ctx
