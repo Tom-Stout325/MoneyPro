@@ -110,3 +110,6 @@ yarn-error.log*
 
 
 NOTES.txt
+
+__pycache__/
+*.py[cod]
