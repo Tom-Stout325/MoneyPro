@@ -1,0 +1,1 @@
+Add 'weasyprint' to requirements.txt if not already installed.

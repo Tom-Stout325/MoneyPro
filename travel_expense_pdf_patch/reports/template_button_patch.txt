@@ -1,0 +1,8 @@
+# Replace the Download PDF button in:
+# templates/reports/travel_expense_summary.html
+
+<a href="{% url 'travel_expense_summary_pdf' %}?year={{ selected_year }}"
+   class="btn btn-secondary">
+    <i class="fas fa-download me-2"></i>
+    Download PDF
+</a>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+
+    <style>
+        @page {
+            size: letter portrait;
+            margin: 0.5in;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            color: #222;
+            font-size: 12px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .logo {
+            width: 180px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            margin-top: 6px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        thead {
+            background: #1f3c68;
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            border: 1px solid #d7d7d7;
+            text-align: right;
+        }
+
+        th:first-child,
+        td:first-child,
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        tfoot td {
+            font-weight: bold;
+            background: #f3f3f3;
+        }
+
+        .avg-row td {
+            background: #fafafa;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+
+        <img
+            src="{{ request.scheme }}://{{ request.get_host }}/static/images/logo.png"
+            class="logo"
+        >
+
+        <h1>
+            Travel Expenses - {{ selected_year }}
+        </h1>
+
+        <div class="subtitle">
+            NHRA Invoice Review for actual travel expenses
+        </div>
+    </div>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Job</th>
+                <th>Invoice Amount</th>
+                <th>Airfare</th>
+                <th>Hotels</th>
+                <th>Car Rental</th>
+                <th>Fuel</th>
+                <th>Total Expense</th>
+                <th>Net Amount</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.invoice.invoice_number }}</td>
+                <td>{{ row.event_name }}</td>
+
+                <td>${{ row.invoice_amount|floatformat:2 }}</td>
+                <td>${{ row.airfare|floatformat:2 }}</td>
+                <td>${{ row.hotels|floatformat:2 }}</td>
+                <td>${{ row.car_rental|floatformat:2 }}</td>
+                <td>${{ row.fuel|floatformat:2 }}</td>
+                <td>${{ row.total_expense|floatformat:2 }}</td>
+                <td>${{ row.net_amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+
+        </tbody>
+
+        <tfoot>
+
+            <tr>
+                <td colspan="2">Totals</td>
+
+                <td>${{ totals.invoice_amount|floatformat:2 }}</td>
+                <td>${{ totals.airfare|floatformat:2 }}</td>
+                <td>${{ totals.hotels|floatformat:2 }}</td>
+                <td>${{ totals.car_rental|floatformat:2 }}</td>
+                <td>${{ totals.fuel|floatformat:2 }}</td>
+                <td>${{ totals.total_expense|floatformat:2 }}</td>
+                <td>${{ totals.net_amount|floatformat:2 }}</td>
+            </tr>
+
+            <tr class="avg-row">
+                <td colspan="2">Average per invoice</td>
+
+                <td>${{ averages.invoice_amount|floatformat:2 }}</td>
+                <td>${{ averages.airfare|floatformat:2 }}</td>
+                <td>${{ averages.hotels|floatformat:2 }}</td>
+                <td>${{ averages.car_rental|floatformat:2 }}</td>
+                <td>${{ averages.fuel|floatformat:2 }}</td>
+                <td>${{ averages.total_expense|floatformat:2 }}</td>
+                <td>${{ averages.net_amount|floatformat:2 }}</td>
+            </tr>
+
+        </tfoot>
+
+    </table>
+
+</body>
+</html>
