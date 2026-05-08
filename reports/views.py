@@ -581,11 +581,18 @@ class TravelExpenseSummaryView(
             for key in totals:
                 totals[key] += row[key]
 
-        invoice_count = len(rows) or 1
+        average_counts = {
+            key: sum(1 for row in rows if row[key] and row[key] != Decimal("0.00"))
+            for key in totals.keys()
+        }
 
         averages = {
-            key: value / invoice_count
-            for key, value in totals.items()
+            key: (
+                totals[key] / average_counts[key]
+                if average_counts[key]
+                else Decimal("0.00")
+            )
+            for key in totals.keys()
         }
 
         ctx.update({
