@@ -35,18 +35,17 @@
   </div>
 
   <div class="row g-3">
-
     <!-- Tax Report Packet -->
     <div class="col-12">
-      <div class="card h-100 report-card report-accent-primary border-0 shadow-sm">
+      <div class="card h-100 report-card report-accent-secondary border-0 shadow-sm">
         <div class="card-body p-3 p-md-4">
           <div class="dash-card-head">
             <div>
-              <h2 class="h6 dash-card-title mb-0">Tax Report Packet</h2>
+              <h2 class="h6 dash-card-title mb-0 text-secondary-brand">Tax Report Packet</h2>
               <div class="dash-card-subtitle">Professional snapshot with cover page, P&amp;L, Schedule C, mileage, Section 179, and optional detail pages</div>
             </div>
-            <a class="small text-decoration-none" href="{% url 'reports:tax_packet' %}?year={{ selected_year }}">
-              Open <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            <a class="small text-decoration-none text-secondary-brand" href="{% url 'reports:tax_packet' %}?year={{ selected_year }}">
+              Open <i class="fa-solid fa-arrow-right-long ms-1 text-secondary-brand"></i>
             </a>
           </div>
 
@@ -71,19 +70,17 @@
 
     <!-- Profit & Loss -->
     <div class="col-12 col-lg-6">
-      <div class="card h-100 table-head-accent table-head-accent-success">
+      <div class="card h-100 report-card report-accent-danger">
         <div class="card-body p-3 p-md-4">
-
           <div class="dash-card-head">
             <div>
-              <h2 class="h6 dash-card-title mb-0">Profit &amp; Loss</h2>
+              <h2 class="h6 dash-card-title mb-0 text-danger-brand">Profit &amp; Loss</h2>
               <div class="dash-card-subtitle">Books view for the selected year</div>
             </div>
-            <a class="small text-decoration-none" href="{% url 'reports:profit_loss' %}?year={{ selected_year }}">
-              Open <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            <a class="small text-decoration-none text-danger-brand" href="{% url 'reports:profit_loss' %}?year={{ selected_year }}">
+              Open <i class="fa-solid fa-arrow-right-long ms-1 text-danger-brand"></i>
             </a>
           </div>
-
           <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:profit_loss' %}?year={{ selected_year }}">
               <i class="fa-solid fa-money-bill-trend-up"></i> P &amp; L
@@ -98,30 +95,26 @@
               <i class="fa-solid fa-download me-1"></i> Download
             </a>
           </div>
-
           <div class="tip-card mt-3 small">
             Tip: YoY compares the last 3 years ending in {{ selected_year }}.
           </div>
-
         </div>
       </div>
     </div>
 
     <!-- Operating Expenses / Schedule C -->
     <div class="col-12 col-lg-6">
-      <div class="card h-100 report-card report-accent-secondary">
+      <div class="card h-100 report-card report-accent-primary">
         <div class="card-body p-3 p-md-4">
-
           <div class="dash-card-head">
             <div>
-              <h2 class="h6 dash-card-title mb-0">Operating Expenses</h2>
+              <h2 class="h6 dash-card-title mb-0 text-primary-brand">Operating Expenses</h2>
               <div class="dash-card-subtitle">Schedule C style (Tax) + Books totals</div>
             </div>
-            <a class="small text-decoration-none" href="{% url 'reports:schedule_c' %}?year={{ selected_year }}&mode={{ mode }}">
-              Open <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            <a class="small text-decoration-none text-primary-brand" href="{% url 'reports:schedule_c' %}?year={{ selected_year }}&mode={{ mode }}">
+              Open <i class="fa-solid fa-arrow-right-long ms-1 text-primary-brand"></i>
             </a>
           </div>
-
           <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'reports:schedule_c' %}?year={{ selected_year }}&mode={{ mode }}">
               <i class="fa-solid fa-file-invoice"></i> Expenses
@@ -136,30 +129,26 @@
               <i class="fa-solid fa-download me-1"></i> Download
             </a>
           </div>
-
           <div class="tip-card mt-3 small">
             Mode: <strong>{{ mode|capfirst }}</strong>. Switch Tax/Books at the top of this page.
           </div>
-
         </div>
       </div>
     </div>
 
     <!-- Mileage / Vehicles -->
-    <div class="col-12">
-      <div class="card h-100">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100 report-card report-accent-warning">
         <div class="card-body p-3 p-md-4">
-
           <div class="dash-card-head">
             <div>
-              <h2 class="h6 dash-card-title mb-0">Vehicle &amp; Mileage</h2>
+              <h2 class="h6 dash-card-title mb-0 text-warning-brand">Vehicle &amp; Mileage</h2>
               <div class="dash-card-subtitle">Mileage logs and yearly totals</div>
             </div>
-            <a class="small text-decoration-none" href="{% url 'vehicles:home' %}">
-              Vehicles <i class="fa-solid fa-arrow-right-long ms-1"></i>
+            <a class="small text-decoration-none text-warning-brand" href="{% url 'vehicles:home' %}">
+              Vehicles <i class="fa-solid fa-arrow-right-long ms-1 text-warning-brand"></i>
             </a>
           </div>
-
           <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'vehicles:vehicle_miles_list' %}?year={{ selected_year }}">
               <i class="fa-solid fa-route"></i> Mileage Log
@@ -171,34 +160,31 @@
               <i class="fa-solid fa-chart-pie"></i> Yearly Mileage
             </a>
           </div>
-
           <div class="text-muted small mt-3">
             Tip: Link mileage to a Job (and optionally an Invoice) to keep business purpose clear.
           </div>
-
         </div>
       </div>
     </div>
 
-  </div>
-
-  {% if request.business|has_feature:"TRAVEL_EXPENSE_REPORT" %}
-
-      <!-- Custom Reports-->
+    <!-- Custom Reports-->
+    {% if request.business|has_feature:"TRAVEL_EXPENSE_REPORT" %}
     <div class="col-12 col-lg-6">
-      <div class="card h-100 table-head-accent table-head-accent-warning">
+      <div class="card h-100 report-card report-accent-success">
         <div class="card-body p-3 p-md-4">
-
           <div class="dash-card-head">
-            <div>
-              <h2 class="h6 dash-card-title mb-0">Travel Expense Summary</h2>
-              <div class="dash-card-subtitle">Review travel expenses for each invoice.</div>
+              <div>
+                <h2 class="h6 dash-card-title mb-0 text-success-brand">Travel Expense Summary</h2>
+                <div class="dash-card-subtitle">Review travel expenses for each invoice.</div>
+              </div>
+              <a class="small text-decoration-none text-success-brand" href="{% url 'reports:travel_expense_summary' %}"?year={{ selected_year }}">
+                Open <i class="fa-solid fa-arrow-right-long ms-1 text-success-brand"></i> 
+              </a>
             </div>
-            <a class="small text-decoration-none" href="{% url 'reports:travel_expense_summary' %}"?year={{ selected_year }}">
-              Open<i class="fa-solid fa-arrow-right-long ms-1"></i>
-            </a>
           </div>
-{% endif %}
-
+        </div>
+      </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
