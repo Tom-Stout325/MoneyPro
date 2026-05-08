@@ -27,5 +27,7 @@ urlpatterns = [
     path("tax-packet/pdf/preview/", views.tax_packet_pdf_preview, name="tax_packet_pdf_preview"),
     path("tax-packet/pdf/download/", views.tax_packet_pdf_download, name="tax_packet_pdf_download"),
     
+    # Custom reports
     path("travel-expense-summary/", TravelExpenseSummaryView.as_view(), name="travel_expense_summary",),
+    path("travel-expenses/pdf/", TravelExpenseSummaryPDFView.as_view(),name="travel_expense_summary_pdf",),
 ]

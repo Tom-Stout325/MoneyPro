@@ -15,14 +15,14 @@ from .pdf import render_pdf_from_template
 from .schedule_c import build_schedule_c_lines, build_schedule_c_yoy
 from .profit_loss import build_profit_loss_single, build_profit_loss_yoy
 from .tax_packet import TaxPacketOptions, build_tax_packet_context, is_truthy, selected_year as selected_tax_packet_year
-
 from django.views.generic import TemplateView
-
+from django.template.loader import render_to_string
 from core.feature_mixins import FeatureRequiredMixin
 
 from invoices.models import Invoice
 from ledger.models import Transaction
 
+from weasyprint import HTML
     
     
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
@@ -604,3 +604,41 @@ class TravelExpenseSummaryView(
         })
 
         return ctx
+    
+    
+class TravelExpenseSummaryPDFView(TravelExpenseSummaryView):
+    template_name = "reports/pdf/travel_expense_summary_pdf.html"
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+
+        html = render_to_string(
+            self.template_name,
+            context,
+            request=request,
+        )
+
+        pdf = HTML(
+            string=html,
+            base_url=request.build_absolute_uri("/"),
+        ).write_pdf()
+
+        year = context["selected_year"]
+
+        preview = request.GET.get("preview")
+
+        response = HttpResponse(
+            pdf,
+            content_type="application/pdf",
+        )
+
+        if preview:
+            response["Content-Disposition"] = (
+                f'inline; filename="travel-expenses-{year}.pdf"'
+            )
+        else:
+            response["Content-Disposition"] = (
+                f'attachment; filename="travel-expenses-{year}.pdf"'
+            )
+
+        return response
