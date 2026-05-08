@@ -16,13 +16,11 @@ from .schedule_c import build_schedule_c_lines, build_schedule_c_yoy
 from .profit_loss import build_profit_loss_single, build_profit_loss_yoy
 from .tax_packet import TaxPacketOptions, build_tax_packet_context, is_truthy, selected_year as selected_tax_packet_year
 from django.views.generic import TemplateView
-from django.template.loader import render_to_string
 from core.feature_mixins import FeatureRequiredMixin
 
 from invoices.models import Invoice
 from ledger.models import Transaction
 
-from weasyprint import HTML
     
     
 class ReportsHomeView(LoginRequiredMixin, TemplateView):
@@ -595,7 +593,13 @@ class TravelExpenseSummaryView(
             for key in totals.keys()
         }
 
+        company_profile = getattr(business, "company_profile", None) if business else None
+        company_name = getattr(company_profile, "company_name", None) or getattr(business, "name", "") or "MoneyPro"
+
         ctx.update({
+            "business": business,
+            "company_profile": company_profile,
+            "company_name": company_name,
             "selected_year": selected_year,
             "years": years,
             "rows": rows,
@@ -611,34 +615,14 @@ class TravelExpenseSummaryPDFView(TravelExpenseSummaryView):
 
     def get(self, request, *args, **kwargs):
         context = self.get_context_data(**kwargs)
-
-        html = render_to_string(
-            self.template_name,
-            context,
-            request=request,
-        )
-
-        pdf = HTML(
-            string=html,
-            base_url=request.build_absolute_uri("/"),
-        ).write_pdf()
-
         year = context["selected_year"]
+        download = not bool(request.GET.get("preview"))
 
-        preview = request.GET.get("preview")
-
-        response = HttpResponse(
-            pdf,
-            content_type="application/pdf",
+        result = render_pdf_from_template(
+            request=request,
+            template_name=self.template_name,
+            context=context,
+            filename=f"travel-expenses-{year}.pdf",
+            download=download,
         )
-
-        if preview:
-            response["Content-Disposition"] = (
-                f'inline; filename="travel-expenses-{year}.pdf"'
-            )
-        else:
-            response["Content-Disposition"] = (
-                f'attachment; filename="travel-expenses-{year}.pdf"'
-            )
-
-        return response
+        return result.response
