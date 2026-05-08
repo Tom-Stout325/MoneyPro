@@ -387,8 +387,6 @@ SHORT_DATETIME_FORMAT = "m-d-Y P"
 
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 
-
-
 BUSINESS_EMAIL_PLATFORM_DOMAIN = env("BUSINESS_EMAIL_PLATFORM_DOMAIN", default="moneypro.12bytes.net")
 BUSINESS_EMAIL_LOCALPART = env("BUSINESS_EMAIL_LOCALPART", default="noreply")
 
